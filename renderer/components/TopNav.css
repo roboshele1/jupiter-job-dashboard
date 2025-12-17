@@ -1,0 +1,40 @@
+.top-nav {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  padding: 16px 32px;
+  background: linear-gradient(180deg, #050b1e 0%, #030814 100%);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.brand {
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  color: #ffffff;
+}
+
+.tabs {
+  display: flex;
+  gap: 14px;
+}
+
+.tab {
+  padding: 8px 14px;
+  border-radius: 999px;
+  text-decoration: none;
+  font-size: 14px;
+  color: rgba(255, 255, 255, 0.75);
+  transition: all 0.2s ease;
+}
+
+.tab:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: #ffffff;
+}
+
+.tab.active {
+  background: rgba(255, 255, 255, 0.12);
+  color: #ffffff;
+}
+

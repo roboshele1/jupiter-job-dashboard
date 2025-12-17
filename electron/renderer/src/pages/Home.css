@@ -1,0 +1,92 @@
+.home {
+  background-color: #0b1e3d; /* midnight blue base */
+  color: #ffffff;
+  padding: 2rem;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+.total-portfolio {
+  text-align: center;
+  background-color: #0f2b55;
+  padding: 2rem;
+  border-radius: 12px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+  margin-bottom: 2rem;
+}
+
+.total-portfolio h1 {
+  font-size: 2.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.total-portfolio .total-value {
+  font-size: 3rem;
+  font-weight: bold;
+  color: #7fff7f;
+}
+
+.total-portfolio .total-change {
+  font-size: 1.2rem;
+  margin-top: 0.5rem;
+  font-weight: 600;
+}
+
+.ticker-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 1rem;
+  margin-top: 2rem;
+}
+
+.ticker-card {
+  background-color: #142a5c;
+  color: #fff;
+  padding: 1rem;
+  border-radius: 12px;
+  text-align: center;
+  box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.ticker-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 6px 12px rgba(0,0,0,0.7);
+}
+
+.ticker-symbol {
+  font-weight: bold;
+  font-size: 1.2rem;
+  margin-bottom: 0.3rem;
+}
+
+.ticker-price {
+  font-size: 1.2rem;
+  margin-bottom: 0.2rem;
+}
+
+.ticker-change {
+  font-weight: bold;
+  margin-bottom: 0.2rem;
+}
+
+.ticker-change.up {
+  color: #7fff7f;
+}
+
+.ticker-change.down {
+  color: #ff7f7f;
+}
+
+.ticker-pl {
+  font-size: 0.9rem;
+  color: #cccccc;
+  margin-bottom: 0.5rem;
+}
+
+.sparkline-container {
+  margin-top: 0.5rem;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+

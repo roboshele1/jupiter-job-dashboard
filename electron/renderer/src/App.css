@@ -1,0 +1,49 @@
+/* ===== Global App Frame ===== */
+
+.app-container {
+  min-height: 100vh;
+  background: #0b0c0f;
+  color: #e5e7eb;
+  font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont,
+    "Segoe UI", Roboto, sans-serif;
+}
+
+/* ===== Header ===== */
+
+.app-header {
+  padding: 28px 0 12px;
+  display: flex;
+  justify-content: center;
+}
+
+.app-title {
+  font-size: 28px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  color: #ffffff;
+}
+
+/* ===== Main Layout ===== */
+
+.app-main {
+  max-width: 980px;
+  margin: 0 auto;
+  padding: 24px 20px 60px;
+  display: flex;
+  flex-direction: column;
+  gap: 36px;
+}
+
+/* ===== Sections ===== */
+
+.engine-section {
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+}
+
+.chat-section {
+  display: flex;
+  justify-content: center;
+}
+

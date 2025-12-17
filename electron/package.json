@@ -1,0 +1,76 @@
+{
+  "name": "jupiter",
+  "productName": "Jupiter",
+  "version": "1.0.0",
+  "description": "Jupiter — Personal Financial Intelligence Platform",
+  "main": "main.js",
+  "author": "Jupiter",
+  "license": "MIT",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "start": "npm-run-all --parallel dev electron",
+    "electron": "electron .",
+    "pack": "electron-builder --dir",
+    "dist": "electron-builder"
+  },
+  "build": {
+    "appId": "com.jupiter.desktop",
+    "productName": "Jupiter",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "renderer/dist/**/*",
+      "engine/**/*",
+      "package.json"
+    ],
+    "mac": {
+      "category": "public.app-category.finance",
+      "target": [
+        "dmg"
+      ],
+      "icon": "build/icon.icns"
+    },
+    "dmg": {
+      "backgroundColor": "#0b0c0f",
+      "window": {
+        "width": 540,
+        "height": 380
+      },
+      "contents": [
+        {
+          "x": 130,
+          "y": 220
+        },
+        {
+          "x": 410,
+          "y": 220,
+          "type": "link",
+          "path": "/Applications"
+        }
+      ]
+    }
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^5.1.1",
+    "electron": "^39.2.7",
+    "electron-builder": "^24.13.3",
+    "npm-run-all": "^4.1.5",
+    "vite": "^7.2.6"
+  },
+  "dependencies": {
+    "axios": "^1.13.2",
+    "cors": "^2.8.5",
+    "dotenv": "^17.2.3",
+    "express": "^5.2.1",
+    "node-fetch": "^3.3.2",
+    "react": "^19.2.1",
+    "react-dom": "^19.2.1",
+    "react-router-dom": "^7.10.1",
+    "react-sparklines": "^1.7.0",
+    "zustand": "^5.0.9"
+  }
+}

@@ -1,0 +1,31 @@
+.alert-panel {
+  background: #ffffff10;
+  padding: 16px;
+  border-radius: 10px;
+  margin-top: 20px;
+  border: 1px solid #444;
+}
+
+.alert-list {
+  list-style: none;
+  padding: 0;
+}
+
+.alert-item {
+  background: #222;
+  padding: 10px;
+  margin-bottom: 8px;
+  border-radius: 6px;
+  display: flex;
+  justify-content: space-between;
+}
+
+.alert-message {
+  font-size: 14px;
+}
+
+.alert-time {
+  font-size: 12px;
+  opacity: 0.7;
+}
+
