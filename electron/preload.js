@@ -1,16 +1,8 @@
-import { contextBridge, ipcRenderer } from 'electron';
+const { contextBridge, ipcRenderer } = require("electron");
 
-/**
- * Hardened IPC bridge
- * Exposed safely to renderer
- */
-contextBridge.exposeInMainWorld('price', {
-  getLive: async () => {
-    try {
-      return await ipcRenderer.invoke('price:getLive');
-    } catch (err) {
-      return { ok: false, data: {} };
-    }
+contextBridge.exposeInMainWorld("prices", {
+  getSnapshot: async () => {
+    return await ipcRenderer.invoke("prices:getSnapshot");
   }
 });
 
