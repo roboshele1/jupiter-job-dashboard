@@ -1,38 +1,38 @@
-import { HashRouter, Routes, Route, Link } from "react-router-dom";
-import Dashboard from "./pages/Dashboard.jsx";
-import Portfolio from "./pages/Portfolio.jsx";
-import Signals from "./pages/Signals.jsx";
-import MarketMonitor from "./pages/MarketMonitor.jsx";
-import DiscoveryLab from "./pages/DiscoveryLab.jsx";
-import GrowthEngine from "./pages/GrowthEngine.jsx";
-import Insights from "./pages/Insights.jsx";
-import RiskLab from "./pages/RiskLab.jsx";
+import React from "react";
+import { BrowserRouter, Routes, Route } from "react-router-dom";
+
+import Sidebar from "./components/Sidebar";
+
+import Dashboard from "./pages/Dashboard";
+import Portfolio from "./pages/Portfolio";
+import Signals from "./pages/Signals";
+import DiscoveryLab from "./pages/DiscoveryLab";
+import GrowthEngine from "./pages/GrowthEngine";
+import Insights from "./pages/Insights";
+import Risk from "./pages/Risk";
+import Chat from "./pages/Chat";
+import MarketMonitor from "./pages/MarketMonitor";
 
 export default function App() {
   return (
-    <HashRouter>
-      <nav style={{ padding: "12px", fontSize: "16px" }}>
-        <Link to="/">Dashboard</Link>{" "}
-        <Link to="/portfolio">Portfolio</Link>{" "}
-        <Link to="/signals">Signals</Link>{" "}
-        <Link to="/market">Market Monitor</Link>{" "}
-        <Link to="/discovery">Discovery Lab</Link>{" "}
-        <Link to="/growth">Growth Engine</Link>{" "}
-        <Link to="/insights">Insights</Link>{" "}
-        <Link to="/risk">Risk Lab</Link>
-      </nav>
-
-      <Routes>
-        <Route path="/" element={<Dashboard />} />
-        <Route path="/portfolio" element={<Portfolio />} />
-        <Route path="/signals" element={<Signals />} />
-        <Route path="/market" element={<MarketMonitor />} />
-        <Route path="/discovery" element={<DiscoveryLab />} />
-        <Route path="/growth" element={<GrowthEngine />} />
-        <Route path="/insights" element={<Insights />} />
-        <Route path="/risk" element={<RiskLab />} />
-      </Routes>
-    </HashRouter>
+    <BrowserRouter>
+      <div style={{ display: "flex", height: "100vh" }}>
+        <Sidebar />
+        <main style={{ flex: 1, padding: "32px" }}>
+          <Routes>
+            <Route path="/" element={<Dashboard />} />
+            <Route path="/portfolio" element={<Portfolio />} />
+            <Route path="/signals" element={<Signals />} />
+            <Route path="/discovery" element={<DiscoveryLab />} />
+            <Route path="/growth" element={<GrowthEngine />} />
+            <Route path="/insights" element={<Insights />} />
+            <Route path="/risk" element={<Risk />} />
+            <Route path="/market-monitor" element={<MarketMonitor />} />
+            <Route path="/chat" element={<Chat />} />
+          </Routes>
+        </main>
+      </div>
+    </BrowserRouter>
   );
 }
 

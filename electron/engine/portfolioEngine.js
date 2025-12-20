@@ -1,57 +1,82 @@
-// ~/JUPITER/electron/engine/portfolioEngine.js
+/**
+ * JUPITER — Portfolio Engine (V1 Canonical)
+ * Authoritative snapshot + allocation normalization
+ * SAFE main-process loading (no crash on renderer reloads)
+ */
 
-/*
-Phase 3A — Intelligence Depth
-Portfolio Intelligence Engine
+const holdings = require("../../engine/data/holdings");
+const priceService = require("./priceService");
 
-Purpose:
-- Aggregate portfolio-wide intelligence
-- Detect dominance, imbalance, and opportunity concentration
-- Feed Home/Dashboard synthesis later
-*/
-
-export function analyzePortfolio(holdings = []) {
-  if (!holdings.length) {
+// ⚠️ IMPORTANT:
+// signalRegistry is intentionally loaded lazily to avoid
+// Electron main-process re-evaluation crashes on hot reloads.
+function safeLoadSignalRegistry() {
+  try {
+    return require("./signalRegistry");
+  } catch (err) {
+    console.warn("[JUPITER] signalRegistry not available yet — continuing safely");
     return {
-      totalValue: 0,
-      concentrationFlag: false,
-      dominantSymbol: null,
-      notes: ["Portfolio is empty."]
+      resolveSignals: () => [],
     };
   }
+}
 
-  const totalValue = holdings.reduce((sum, h) => sum + h.value, 0);
+async function getPortfolioSnapshot() {
+  const prices = await priceService.getPrices();
+  const { resolveSignals } = safeLoadSignalRegistry();
 
-  let dominant = null;
-  let maxAlloc = 0;
+  const positions = [];
+  let totalValue = 0;
+  let equityValue = 0;
+  let cryptoValue = 0;
 
-  holdings.forEach(h => {
-    const alloc = h.value / totalValue;
-    if (alloc > maxAlloc) {
-      maxAlloc = alloc;
-      dominant = h.symbol;
-    }
-  });
+  for (const h of holdings) {
+    const price = prices[h.symbol];
+    if (!price) continue;
 
-  const notes = [];
+    const marketValue = h.qty * price;
+    const isCrypto = h.symbol === "BTC" || h.symbol === "ETH";
 
-  if (maxAlloc > 0.45) {
-    notes.push(
-      `High concentration detected: ${dominant} represents ${(maxAlloc * 100).toFixed(
-        2
-      )}% of portfolio value.`
-    );
+    totalValue += marketValue;
+    if (isCrypto) cryptoValue += marketValue;
+    else equityValue += marketValue;
+
+    positions.push({
+      symbol: h.symbol,
+      qty: h.qty,
+      price,
+      marketValue,
+      assetClass: isCrypto ? "crypto" : "equity",
+    });
   }
 
-  if (maxAlloc < 0.2) {
-    notes.push("Portfolio is well diversified with no dominant exposure.");
+  // 🔒 NORMALIZED ALLOCATION — TOTAL PORTFOLIO DENOMINATOR
+  for (const p of positions) {
+    p.allocationPct =
+      totalValue > 0
+        ? Number(((p.marketValue / totalValue) * 100).toFixed(2))
+        : 0;
   }
+
+  const signals = resolveSignals(
+    totalValue > 0 && equityValue / totalValue > 0.6
+      ? ["TOP_3_OVER_60"]
+      : []
+  );
 
   return {
-    totalValue,
-    concentrationFlag: maxAlloc > 0.45,
-    dominantSymbol: dominant,
-    notes
+    contract: "JUPITER_PORTFOLIO_SNAPSHOT_V1_STABLE",
+    timestamp: Date.now(),
+    currency: "USD",
+    totalValue: Number(totalValue.toFixed(2)),
+    equityValue: Number(equityValue.toFixed(2)),
+    cryptoValue: Number(cryptoValue.toFixed(2)),
+    equityPct: totalValue ? Number((equityValue / totalValue).toFixed(2)) : 0,
+    cryptoPct: totalValue ? Number((cryptoValue / totalValue).toFixed(2)) : 0,
+    positions,
+    signals,
   };
 }
+
+module.exports = { getPortfolioSnapshot };
 

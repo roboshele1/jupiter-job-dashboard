@@ -1,20 +1,25 @@
-// engine/refreshOrchestrator.js
+const { portfolioEngine, learningRegistry } = require("./index");
+const { extractFeatures } = require("./features/featureExtractor");
 
-const { getCryptoSnapshot } = require("./cryptoEngine");
-const { calculatePortfolioSnapshot } = require("./portfolioMathEngine");
+function refreshAll() {
+  const snapshot = portfolioEngine.getSnapshot();
 
-async function orchestrateRefresh() {
-  const cryptoAssets = await getCryptoSnapshot();
+  learningRegistry.recordEvent({
+    type: "PORTFOLIO_SNAPSHOT",
+    payload: snapshot
+  });
 
-  const portfolio = calculatePortfolioSnapshot(cryptoAssets);
+  const features = extractFeatures(snapshot);
 
-  return {
-    state: "ok",
-    portfolio,
-  };
+  if (features) {
+    learningRegistry.recordEvent({
+      type: "FEATURE_VECTOR",
+      payload: features
+    });
+  }
+
+  return snapshot;
 }
 
-module.exports = {
-  orchestrateRefresh,
-};
+module.exports = { refreshAll };
 

@@ -1,48 +1,37 @@
+// renderer/pages/Home.jsx
+
 import React from "react";
+import { computePortfolioTotals } from "../services/portfolioEngine";
 
-export default function Home() {
+export default function Home({ holdings }) {
+  const totals = computePortfolioTotals(holdings);
+
   return (
-    <div style={styles.container}>
-      <h1 style={styles.title}>JUPITER — System Health</h1>
+    <div>
+      <h1>Dashboard</h1>
 
-      <section style={styles.card}>
-        <h2>Engine Status</h2>
-        <p>✔ Renderer connected</p>
-        <p>✔ Engine responding</p>
-        <p>✔ Live data pipeline active</p>
-      </section>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16 }}>
+        <div>
+          <h3>Total Portfolio Value</h3>
+          <div>${totals.totalValue.toFixed(2)}</div>
+        </div>
 
-      <section style={styles.card}>
-        <h2>Navigation Spine</h2>
-        <p>✔ Top navigation mounted</p>
-        <p>✔ Persistent layout confirmed</p>
-        <p>✔ Module shells ready</p>
-      </section>
+        <div>
+          <h3>Daily P/L</h3>
+          <div
+            style={{ color: totals.totalPL >= 0 ? "#4CAF50" : "#F44336" }}
+          >
+            {totals.totalPL >= 0 ? "+" : "-"}$
+            {Math.abs(totals.totalPL).toFixed(2)}
+          </div>
+        </div>
 
-      <section style={styles.card}>
-        <h2>System Mode</h2>
-        <p>Operational — awaiting module wiring</p>
-      </section>
+        <div>
+          <h3>P/L %</h3>
+          <div>{totals.totalPLPct.toFixed(2)}%</div>
+        </div>
+      </div>
     </div>
   );
 }
-
-const styles = {
-  container: {
-    minHeight: "100vh",
-    padding: "32px",
-    background: "#020617",
-    color: "#ffffff",
-    fontFamily: "Inter, system-ui, sans-serif"
-  },
-  title: {
-    marginBottom: "24px"
-  },
-  card: {
-    background: "rgba(255,255,255,0.05)",
-    padding: "20px",
-    borderRadius: "14px",
-    marginBottom: "20px"
-  }
-};
 

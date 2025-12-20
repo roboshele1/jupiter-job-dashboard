@@ -1,16 +1,13 @@
 import React from "react";
-import ReactDOM from "react-dom/client";
-
+import { createRoot } from "react-dom/client";
 import App from "./App";
-import NavigationShell from "./layout/NavigationShell";
 
-const root = ReactDOM.createRoot(document.getElementById("root"));
+const container = document.getElementById("root");
 
-root.render(
-  <React.StrictMode>
-    <NavigationShell>
-      <App />
-    </NavigationShell>
-  </React.StrictMode>
-);
+if (!container) {
+  throw new Error("Root container missing");
+}
+
+const root = createRoot(container);
+root.render(<App />);
 

@@ -1,30 +1,38 @@
 import React, { useEffect, useState } from "react";
-import TickerGrid from "../components/TickerGrid";
-import { fetchLastQuote } from "../../../api/marketDataServiceNew";
-
-const POLYGON_API_KEY = import.meta.env.VITE_POLYGON_API_KEY || "";
 
 export default function Home() {
-    const [portfolio, setPortfolio] = useState([
-        { symbol: "AAPL", price: 0, dailyChange: 0, PL: 0 },
-        { symbol: "MSFT", price: 0, dailyChange: 0, PL: 0 },
-        { symbol: "NVDA", price: 0, dailyChange: 0, PL: 0 },
-        { symbol: "AMZN", price: 0, dailyChange: 0, PL: 0 },
-    ]);
+  const [snapshot, setSnapshot] = useState(null);
 
-    useEffect(() => {
-        async function updateQuotes() {
-            const updated = await Promise.all(
-                portfolio.map(async (stock) => {
-                    const quote = await fetchLastQuote(stock.symbol, POLYGON_API_KEY);
-                    return { ...stock, price: quote.price, dailyChange: quote.change, PL: quote.PL };
-                })
-            );
-            setPortfolio(updated);
-        }
-        updateQuotes();
-    }, []);
+  useEffect(() => {
+    if (window.api?.getPortfolioSnapshot) {
+      window.api.getPortfolioSnapshot().then(setSnapshot);
+    }
+  }, []);
 
-    return <TickerGrid portfolio={portfolio} />;
+  if (!snapshot) {
+    return <div>Loading dashboard…</div>;
+  }
+
+  return (
+    <div>
+      <h2>Portfolio Overview</h2>
+
+      <div style={{ marginTop: 12 }}>
+        <strong>Total Value:</strong>{" "}
+        {snapshot.totalValue?.toLocaleString()}
+      </div>
+
+      <div style={{ marginTop: 24 }}>
+        <h3>Top Holdings</h3>
+        <ul>
+          {snapshot.positions.map((p) => (
+            <li key={p.symbol}>
+              {p.symbol} — {p.qty} @ {p.price}
+            </li>
+          ))}
+        </ul>
+      </div>
+    </div>
+  );
 }
 

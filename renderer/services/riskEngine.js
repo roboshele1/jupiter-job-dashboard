@@ -1,55 +1,32 @@
-/**
- * Risk Engine
- * Computes drawdown, stress, and risk classification
- */
+// V1 RISK ENGINE — READ ONLY
+// Deterministic, snapshot-based
 
-export function computeRisk(portfolio) {
-  const risks = [];
-
-  // --- Drawdown Simulation ---
-  const drawdownScenarios = {
-    mild: portfolio.totalMarketValue * 0.9,
-    moderate: portfolio.totalMarketValue * 0.75,
-    severe: portfolio.totalMarketValue * 0.6
-  };
-
-  // --- Concentration Risk ---
-  if (portfolio.concentration.top1 >= 60) {
-    risks.push({
-      type: "concentration",
-      severity: "high",
-      message: "Single-position concentration increases drawdown risk."
-    });
+export function getRiskSnapshot(portfolio) {
+  if (!portfolio || !portfolio.holdings) {
+    return {
+      concentration: {
+        topHolding: null,
+        top1Pct: 0,
+        top3Pct: 0,
+        top5Pct: 0,
+      },
+    };
   }
 
-  // --- Exposure Risk ---
-  if (portfolio.exposure.crypto >= 65) {
-    risks.push({
-      type: "volatility",
-      severity: "medium",
-      message: "High crypto exposure increases volatility risk."
-    });
-  }
+  const sorted = [...portfolio.holdings].sort(
+    (a, b) => b.allocationPct - a.allocationPct
+  );
 
-  // --- Risk Score (0–100) ---
-  let riskScore = 50;
-
-  if (portfolio.concentration.top1 > 60) riskScore += 15;
-  if (portfolio.exposure.crypto > 70) riskScore += 15;
-  if (portfolio.totalPnLPct > 30) riskScore += 5; // profit-at-risk
-
-  riskScore = Math.max(0, Math.min(100, riskScore));
-
-  // --- Risk Level ---
-  let riskLevel = "Moderate";
-  if (riskScore >= 70) riskLevel = "High";
-  if (riskScore <= 30) riskLevel = "Low";
+  const sumPct = (n) =>
+    sorted.slice(0, n).reduce((acc, h) => acc + h.allocationPct, 0);
 
   return {
-    risks,
-    riskScore,
-    riskLevel,
-    drawdownScenarios
+    concentration: {
+      topHolding: sorted[0] || null,
+      top1Pct: Number(sumPct(1).toFixed(2)),
+      top3Pct: Number(sumPct(3).toFixed(2)),
+      top5Pct: Number(sumPct(5).toFixed(2)),
+    },
   };
 }
 

@@ -1,70 +1,27 @@
-// JUPITER Portfolio Engine — v1 CANONICAL
-// SINGLE snapshot producer (NON-NEGOTIABLE)
+// portfolioEngine.js
+// V1 institutional portfolio engine (read-only)
 
-const { v4: uuidv4 } = require("uuid");
-const { getHoldings } = require("./holdingsStore");
-const { resolvePrices } = require("./priceResolver");
+export function buildPortfolioSnapshot(holdings = []) {
+  if (!Array.isArray(holdings)) holdings = [];
 
-function getPortfolioSnapshot() {
-  const holdings = getHoldings();
-  const prices = resolvePrices(holdings);
+  const enriched = holdings.map(h => ({
+    ...h,
+    quantity: Number(h.quantity) || 0,
+    price: Number(h.price) || 0,
+    value: (Number(h.quantity) || 0) * (Number(h.price) || 0)
+  }));
 
-  let investedValue = 0;
+  const totalValue = enriched.reduce((sum, h) => sum + h.value, 0);
 
-  const positions = holdings.map(h => {
-    const price = prices[h.assetId] ?? 0;
-    const marketValue = h.quantity * price;
-    investedValue += marketValue;
-
-    return {
-      assetId: h.assetId,
-      assetType: h.assetType,
-      quantity: h.quantity,
-      price,
-      marketValue,
-      allocationPct: 0
-    };
-  });
-
-  const portfolioValue = investedValue;
-
-  positions.forEach(p => {
-    p.allocationPct =
-      portfolioValue > 0
-        ? +(p.marketValue / portfolioValue * 100).toFixed(2)
-        : 0;
-  });
+  const topHoldings = [...enriched]
+    .sort((a, b) => b.value - a.value)
+    .slice(0, 5);
 
   return {
-    meta: {
-      snapshotId: uuidv4(),
-      version: "v1",
-      generatedAt: new Date().toISOString(),
-      source: "portfolio-engine"
-    },
-    totals: {
-      portfolioValue,
-      cashValue: 0,
-      investedValue
-    },
-    positions,
-    performance: {
-      unrealizedPL: 0,
-      unrealizedPLPct: 0,
-      realizedPL: null
-    },
-    risk: {
-      concentrationTopAssetPct: Math.max(...positions.map(p => p.allocationPct), 0),
-      assetCount: positions.length
-    },
-    health: {
-      isComplete: true,
-      warnings: []
-    }
+    holdings: enriched,
+    totalValue,
+    topHoldings,
+    timestamp: new Date().toISOString()
   };
 }
-
-module.exports = {
-  getPortfolioSnapshot
-};
 

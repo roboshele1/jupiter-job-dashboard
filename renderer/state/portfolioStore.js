@@ -1,43 +1,22 @@
 import { create } from "zustand";
+import { getPortfolioSnapshot } from "../services/portfolioEngine";
 
-export const usePortfolioStore = create((set) => ({
-  portfolio: [],
-  totals: {
-    totalValue: 0,
-    dailyPL: 0,
-    dailyPLPct: 0,
-  },
-  status: "IDLE",
+export const usePortfolioStore = create((set, get) => ({
+  snapshot: null,
+  loading: false,
+  error: null,
 
-  hydrateFromEngine: async () => {
+  hydrate: async () => {
+    if (get().loading) return;
+
+    set({ loading: true, error: null });
+
     try {
-      set({ status: "LOADING" });
-
-      if (!window?.api?.getPortfolio) {
-        set({ status: "NO_ENGINE" });
-        return;
-      }
-
-      const data = await window.api.getPortfolio();
-
-      const totalValue = data.reduce(
-        (sum, p) => sum + Number(p.value || 0),
-        0
-      );
-
-      set({
-        portfolio: data,
-        totals: {
-          totalValue,
-          dailyPL: 0,
-          dailyPLPct: 0,
-        },
-        status: "READY",
-      });
+      const snapshot = await getPortfolioSnapshot();
+      set({ snapshot, loading: false });
     } catch (err) {
-      console.error("Portfolio hydration failed:", err);
-      set({ status: "ERROR" });
+      set({ error: err.message, loading: false });
     }
-  },
+  }
 }));
 

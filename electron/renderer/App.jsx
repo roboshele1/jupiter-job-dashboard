@@ -1,47 +1,20 @@
-import React from "react";
-
-import Home from "./pages/Home";
+import React, { useState } from "react";
+import Dashboard from "./pages/Dashboard";
 import Portfolio from "./pages/Portfolio";
-import Signals from "./pages/Signals";
-import Discovery from "./pages/Discovery";
-import Growth from "./pages/Growth";
-import Insights from "./pages/Insights";
-import Risk from "./pages/Risk";
-import Chat from "./pages/Chat";
 
-/**
- * JUPITER — App Router (AUTHORITATIVE)
- * Purpose: Bind activeTab → Page Mount
- */
+export default function App() {
+  const [tab, setTab] = useState("dashboard");
 
-export default function App({ activeTab }) {
-  switch (activeTab) {
-    case "dashboard":
-      return <Home />;
+  return (
+    <div style={{ padding: "20px" }}>
+      <nav style={{ marginBottom: "20px" }}>
+        <button onClick={() => setTab("dashboard")}>Dashboard</button>
+        <button onClick={() => setTab("portfolio")}>Portfolio</button>
+      </nav>
 
-    case "portfolio":
-      return <Portfolio />;
-
-    case "signals":
-      return <Signals />;
-
-    case "discovery":
-      return <Discovery />;
-
-    case "growth":
-      return <Growth />;
-
-    case "insights":
-      return <Insights />;
-
-    case "risk":
-      return <Risk />;
-
-    case "chat":
-      return <Chat />;
-
-    default:
-      return <Home />;
-  }
+      {tab === "dashboard" && <Dashboard />}
+      {tab === "portfolio" && <Portfolio />}
+    </div>
+  );
 }
 

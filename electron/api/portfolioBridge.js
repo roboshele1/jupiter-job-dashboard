@@ -1,15 +1,3 @@
-// electron/api/portfolioBridge.js
-
-const { ipcMain } = require('electron');
-const portfolioEngine = require('../../engine/portfolioEngine');
-
-function registerPortfolioIPC() {
-  ipcMain.handle('portfolio:getSnapshot', async () => {
-    return portfolioEngine.getPortfolioSnapshot();
-  });
-}
-
-module.exports = {
-  registerPortfolioIPC
-};
+// DEPRECATED — Portfolio snapshot authority moved to:
+// electron/ipc/portfolioIpc.js
 

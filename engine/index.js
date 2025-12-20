@@ -1,7 +1,10 @@
-// engine/index.js
-const { getPortfolioSnapshot } = require("./portfolioEngine");
+const portfolioEngine = require("./portfolioEngine");
+const riskEngine = require("./riskEngine");
+const learningRegistry = require("./learning/learningRegistry");
 
 module.exports = {
-  getPortfolioSnapshot
+  portfolioEngine,
+  riskEngine,
+  learningRegistry
 };
 

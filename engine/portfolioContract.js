@@ -1,58 +1,18 @@
 /**
- * JUPITER v1 — Canonical Portfolio Contract
- * This file defines the single authoritative shape
- * of portfolio data consumed by ALL engines and ALL UIs.
- * No UI or alert may compute its own numbers.
+ * CANONICAL PORTFOLIO SNAPSHOT CONTRACT (FROZEN FOR v1)
+ * This is the ONLY shape the UI is allowed to consume.
  */
 
+function createEmptySnapshot(source = "engine") {
+  return {
+    timestamp: Date.now(),
+    source,
+    totalValue: 0,
+    positions: [] // [{ symbol, quantity, price, value }]
+  };
+}
+
 module.exports = {
-  snapshotVersion: "v1",
-
-  /**
-   * Canonical Portfolio Snapshot
-   */
-  snapshot: {
-    meta: {
-      asOf: "number",              // timestamp (ms)
-      source: "engine",             // constant
-      refreshCycle: "deterministic" // declarative
-    },
-
-    positions: [
-      {
-        symbol: "string",
-        assetClass: "CRYPTO | EQUITY",
-        quantity: "number",
-        price: "number",
-        marketValue: "number",
-        costBasis: "number",
-        unrealizedPnL: "number",
-        unrealizedPnLPct: "number"
-      }
-    ],
-
-    totals: {
-      totalValue: "number",
-      cryptoValue: "number",
-      equitiesValue: "number",
-
-      totalUnrealizedPnL: "number",
-      totalUnrealizedPnLPct: "number"
-    },
-
-    allocation: {
-      bands: [
-        {
-          assetClass: "CRYPTO | EQUITY",
-          currentPct: "number",
-          targetPct: "number",
-          minPct: "number",
-          maxPct: "number",
-          status: "UNDER | IN_BAND | OVER",
-          deltaPct: "number"
-        }
-      ]
-    }
-  }
+  createEmptySnapshot
 };
 

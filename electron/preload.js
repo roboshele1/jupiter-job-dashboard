@@ -1,16 +1,16 @@
-const { contextBridge, ipcRenderer } = require("electron");
+import { contextBridge, ipcRenderer } from 'electron';
 
 /**
- * Preload Bridge — v1
- * RULES:
- * - Explicit allowlist only
- * - No business logic
- * - No mutation
+ * Hardened IPC bridge
+ * Exposed safely to renderer
  */
-
-contextBridge.exposeInMainWorld("jupiter", {
-  portfolio: {
-    getSnapshot: () => ipcRenderer.invoke("portfolio:getSnapshot")
+contextBridge.exposeInMainWorld('price', {
+  getLive: async () => {
+    try {
+      return await ipcRenderer.invoke('price:getLive');
+    } catch (err) {
+      return { ok: false, data: {} };
+    }
   }
 });
 

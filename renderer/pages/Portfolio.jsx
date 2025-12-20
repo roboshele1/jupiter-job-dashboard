@@ -1,74 +1,75 @@
 import { useEffect, useState } from "react";
+import { getLivePrice } from "../services/marketData";
+
+const HOLDINGS = [
+  { symbol: "ASML", quantity: 10, type: "equity" },
+  { symbol: "NVDA", quantity: 73, type: "equity" },
+  { symbol: "AVGO", quantity: 80, type: "equity" },
+  { symbol: "BTC", quantity: 0.251083, type: "digital" },
+  { symbol: "ETH", quantity: 0.25, type: "digital" },
+  { symbol: "MSTR", quantity: 25, type: "equity" },
+  { symbol: "HOOD", quantity: 35, type: "equity" },
+  { symbol: "BMNR", quantity: 115, type: "equity" },
+  { symbol: "APLD", quantity: 150, type: "equity" },
+];
 
 export default function Portfolio() {
-  const [snapshot, setSnapshot] = useState(null);
-  const [error, setError] = useState(null);
+  const [rows, setRows] = useState([]);
 
   useEffect(() => {
-    if (!window.jupiter?.portfolio?.getSnapshot) {
-      setError("Portfolio IPC unavailable");
-      return;
+    async function load() {
+      const out = [];
+
+      for (const h of HOLDINGS) {
+        if (h.type === "equity") {
+          const quote = await getLivePrice(h);
+          out.push({
+            ...h,
+            price: quote.price,
+            value: quote.price * h.quantity,
+            source: quote.source,
+          });
+        } else {
+          out.push({
+            ...h,
+            price: 0,
+            value: 0,
+            source: "snapshot",
+          });
+        }
+      }
+
+      setRows(out);
     }
 
-    window.jupiter.portfolio
-      .getSnapshot()
-      .then(setSnapshot)
-      .catch(err => setError(err.message));
+    load();
   }, []);
 
-  if (error) {
-    return <div style={{ padding: 32, color: "red" }}>{error}</div>;
-  }
-
-  if (!snapshot || snapshot.health?.isComplete !== true) {
-    return <div style={{ padding: 32 }}>Loading portfolio…</div>;
-  }
-
-  const { totals, positions, performance } = snapshot;
-
-  const fmt = v =>
-    typeof v === "number" ? v.toLocaleString() : "—";
+  const total = rows.reduce((s, r) => s + r.value, 0);
 
   return (
-    <div style={{ padding: 32 }}>
+    <div>
       <h1>Portfolio</h1>
+      <h3>Total Value: ${total.toFixed(2)}</h3>
 
-      <div style={{ display: "flex", gap: 24, marginTop: 24 }}>
-        <div style={{ background: "#0f172a", padding: 20, borderRadius: 12 }}>
-          <div>Total Value</div>
-          <div style={{ fontSize: 24 }}>
-            ${fmt(totals.portfolioValue)}
-          </div>
-        </div>
-
-        <div style={{ background: "#0f172a", padding: 20, borderRadius: 12 }}>
-          <div>Unrealized P/L</div>
-          <div style={{ fontSize: 24 }}>
-            ${fmt(performance.unrealizedPL)} ({fmt(performance.unrealizedPLPct)}%)
-          </div>
-        </div>
-      </div>
-
-      <h3 style={{ marginTop: 32 }}>Positions</h3>
-
-      <table style={{ width: "100%", marginTop: 12 }}>
+      <table>
         <thead>
           <tr>
-            <th align="left">Asset</th>
-            <th align="right">Qty</th>
-            <th align="right">Price</th>
-            <th align="right">Value</th>
-            <th align="right">Alloc %</th>
+            <th>Symbol</th>
+            <th>Qty</th>
+            <th>Price</th>
+            <th>Value</th>
+            <th>Source</th>
           </tr>
         </thead>
         <tbody>
-          {positions.map(p => (
-            <tr key={p.assetId}>
-              <td>{p.assetId}</td>
-              <td align="right">{fmt(p.quantity)}</td>
-              <td align="right">${fmt(p.price)}</td>
-              <td align="right">${fmt(p.marketValue)}</td>
-              <td align="right">{fmt(p.allocationPct)}%</td>
+          {rows.map(r => (
+            <tr key={r.symbol}>
+              <td>{r.symbol}</td>
+              <td>{r.quantity}</td>
+              <td>${r.price.toFixed(2)}</td>
+              <td>${r.value.toFixed(2)}</td>
+              <td>{r.source}</td>
             </tr>
           ))}
         </tbody>

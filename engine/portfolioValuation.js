@@ -1,64 +1,26 @@
-/**
- * JUPITER — Portfolio Valuation Engine
- * Activation Phase C — Step 1
- *
- * Computes live market value and unrealized P/L
- * using authoritative holdings and live market data.
- * Read-only. No execution.
- */
+const { getPrices } = require("./priceService");
 
-import { getPortfolioHoldings } from "./portfolioContract";
-import { getLiveMarketPrices } from "./marketDataContract";
+function pricePortfolio(holdings) {
+  const prices = getPrices();
+  let totalValue = 0;
 
-export async function getLivePortfolioValuation() {
-  const holdings = getPortfolioHoldings();
-  const symbols = holdings.map((h) => h.symbol);
-
-  const prices = await getLiveMarketPrices(symbols);
-  const priceMap = new Map(prices.map((p) => [p.symbol, p.price]));
-
-  return holdings.map((h) => {
-    const price = priceMap.get(h.symbol);
-
-    if (price === undefined) {
-      return {
-        ...h,
-        price: null,
-        marketValue: null,
-        pnl: null,
-        pnlPct: null,
-        valid: false,
-        reason: "Missing live price",
-      };
-    }
-
-    const marketValue = h.quantity * price;
-    const costValue = h.quantity * h.costBasis;
-    const pnl = marketValue - costValue;
-    const pnlPct = costValue !== 0 ? (pnl / costValue) * 100 : null;
+  const positions = holdings.map(h => {
+    const price = prices[h.symbol] || 0;
+    const value = price * h.qty;
+    totalValue += value;
 
     return {
       symbol: h.symbol,
-      quantity: h.quantity,
-      costBasis: h.costBasis,
-      assetType: h.assetType,
+      qty: h.qty,
       price,
-      marketValue,
-      pnl,
-      pnlPct,
-      valid: true,
-      reason: "OK",
+      value
     };
   });
+
+  return { totalValue, positions };
 }
 
-/**
- * Metadata
- */
-export const PORTFOLIO_VALUATION_META = Object.freeze({
-  phase: "Activation Phase C",
-  step: 1,
-  live: true,
-  executionSafe: true,
-});
+module.exports = {
+  pricePortfolio
+};
 

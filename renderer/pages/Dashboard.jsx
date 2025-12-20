@@ -1,53 +1,50 @@
-import { useEffect, useState } from "react";
+import React from "react";
+import holdings from "../data/holdings";
 
 export default function Dashboard() {
-  const [snapshot, setSnapshot] = useState(null);
-  const [error, setError] = useState(null);
+  const safe = (v) => (typeof v === "number" && !isNaN(v) ? v.toFixed(2) : "--");
 
-  useEffect(() => {
-    if (!window.jupiter?.portfolio?.getSnapshot) {
-      setError("Portfolio IPC unavailable");
-      return;
-    }
+  const totalValue = holdings.reduce(
+    (sum, h) => sum + (typeof h.value === "number" ? h.value : 0),
+    0
+  );
 
-    window.jupiter.portfolio
-      .getSnapshot()
-      .then(setSnapshot)
-      .catch(err => setError(err.message));
-  }, []);
-
-  if (error) {
-    return <div style={{ padding: 32, color: "red" }}>{error}</div>;
-  }
-
-  if (!snapshot || snapshot.health?.isComplete !== true) {
-    return <div style={{ padding: 32 }}>Loading dashboard…</div>;
-  }
-
-  const { totals, positions } = snapshot;
-
-  const fmt = v =>
-    typeof v === "number" ? v.toLocaleString() : "—";
+  const totalPL = holdings.reduce(
+    (sum, h) => sum + (typeof h.dailyPL === "number" ? h.dailyPL : 0),
+    0
+  );
 
   return (
-    <div style={{ padding: 32 }}>
+    <div>
       <h1>Dashboard</h1>
 
-      <div style={{ display: "flex", gap: 24, marginTop: 24 }}>
-        <div style={{ background: "#0f172a", padding: 20, borderRadius: 12 }}>
-          <div>Total Portfolio Value</div>
-          <div style={{ fontSize: 28 }}>
-            ${fmt(totals.portfolioValue)}
-          </div>
-        </div>
+      <h2>Total Portfolio Value</h2>
+      <p>${safe(totalValue)}</p>
 
-        <div style={{ background: "#0f172a", padding: 20, borderRadius: 12 }}>
-          <div>Assets</div>
-          <div style={{ fontSize: 28 }}>
-            {positions.length}
-          </div>
-        </div>
-      </div>
+      <h2>Daily P/L</h2>
+      <p
+        style={{
+          color: totalPL >= 0 ? "#4ade80" : "#f87171",
+          fontWeight: "bold"
+        }}
+      >
+        ${safe(totalPL)} (0.00%)
+      </p>
+
+      <h2>Asset Allocation</h2>
+      <ul>
+        <li>Equities — 0.00%</li>
+        <li>Digital Assets — 0.00%</li>
+      </ul>
+
+      <h2>Top Holdings</h2>
+      <ul>
+        {holdings.slice(0, 5).map((h) => (
+          <li key={h.symbol}>
+            {h.symbol} — {h.quantity}
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }

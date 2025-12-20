@@ -1,0 +1,45 @@
+[
+  {
+    "type": "DECISION",
+    "payload": {
+      "context": {
+        "goal": "Reach $1M",
+        "horizonMonths": 36,
+        "instrument": "NVDA"
+      }
+    },
+    "ts": 1766162525829
+  },
+  {
+    "type": "GROWTH_SIGNAL",
+    "payload": {
+      "symbol": "NVDA",
+      "metrics": {
+        "revenueCAGR": 35,
+        "marginExpansion": true,
+        "institutionalFlow": "rising"
+      }
+    },
+    "ts": 1766162525829
+  },
+  {
+    "type": {
+      "type": "DECISION_OUTCOME",
+      "payload": {
+        "decisionType": "GOAL_PLANNING",
+        "input": {
+          "target": 1000000,
+          "months": 36
+        },
+        "output": {
+          "decisionType": "GOAL_PLANNING",
+          "success": false,
+          "magnitude": 262000,
+          "confidence": 0.72
+        },
+        "confidence": 0.72
+      }
+    },
+    "ts": 1766163994229
+  }
+]

@@ -1,0 +1,10 @@
+JUPITER IPC CONTRACTS — FROZEN
+Version: V3
+Status: READ-ONLY
+Date: 2025-12-19
+
+Rules:
+- No breaking changes
+- Additive-only after handoff
+- Snapshot schema immutable
+

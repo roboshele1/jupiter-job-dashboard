@@ -7,6 +7,7 @@ import Discovery from "./pages/Discovery";
 import Growth from "./pages/Growth";
 import Insights from "./pages/Insights";
 import Risk from "./pages/Risk";
+import Alerts from "./pages/Alerts";
 import Chat from "./pages/Chat";
 
 export default function App() {
@@ -28,6 +29,8 @@ export default function App() {
         return <Insights />;
       case "risk":
         return <Risk />;
+      case "alerts":
+        return <Alerts />;
       case "chat":
         return <Chat />;
       default:
@@ -37,14 +40,7 @@ export default function App() {
 
   return (
     <div style={{ display: "flex", height: "100vh", background: "#0b0b0b", color: "#fff" }}>
-      <aside
-        style={{
-          width: 240,
-          borderRight: "1px solid #222",
-          padding: 16,
-          boxSizing: "border-box",
-        }}
-      >
+      <aside style={{ width: 240, borderRight: "1px solid #222", padding: 16 }}>
         <h2 style={{ marginBottom: 24 }}>JUPITER</h2>
 
         {[
@@ -55,6 +51,7 @@ export default function App() {
           ["growth", "Growth Engine"],
           ["insights", "Insights"],
           ["risk", "Risk Centre"],
+          ["alerts", "Alerts"],
           ["chat", "Chat"],
         ].map(([id, label]) => (
           <div

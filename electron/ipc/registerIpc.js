@@ -1,11 +1,10 @@
-const { ipcMain } = require("electron");
-const { getPortfolioSnapshot } = require("../../engine/portfolioEngine");
+kconst { registerPortfolioIpc } = require("./portfolioIpc");
+const { registerIntelligenceIpc } = require("./intelligenceIpc");
 
-function registerIpcHandlers() {
-  ipcMain.handle("portfolio:getSnapshot", async () => {
-    return await getPortfolioSnapshot();
-  });
+function registerAllIpc(ipcMain) {
+  registerPortfolioIpc(ipcMain);
+  registerIntelligenceIpc(ipcMain);
 }
 
-module.exports = { registerIpcHandlers };
+module.exports = { registerAllIpc };
 
