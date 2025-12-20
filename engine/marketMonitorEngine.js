@@ -1,14 +1,26 @@
 // engine/marketMonitorEngine.js
-// ENGINE-FIRST SNAPSHOT — MARKET MONITOR
+// LIVE Market Monitor — Crypto only (BTC, ETH)
+// Source: priceService (Coinbase)
 
-function getSnapshot() {
-  return {
+import { getPrices } from "./priceService.js";
+
+let lastSnapshot = null;
+
+export async function getMarketMonitorSnapshot() {
+  const prices = await getPrices(["BTC", "ETH"]);
+
+  lastSnapshot = {
     timestamp: new Date().toISOString(),
-    markets: [] // empty = no markets tracked yet (truth)
+    assets: {
+      BTC: prices.BTC,
+      ETH: prices.ETH,
+    },
   };
+
+  return lastSnapshot;
 }
 
-module.exports = {
-  getSnapshot
-};
+export function getLastMarketMonitorSnapshot() {
+  return lastSnapshot;
+}
 
