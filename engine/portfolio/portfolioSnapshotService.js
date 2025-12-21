@@ -1,52 +1,48 @@
 // engine/portfolio/portfolioSnapshotService.js
-import { HOLDINGS_REGISTRY } from "./holdingsRegistry.js";
-import { getPrices } from "../priceService.js";
+// JUPITER — Portfolio Snapshot Engine (AUTHORITATIVE)
+
+import { portfolioRegistry } from "./portfolioRegistry.js";
+import { getLivePrice } from "../pricing/priceService.js";
 
 export async function calculatePortfolioSnapshot() {
-  const symbols = Object.keys(HOLDINGS_REGISTRY);
+  const registry = portfolioRegistry.getAll();
 
-  const prices = await getPrices(symbols);
+  const positions = await Promise.all(
+    registry.map(async (p) => {
+      const priceObj = await getLivePrice(p.symbol, p.source);
+      const price = priceObj?.price ?? 0;
 
-  const positions = [];
-  let totalValue = 0;
-  let totalCost = 0;
+      const marketValue = price * p.quantity;
+      const costBasis = (p.avgCost ?? 0) * p.quantity;
+      const pnl = marketValue - costBasis;
 
-  for (const symbol of symbols) {
-    const holding = HOLDINGS_REGISTRY[symbol];
-    const price = prices[symbol] ?? 0;
+      return {
+        symbol: p.symbol,
+        quantity: p.quantity,
+        avgCost: p.avgCost,
+        costBasis,
+        price: priceObj,
+        marketValue,
+        pnl,
+        source: p.source,
+      };
+    })
+  );
 
-    const marketValue = holding.quantity * price;
-    const costBasis =
-      holding.avgCost !== null
-        ? holding.quantity * holding.avgCost
-        : null;
-
-    const pnl =
-      costBasis !== null ? marketValue - costBasis : null;
-
-    positions.push({
-      symbol,
-      quantity: holding.quantity,
-      avgCost: holding.avgCost,
-      price,
-      marketValue,
-      costBasis,
-      pnl,
-      source: holding.type
-    });
-
-    totalValue += marketValue;
-    if (costBasis !== null) totalCost += costBasis;
-  }
+  const totals = positions.reduce(
+    (acc, p) => {
+      acc.cost += p.costBasis;
+      acc.value += p.marketValue;
+      acc.pnl += p.pnl;
+      return acc;
+    },
+    { cost: 0, value: 0, pnl: 0 }
+  );
 
   return {
     timestamp: new Date().toISOString(),
-    totals: {
-      value: totalValue,
-      cost: totalCost,
-      pnl: totalValue - totalCost
-    },
-    positions
+    positions,
+    totals,
   };
 }
 

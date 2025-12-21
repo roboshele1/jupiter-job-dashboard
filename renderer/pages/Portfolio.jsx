@@ -1,55 +1,31 @@
 import React, { useEffect, useState } from "react";
 
-import { getQuote } from "../src/services/marketData";
-import { getCryptoQuote } from "../src/services/cryptoMarketData";
-
-import holdings from "../data/holdings";
-
 export default function Portfolio() {
-  const [rows, setRows] = useState([]);
-  const [totalValue, setTotalValue] = useState(0);
+  const [snapshot, setSnapshot] = useState(null);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
     async function load() {
-      let computedRows = [];
-      let total = 0;
-
-      for (const h of holdings) {
-        let quote;
-
-        if (h.assetType === "Digital") {
-          quote = await getCryptoQuote(h.symbol);
-        } else {
-          quote = await getQuote(h.symbol);
-        }
-
-        const price = Number(quote.price);
-        const qty = Number(h.quantity);
-
-        const value = price * qty;
-
-        total += value;
-
-        computedRows.push({
-          symbol: h.symbol,
-          quantity: qty,
-          price,
-          value,
-          source: h.assetType === "Digital" ? "coinbase" : "polygon"
-        });
+      try {
+        const res = await window.portfolio.getSnapshot();
+        if (!res.ok) throw new Error(res.error);
+        setSnapshot(res.data);
+      } catch (e) {
+        setError(e.message);
       }
-
-      setRows(computedRows);
-      setTotalValue(total);
     }
-
     load();
   }, []);
 
+  if (error) return <div>Error: {error}</div>;
+  if (!snapshot) return <div>Loading portfolio…</div>;
+
   return (
-    <div style={{ padding: "24px" }}>
+    <div style={{ padding: 24 }}>
       <h2>Portfolio</h2>
-      <h3>Total Value: ${totalValue.toFixed(2)}</h3>
+
+      <h3>Total Value</h3>
+      <p>${snapshot.totals.value.toFixed(2)}</p>
 
       <table>
         <thead>
@@ -58,17 +34,17 @@ export default function Portfolio() {
             <th>Qty</th>
             <th>Price</th>
             <th>Value</th>
-            <th>Source</th>
+            <th>P/L</th>
           </tr>
         </thead>
         <tbody>
-          {rows.map((r) => (
-            <tr key={r.symbol}>
-              <td>{r.symbol}</td>
-              <td>{r.quantity}</td>
-              <td>${r.price.toFixed(2)}</td>
-              <td>${r.value.toFixed(2)}</td>
-              <td>{r.source}</td>
+          {snapshot.positions.map(p => (
+            <tr key={p.symbol}>
+              <td>{p.symbol}</td>
+              <td>{p.quantity}</td>
+              <td>{p.price?.toFixed(2)}</td>
+              <td>{p.marketValue?.toFixed(2)}</td>
+              <td>{p.pnl?.toFixed(2)}</td>
             </tr>
           ))}
         </tbody>

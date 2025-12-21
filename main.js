@@ -1,34 +1,30 @@
-import { app, BrowserWindow, ipcMain } from 'electron';
-import path from 'path';
-import { fileURLToPath } from 'url';
-import { getLivePrices } from './engine/market/getLivePrices.js';
+// main.js — Electron entry (AUTHORITATIVE ENV LOAD)
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+import "dotenv/config"; // <-- MUST BE FIRST LINE
+
+import { app, BrowserWindow } from "electron";
+import path from "path";
+
+import { registerPortfolioIpc } from "./electron/ipc/portfolioIpc.js";
+import { registerDashboardIpc } from "./electron/ipc/dashboardIpc.js";
 
 let mainWindow;
 
 function createWindow() {
   mainWindow = new BrowserWindow({
-    width: 1400,
-    height: 900,
+    width: 1200,
+    height: 800,
     webPreferences: {
-      preload: path.join(__dirname, 'preload.cjs'),
-      contextIsolation: true,
-      nodeIntegration: false
+      preload: path.join(process.cwd(), "preload.js"),
+      contextIsolation: true
     }
   });
 
-  mainWindow.loadURL('http://localhost:5173');
+  mainWindow.loadURL("http://localhost:5173");
+
+  registerPortfolioIpc();
+  registerDashboardIpc();
 }
 
-ipcMain.handle('price:getLive', async () => {
-  return await getLivePrices();
-});
-
 app.whenReady().then(createWindow);
-
-app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') app.quit();
-});
 

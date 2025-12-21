@@ -1,64 +1,48 @@
 // engine/priceService.js
-// AUTHORITATIVE LIVE PRICING
-// Equities: Polygon
-// Crypto: Coinbase
+// JUPITER — Pricing Service (AUTHORITATIVE, READ-ONLY)
 
-const POLY_KEY = process.env.POLYGON_API_KEY;
+import fetch from "node-fetch";
 
-if (!POLY_KEY) {
+const POLYGON_API_KEY = process.env.POLYGON_API_KEY;
+
+if (!POLYGON_API_KEY) {
   throw new Error("POLYGON_API_KEY not set in environment");
 }
 
-// ---------- HELPERS ----------
-async function fetchJSON(url) {
-  const res = await fetch(url);
-  if (!res.ok) {
-    throw new Error(`Fetch failed ${res.status}`);
-  }
-  return res.json();
-}
+export async function getLivePrice(symbol, source) {
+  if (source === "equity") {
+    const url = `https://api.polygon.io/v2/aggs/ticker/${symbol}/prev?apiKey=${POLYGON_API_KEY}`;
+    const res = await fetch(url);
+    const json = await res.json();
 
-// ---------- CRYPTO ----------
-async function getCrypto(symbol) {
-  const pair = `${symbol}-USD`;
-  const data = await fetchJSON(
-    `https://api.coinbase.com/v2/prices/${pair}/spot`
-  );
+    const price = json?.results?.[0]?.c ?? 0;
 
-  return {
-    price: parseFloat(data.data.amount),
-    source: "coinbase",
-  };
-}
-
-// ---------- EQUITIES ----------
-async function getEquity(symbol) {
-  const url =
-    `https://api.polygon.io/v2/aggs/ticker/${symbol}/prev` +
-    `?adjusted=true&apiKey=${POLY_KEY}`;
-
-  const data = await fetchJSON(url);
-
-  const price = data?.results?.[0]?.c ?? 0;
-
-  return {
-    price,
-    source: "polygon",
-  };
-}
-
-// ---------- PUBLIC ----------
-export async function getPrices(symbols = []) {
-  const prices = {};
-
-  for (const symbol of symbols) {
-    if (["BTC", "ETH"].includes(symbol)) {
-      prices[symbol] = (await getCrypto(symbol)).price;
-    } else {
-      prices[symbol] = (await getEquity(symbol)).price;
-    }
+    return {
+      price,
+      source: "polygon",
+      timestamp: new Date().toISOString(),
+    };
   }
 
-  return prices;
+  if (source === "crypto") {
+    const pair = symbol === "BTC" ? "X:BTCUSD" : `X:${symbol}USD`;
+    const url = `https://api.polygon.io/v2/aggs/ticker/${pair}/prev?apiKey=${POLYGON_API_KEY}`;
+    const res = await fetch(url);
+    const json = await res.json();
+
+    const price = json?.results?.[0]?.c ?? 0;
+
+    return {
+      price,
+      source: "polygon",
+      timestamp: new Date().toISOString(),
+    };
+  }
+
+  return {
+    price: 0,
+    source: "unknown",
+    timestamp: new Date().toISOString(),
+  };
 }
 

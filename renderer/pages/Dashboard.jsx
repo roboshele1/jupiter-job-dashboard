@@ -1,50 +1,85 @@
-import React from "react";
-import holdings from "../data/holdings";
+// renderer/pages/Dashboard.jsx
+// JUPITER — Dashboard (READ-ONLY, INSTITUTIONAL)
+
+import { useEffect, useState } from "react";
 
 export default function Dashboard() {
-  const safe = (v) => (typeof v === "number" && !isNaN(v) ? v.toFixed(2) : "--");
+  const [aggregate, setAggregate] = useState(null);
+  const [error, setError] = useState(null);
 
-  const totalValue = holdings.reduce(
-    (sum, h) => sum + (typeof h.value === "number" ? h.value : 0),
-    0
-  );
+  useEffect(() => {
+    let mounted = true;
 
-  const totalPL = holdings.reduce(
-    (sum, h) => sum + (typeof h.dailyPL === "number" ? h.dailyPL : 0),
-    0
-  );
+    async function loadAggregate() {
+      try {
+        const result = await window.electron.invoke("dashboard:getAggregate");
+        if (mounted) setAggregate(result);
+      } catch (err) {
+        console.error("Dashboard aggregate failed:", err);
+        if (mounted) setError("Failed to load dashboard data");
+      }
+    }
+
+    loadAggregate();
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  if (error) {
+    return <div style={{ padding: 24 }}>Error: {error}</div>;
+  }
+
+  if (!aggregate) {
+    return <div style={{ padding: 24 }}>Loading dashboard…</div>;
+  }
+
+  const {
+    totalValue = 0,
+    pnl = 0,
+    pnlPct = 0,
+    allocation = {},
+    topHoldings = [],
+  } = aggregate;
 
   return (
-    <div>
+    <div style={{ padding: 32 }}>
       <h1>Dashboard</h1>
 
-      <h2>Total Portfolio Value</h2>
-      <p>${safe(totalValue)}</p>
+      <section>
+        <h2>Total Portfolio Value</h2>
+        <div>${totalValue.toLocaleString(undefined, { maximumFractionDigits: 2 })}</div>
+      </section>
 
-      <h2>Daily P/L</h2>
-      <p
-        style={{
-          color: totalPL >= 0 ? "#4ade80" : "#f87171",
-          fontWeight: "bold"
-        }}
-      >
-        ${safe(totalPL)} (0.00%)
-      </p>
+      <section style={{ marginTop: 24 }}>
+        <h2>Daily P/L</h2>
+        <div style={{ color: pnl >= 0 ? "#4ade80" : "#f87171" }}>
+          ${pnl.toLocaleString(undefined, { maximumFractionDigits: 2 })} (
+          {(pnlPct * 100).toFixed(2)}%)
+        </div>
+      </section>
 
-      <h2>Asset Allocation</h2>
-      <ul>
-        <li>Equities — 0.00%</li>
-        <li>Digital Assets — 0.00%</li>
-      </ul>
+      <section style={{ marginTop: 24 }}>
+        <h2>Asset Allocation</h2>
+        <ul>
+          {Object.entries(allocation).map(([key, value]) => (
+            <li key={key}>
+              {key} — {(value * 100).toFixed(2)}%
+            </li>
+          ))}
+        </ul>
+      </section>
 
-      <h2>Top Holdings</h2>
-      <ul>
-        {holdings.slice(0, 5).map((h) => (
-          <li key={h.symbol}>
-            {h.symbol} — {h.quantity}
-          </li>
-        ))}
-      </ul>
+      <section style={{ marginTop: 24 }}>
+        <h2>Top Holdings</h2>
+        <ul>
+          {topHoldings.map((h) => (
+            <li key={h.symbol}>
+              {h.symbol} — {h.quantity}
+            </li>
+          ))}
+        </ul>
+      </section>
     </div>
   );
 }
