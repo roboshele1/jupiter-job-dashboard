@@ -1,25 +1,25 @@
 // renderer/state/snapshotStore.js
 
 let snapshot = null;
-let prevSnapshot = null;
-const listeners = new Set();
+let history = [];
 
 export function writeSnapshot(next) {
-  prevSnapshot = snapshot;
   snapshot = next;
-  listeners.forEach(fn => fn(snapshot, prevSnapshot));
+
+  history.push({
+    timestamp: next.timestamp,
+    totalValue: next.totalValue,
+    dailyPL: next.dailyPL ?? 0,
+  });
+
+  if (history.length > 30) history.shift();
 }
 
-export function readSnapshot() {
+export function getSnapshot() {
   return snapshot;
 }
 
-export function readPrevSnapshot() {
-  return prevSnapshot;
-}
-
-export function subscribeSnapshot(fn) {
-  listeners.add(fn);
-  return () => listeners.delete(fn);
+export function getPLHistory() {
+  return history;
 }
 

@@ -1,60 +1,56 @@
+// renderer/pages/Dashboard.jsx
+
 import { useEffect, useState } from "react";
-import {
-  subscribeSnapshot,
-  readSnapshot,
-  readPrevSnapshot,
-} from "../state/snapshotStore";
+import { getSnapshot, getPLHistory } from "../state/snapshotStore";
 
 export default function Dashboard() {
-  const [snapshot, setSnapshot] = useState(readSnapshot());
-  const [prev, setPrev] = useState(readPrevSnapshot());
+  const [snapshot, setSnapshot] = useState(null);
+  const [dailyPL, setDailyPL] = useState(0);
+  const [dailyPct, setDailyPct] = useState(0);
 
   useEffect(() => {
-    return subscribeSnapshot((next, previous) => {
-      setSnapshot(next);
-      setPrev(previous);
-    });
+    const snap = getSnapshot();
+    const history = getPLHistory();
+
+    if (!snap) return;
+
+    setSnapshot(snap);
+
+    if (history.length >= 2) {
+      const prev = history[history.length - 2].totalValue;
+      const curr = history[history.length - 1].totalValue;
+      const diff = curr - prev;
+
+      setDailyPL(diff);
+      setDailyPct(prev ? (diff / prev) * 100 : 0);
+    }
   }, []);
 
-  if (!snapshot) {
-    return <div>Waiting for portfolio snapshot...</div>;
-  }
+  if (!snapshot) return <div>Waiting for portfolio snapshot...</div>;
 
-  const total = snapshot.totalValue || 0;
-  const prevTotal = prev?.totalValue || 0;
+  const equities = snapshot.rows.filter(r => r.source === "polygon");
+  const crypto = snapshot.rows.filter(r => r.source === "coinbase");
 
-  const dailyPL = total - prevTotal;
-  const dailyPct =
-    prevTotal > 0 ? (dailyPL / prevTotal) * 100 : 0;
-
-  const equities = snapshot.rows
-    .filter(r => r.source === "polygon")
-    .reduce((s, r) => s + r.value, 0);
-
-  const crypto = snapshot.rows
-    .filter(r => r.source === "coinbase")
-    .reduce((s, r) => s + r.value, 0);
-
-  const eqPct = total > 0 ? (equities / total) * 100 : 0;
-  const crPct = total > 0 ? (crypto / total) * 100 : 0;
+  const eqValue = equities.reduce((s, r) => s + r.value, 0);
+  const crValue = crypto.reduce((s, r) => s + r.value, 0);
 
   return (
     <div>
       <h1>Dashboard</h1>
-      <div>Snapshot time: {snapshot.timestamp}</div>
+      <p>Snapshot time: {snapshot.timestamp}</p>
 
       <h2>Total Portfolio Value</h2>
-      <div>${total.toFixed(2)}</div>
+      <p>${snapshot.totalValue.toFixed(2)}</p>
 
       <h2>Daily P/L</h2>
-      <div>
+      <p>
         ${dailyPL.toFixed(2)} ({dailyPct.toFixed(2)}%)
-      </div>
+      </p>
 
       <h2>Asset Allocation</h2>
       <ul>
-        <li>Equities — {eqPct.toFixed(2)}%</li>
-        <li>Digital Assets — {crPct.toFixed(2)}%</li>
+        <li>Equities — {((eqValue / snapshot.totalValue) * 100).toFixed(2)}%</li>
+        <li>Digital Assets — {((crValue / snapshot.totalValue) * 100).toFixed(2)}%</li>
       </ul>
 
       <h2>Top Holdings</h2>

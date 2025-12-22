@@ -1,31 +1,39 @@
+// renderer/pages/Portfolio.jsx
+
 import { useEffect, useState } from "react";
 import { writeSnapshot } from "../state/snapshotStore";
 
 export default function Portfolio() {
-  const rows = [
-    { symbol: "ASML", qty: 10, price: 1056.02, source: "polygon" },
-    { symbol: "NVDA", qty: 73, price: 180.99, source: "polygon" },
-    { symbol: "AVGO", qty: 80, price: 340.36, source: "polygon" },
-    { symbol: "MSTR", qty: 25, price: 164.82, source: "polygon" },
-    { symbol: "HOOD", qty: 35, price: 121.35, source: "polygon" },
-    { symbol: "BMNR", qty: 115, price: 31.36, source: "polygon" },
-    { symbol: "APLD", qty: 150, price: 27.85, source: "polygon" },
-    { symbol: "BTC", qty: 0.251083, price: 89756.16, source: "coinbase" },
-    { symbol: "ETH", qty: 0.25, price: 3048.7, source: "coinbase" }
-  ];
-
-  const computed = rows.map(r => ({
-    ...r,
-    value: r.qty * r.price
-  }));
-
-  const totalValue = computed.reduce((s, r) => s + r.value, 0);
+  const [rows, setRows] = useState([]);
+  const [totalValue, setTotalValue] = useState(0);
 
   useEffect(() => {
+    const data = [
+      { symbol: "ASML", qty: 10, price: 1056.02, source: "polygon" },
+      { symbol: "NVDA", qty: 73, price: 180.99, source: "polygon" },
+      { symbol: "AVGO", qty: 80, price: 340.36, source: "polygon" },
+      { symbol: "MSTR", qty: 25, price: 164.82, source: "polygon" },
+      { symbol: "HOOD", qty: 35, price: 121.35, source: "polygon" },
+      { symbol: "BMNR", qty: 115, price: 31.36, source: "polygon" },
+      { symbol: "APLD", qty: 150, price: 27.85, source: "polygon" },
+      { symbol: "BTC", qty: 0.251083, price: 89756.16, source: "coinbase" },
+      { symbol: "ETH", qty: 0.25, price: 3048.70, source: "coinbase" },
+    ];
+
+    const computed = data.map(r => ({
+      ...r,
+      value: r.qty * r.price,
+    }));
+
+    const total = computed.reduce((s, r) => s + r.value, 0);
+
+    setRows(computed);
+    setTotalValue(total);
+
     writeSnapshot({
       timestamp: new Date().toISOString(),
-      totalValue,
-      rows: computed
+      totalValue: total,
+      rows: computed,
     });
   }, []);
 
@@ -45,7 +53,7 @@ export default function Portfolio() {
           </tr>
         </thead>
         <tbody>
-          {computed.map(r => (
+          {rows.map(r => (
             <tr key={r.symbol}>
               <td>{r.symbol}</td>
               <td>{r.qty}</td>
