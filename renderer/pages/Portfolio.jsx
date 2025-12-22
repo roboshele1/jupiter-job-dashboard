@@ -1,55 +1,38 @@
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
+import { writeSnapshot } from "../state/snapshotStore";
 
-import { getQuote } from "../src/services/marketData";
-import { getCryptoQuote } from "../src/services/cryptoMarketData";
-
-import holdings from "../data/holdings";
+const HOLDINGS = [
+  { symbol: "ASML", qty: 10, price: 1056.02, source: "polygon" },
+  { symbol: "NVDA", qty: 73, price: 180.99, source: "polygon" },
+  { symbol: "AVGO", qty: 80, price: 340.36, source: "polygon" },
+  { symbol: "MSTR", qty: 25, price: 164.82, source: "polygon" },
+  { symbol: "HOOD", qty: 35, price: 121.35, source: "polygon" },
+  { symbol: "BMNR", qty: 115, price: 31.36, source: "polygon" },
+  { symbol: "APLD", qty: 150, price: 27.85, source: "polygon" },
+  { symbol: "BTC", qty: 0.251083, price: 89756.16, source: "coinbase" },
+  { symbol: "ETH", qty: 0.25, price: 3048.70, source: "coinbase" }
+];
 
 export default function Portfolio() {
-  const [rows, setRows] = useState([]);
-  const [totalValue, setTotalValue] = useState(0);
+  const rows = HOLDINGS.map(h => ({
+    ...h,
+    value: h.qty * h.price
+  }));
+
+  const totalValue = rows.reduce((s, r) => s + r.value, 0);
 
   useEffect(() => {
-    async function load() {
-      let computedRows = [];
-      let total = 0;
-
-      for (const h of holdings) {
-        let quote;
-
-        if (h.assetType === "Digital") {
-          quote = await getCryptoQuote(h.symbol);
-        } else {
-          quote = await getQuote(h.symbol);
-        }
-
-        const price = Number(quote.price);
-        const qty = Number(h.quantity);
-
-        const value = price * qty;
-
-        total += value;
-
-        computedRows.push({
-          symbol: h.symbol,
-          quantity: qty,
-          price,
-          value,
-          source: h.assetType === "Digital" ? "coinbase" : "polygon"
-        });
-      }
-
-      setRows(computedRows);
-      setTotalValue(total);
-    }
-
-    load();
+    writeSnapshot({
+      timestamp: new Date().toISOString(),
+      totalValue,
+      rows
+    });
   }, []);
 
   return (
-    <div style={{ padding: "24px" }}>
-      <h2>Portfolio</h2>
-      <h3>Total Value: ${totalValue.toFixed(2)}</h3>
+    <div>
+      <h1>Portfolio</h1>
+      <h2>Total Value: ${totalValue.toFixed(2)}</h2>
 
       <table>
         <thead>
@@ -62,10 +45,10 @@ export default function Portfolio() {
           </tr>
         </thead>
         <tbody>
-          {rows.map((r) => (
+          {rows.map(r => (
             <tr key={r.symbol}>
               <td>{r.symbol}</td>
-              <td>{r.quantity}</td>
+              <td>{r.qty}</td>
               <td>${r.price.toFixed(2)}</td>
               <td>${r.value.toFixed(2)}</td>
               <td>{r.source}</td>
