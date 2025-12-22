@@ -1,34 +1,23 @@
-import { app, BrowserWindow, ipcMain } from 'electron';
-import path from 'path';
-import { fileURLToPath } from 'url';
-import { getLivePrices } from './engine/market/getLivePrices.js';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-let mainWindow;
+const { app, BrowserWindow, ipcMain } = require("electron");
+const path = require("path");
+const fetch = require("node-fetch");
 
 function createWindow() {
-  mainWindow = new BrowserWindow({
+  const win = new BrowserWindow({
     width: 1400,
     height: 900,
     webPreferences: {
-      preload: path.join(__dirname, 'preload.cjs'),
-      contextIsolation: true,
-      nodeIntegration: false
-    }
+      preload: path.join(__dirname, "preload.js"),
+    },
   });
 
-  mainWindow.loadURL('http://localhost:5173');
+  win.loadURL("http://localhost:5173");
 }
 
-ipcMain.handle('price:getLive', async () => {
-  return await getLivePrices();
+ipcMain.handle("get-market-snapshot", async () => {
+  const res = await fetch("http://localhost:3001/snapshot");
+  return await res.json();
 });
 
 app.whenReady().then(createWindow);
-
-app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') app.quit();
-});
 

@@ -1,7 +1,8 @@
-import { contextBridge } from "electron";
+const { contextBridge, ipcRenderer } = require("electron");
 
-contextBridge.exposeInMainWorld("JUPITER", {
-  version: "2.0",
-  mode: "V2_LEARNING_READY"
+contextBridge.exposeInMainWorld("jupiter", {
+  getMarketSnapshot: async () => {
+    return await ipcRenderer.invoke("get-market-snapshot");
+  }
 });
 

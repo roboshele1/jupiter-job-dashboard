@@ -1,7 +1,8 @@
-import React from "react";
-import Home from "./Home.jsx";
+// ⚠️ LEGACY FILE — DO NOT USE
+// This file exists only to prevent Vite import collisions.
+// All routing is handled in renderer/App.jsx.
 
-export default function App() {
-  return <Home />;
+export default function DeprecatedApp() {
+  return null;
 }
 

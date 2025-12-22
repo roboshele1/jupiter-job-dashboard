@@ -1,0 +1,54 @@
+/* =========================
+   JUPITER — Dashboard Styles
+   Phase 1.5.4
+   ========================= */
+
+.dashboard {
+  padding: 32px;
+  color: #eaeaea;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+.dashboard h1 {
+  font-size: 48px;
+  margin-bottom: 24px;
+}
+
+.dashboard h2 {
+  font-size: 28px;
+  margin-top: 32px;
+  margin-bottom: 12px;
+}
+
+.dashboard .value {
+  font-size: 32px;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+.dashboard .subtle {
+  opacity: 0.6;
+}
+
+.dashboard ul {
+  list-style: disc;
+  margin-left: 24px;
+}
+
+.dashboard li {
+  margin-bottom: 6px;
+}
+
+/* P/L coloring */
+.pl-green {
+  color: #4caf50;
+}
+
+.pl-red {
+  color: #f44336;
+}
+
+.pl-grey {
+  color: #9e9e9e;
+}
+

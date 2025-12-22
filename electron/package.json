@@ -1,6 +1,4 @@
 {
-  "name": "electron",
-  "main": "main.js",
   "type": "module"
 }
 
