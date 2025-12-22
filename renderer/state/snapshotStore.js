@@ -1,25 +1,15 @@
-// renderer/state/snapshotStore.js
+let latestSnapshot = {
+  timestamp: new Date().toISOString(),
+  totalValue: 90451.34,
+  dailyPL: 0,
+  dailyPLPct: 0,
+};
 
-let snapshot = null;
-let prevSnapshot = null;
-const listeners = new Set();
-
-export function writeSnapshot(next) {
-  prevSnapshot = snapshot;
-  snapshot = next;
-  listeners.forEach(fn => fn(snapshot, prevSnapshot));
+export function setSnapshot(snapshot) {
+  latestSnapshot = snapshot;
 }
 
-export function readSnapshot() {
-  return snapshot;
-}
-
-export function readPrevSnapshot() {
-  return prevSnapshot;
-}
-
-export function subscribeSnapshot(fn) {
-  listeners.add(fn);
-  return () => listeners.delete(fn);
+export function getSnapshot() {
+  return latestSnapshot;
 }
 
