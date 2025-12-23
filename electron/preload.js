@@ -1,8 +1,7 @@
 const { contextBridge, ipcRenderer } = require("electron");
 
-contextBridge.exposeInMainWorld("prices", {
-  getSnapshot: async () => {
-    return await ipcRenderer.invoke("prices:getSnapshot");
-  }
+contextBridge.exposeInMainWorld("portfolio", {
+  getSnapshot: () =>
+    ipcRenderer.invoke("portfolio:getAuthoritativeSnapshot")
 });
 

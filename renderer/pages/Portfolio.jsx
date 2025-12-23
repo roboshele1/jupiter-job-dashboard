@@ -5,27 +5,12 @@ export default function Portfolio() {
 
   useEffect(() => {
     (async () => {
-      const snapshot = [
-        { symbol: "BTC", qty: 0.251083, snapshot: 22597.47 },
-        { symbol: "ETH", qty: 0.25, snapshot: 702.80 }
-      ];
-
-      const prices = await window.prices.getCryptoPrices();
-
-      const enriched = snapshot.map(r => {
-        const live = prices[r.symbol] * r.qty;
-        const delta = live - r.snapshot;
-        const deltaPct = (delta / r.snapshot) * 100;
-
-        return {
-          ...r,
-          live,
-          delta,
-          deltaPct
-        };
-      });
-
-      setRows(enriched);
+      const res = await window.portfolio.getSnapshot();
+      if (!res.ok) {
+        console.error("Snapshot IPC failed");
+        return;
+      }
+      setRows(res.rows);
     })();
   }, []);
 
