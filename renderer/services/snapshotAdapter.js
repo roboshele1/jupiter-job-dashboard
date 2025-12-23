@@ -1,31 +1,31 @@
 // renderer/services/snapshotAdapter.js
-// Snapshot Adapter — READ ONLY
-// Phase 5 — Renderer consumes backend snapshot ONLY
-// LOCKED CONTRACT
 
-export async function buildSnapshot() {
-  try {
-    const res = await fetch("http://localhost:3001/snapshot");
-    if (!res.ok) throw new Error("Snapshot server unavailable");
+import portfolioData from "../state/portfolioData";
 
-    const live = await res.json();
-
-    return {
-      meta: {
-        source: live.source,
-        timestamp: live.timestamp,
-      },
-      prices: live.prices,
-    };
-  } catch (err) {
-    return {
-      meta: {
-        source: "unavailable",
-        timestamp: null,
-      },
-      prices: {},
-      error: err.message,
-    };
+/**
+ * Deterministic snapshot builder.
+ * Returns plain data, no stores, no async side effects.
+ */
+export function buildSnapshot() {
+  if (!portfolioData || !Array.isArray(portfolioData.holdings)) {
+    return [];
   }
+
+  return portfolioData.holdings.map((h) => ({
+    symbol: h.symbol,
+    qty: h.qty,
+    snapshotValue: Number(h.value),
+    livePrice: null,
+    delta: null,
+    deltaPct: null,
+  }));
+}
+
+/**
+ * Backward-compatible accessor (some callers expect .then()).
+ */
+export function getSnapshotRows() {
+  const rows = buildSnapshot();
+  return Promise.resolve(rows);
 }
 

@@ -1,24 +1,27 @@
 // main.js
-// Electron Main — LOCKED BASELINE
+// JUPITER — IPC Snapshot Hydration (LOCKED)
 
-const { app, BrowserWindow } = require("electron");
+const { app, BrowserWindow, ipcMain } = require("electron");
 const path = require("path");
 
+let mainWindow;
+
 function createWindow() {
-  const win = new BrowserWindow({
+  mainWindow = new BrowserWindow({
     width: 1400,
     height: 900,
     webPreferences: {
-      preload: path.join(__dirname, "preload.js"),
-    },
+      preload: path.join(__dirname, "preload.js")
+    }
   });
 
-  win.loadURL("http://localhost:5173");
+  mainWindow.loadURL("http://localhost:5173");
 }
 
-app.whenReady().then(createWindow);
-
-app.on("window-all-closed", () => {
-  if (process.platform !== "darwin") app.quit();
+ipcMain.handle("get-snapshot", async () => {
+  const snapshot = require("./renderer/state/snapshotStore").getSnapshot();
+  return snapshot;
 });
+
+app.whenReady().then(createWindow);
 

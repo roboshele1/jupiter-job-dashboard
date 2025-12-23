@@ -1,14 +1,18 @@
 // renderer/state/portfolioData.js
 
-export const holdings = [
-  { symbol: "ASML", quantity: 10, type: "Equity" },
-  { symbol: "NVDA", quantity: 73, type: "Equity" },
-  { symbol: "AVGO", quantity: 80, type: "Equity" },
-  { symbol: "BTC", quantity: 0.251083, type: "Digital" },
-  { symbol: "ETH", quantity: 0.25, type: "Digital" },
-  { symbol: "MSTR", quantity: 25, type: "Equity" },
-  { symbol: "HOOD", quantity: 35, type: "Equity" },
-  { symbol: "BMNR", quantity: 115, type: "Equity" },
-  { symbol: "APLD", quantity: 150, type: "Equity" }
-];
+const portfolioData = {
+  holdings: [
+    { symbol: "ASML", qty: 10, value: 10560.2 },
+    { symbol: "NVDA", qty: 73, value: 13212.27 },
+    { symbol: "AVGO", qty: 74, value: 27228.8 },
+    { symbol: "BTC", qty: 0.251, value: 22597.47 },
+    { symbol: "ETH", qty: 1, value: 702.8 },
+    { symbol: "MSTR", qty: 24, value: 4120.5 },
+    { symbol: "HOOD", qty: 70, value: 4247.25 },
+    { symbol: "BMNR", qty: 115, value: 2300.0 },
+    { symbol: "APLD", qty: 150, value: 5482.05 },
+  ],
+};
+
+export default portfolioData;
 
