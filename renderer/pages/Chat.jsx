@@ -1,88 +1,93 @@
 // renderer/pages/Chat.jsx
-/**
- * Chat — Phase 2
- * ----------------
- * Read-only observer of Dashboard truth.
- * Hydrates snapshot data asynchronously.
- * No inference, no actions, no mutations.
- */
+// Phase 2 — Read-only Chat with semantic interpretation
+// ZERO inference, ZERO actions, ZERO mutation
 
 import React, { useEffect, useState } from "react";
 import { readDashboardTruth } from "../stores/dashboardRead";
 
 export default function Chat() {
-  const [dashboardTruth, setDashboardTruth] = useState(null);
-  const [status, setStatus] = useState("hydrating");
+  const [truth, setTruth] = useState(null);
 
   useEffect(() => {
-    let mounted = true;
-
-    async function hydrate() {
-      try {
-        const truth = await readDashboardTruth();
-
-        if (mounted) {
-          setDashboardTruth(truth);
-          setStatus("ready");
-        }
-      } catch (error) {
-        console.error("Chat hydration failed:", error);
-
-        if (mounted) {
-          setStatus("error");
-        }
-      }
-    }
-
-    hydrate();
-
-    return () => {
-      mounted = false;
-    };
+    const snapshot = readDashboardTruth();
+    setTruth(snapshot);
   }, []);
 
+  if (!truth) {
+    return (
+      <div className="page">
+        <h1>Chat</h1>
+        <p>Initializing dashboard context…</p>
+      </div>
+    );
+  }
+
+  const {
+    portfolioValue,
+    dailyPL,
+    dailyPLPct,
+    allocation,
+    topHoldings,
+    snapshotTimestamp
+  } = truth;
+
   return (
-    <div style={{ padding: 32 }}>
+    <div className="page">
       <h1>Chat</h1>
-      <p style={{ opacity: 0.7 }}>
+      <p className="muted">
         Read-only Dashboard context (Phase 2).
       </p>
 
-      {status === "hydrating" && (
-        <div style={{ marginTop: 24, opacity: 0.6 }}>
-          Hydrating dashboard truth…
-        </div>
-      )}
+      <div className="card">
+        <h2>Dashboard Interpretation</h2>
 
-      {status === "error" && (
-        <div style={{ marginTop: 24, color: "#F44336" }}>
-          Failed to hydrate dashboard truth.
-        </div>
-      )}
+        <ul className="interpretation">
+          <li>
+            <strong>Snapshot time:</strong>{" "}
+            {snapshotTimestamp || "Not available"}
+          </li>
 
-      {status === "ready" && (
-        <div
-          style={{
-            marginTop: 24,
-            padding: 20,
-            borderRadius: 12,
-            background: "rgba(255,255,255,0.04)",
-            fontFamily: "monospace",
-            whiteSpace: "pre-wrap",
-          }}
-        >
-          <strong>Dashboard Truth</strong>
-          <pre style={{ marginTop: 12 }}>
-            {JSON.stringify(dashboardTruth, null, 2)}
-          </pre>
+          <li>
+            <strong>Total portfolio value:</strong>{" "}
+            {portfolioValue != null
+              ? `$${portfolioValue.toLocaleString()}`
+              : "Not yet computed"}
+          </li>
 
-          <div style={{ marginTop: 16, opacity: 0.5 }}>
-            Chat is operating in observer mode.
-            <br />
-            No inference or actions are permitted in Phase 2.
-          </div>
-        </div>
-      )}
+          <li>
+            <strong>Daily P/L:</strong>{" "}
+            {dailyPL != null ? dailyPL : "Unavailable"}
+          </li>
+
+          <li>
+            <strong>Daily P/L %:</strong>{" "}
+            {dailyPLPct != null ? `${dailyPLPct}%` : "Unavailable"}
+          </li>
+
+          <li>
+            <strong>Allocation summary:</strong>{" "}
+            {allocation
+              ? Object.entries(allocation)
+                  .map(([k, v]) => `${k}: ${v}%`)
+                  .join(" | ")
+              : "Not hydrated"}
+          </li>
+
+          <li>
+            <strong>Top holdings:</strong>{" "}
+            {topHoldings && topHoldings.length > 0
+              ? topHoldings
+                  .map(h => `${h.symbol} (${h.quantity})`)
+                  .join(", ")
+              : "Not hydrated"}
+          </li>
+        </ul>
+
+        <p className="muted">
+          Chat is operating in observer mode. No inference or actions
+          are permitted in Phase 2.
+        </p>
+      </div>
     </div>
   );
 }
