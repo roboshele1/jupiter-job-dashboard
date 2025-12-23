@@ -1,8 +1,7 @@
-const { contextBridge, ipcRenderer } = require("electron");
+import { contextBridge, ipcRenderer } from "electron";
 
 contextBridge.exposeInMainWorld("prices", {
-  getSnapshot: async () => {
-    return await ipcRenderer.invoke("prices:getSnapshot");
-  }
+  getCryptoPrices: () => ipcRenderer.invoke("prices:getCryptoPrices"),
+  getEquityPrices: () => ipcRenderer.invoke("prices:getEquityPrices"),
 });
 

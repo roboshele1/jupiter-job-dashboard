@@ -1,13 +1,9 @@
-// main.js
-// JUPITER — IPC Snapshot Hydration (LOCKED)
-
-const { app, BrowserWindow, ipcMain } = require("electron");
-const path = require("path");
-
-let mainWindow;
+import { app, BrowserWindow, ipcMain } from "electron";
+import path from "path";
+import { fetchEquityPrices } from "./api/equityPriceService.js";
 
 function createWindow() {
-  mainWindow = new BrowserWindow({
+  const win = new BrowserWindow({
     width: 1400,
     height: 900,
     webPreferences: {
@@ -15,12 +11,11 @@ function createWindow() {
     }
   });
 
-  mainWindow.loadURL("http://localhost:5173");
+  win.loadURL("http://localhost:5173");
 }
 
-ipcMain.handle("get-snapshot", async () => {
-  const snapshot = require("./renderer/state/snapshotStore").getSnapshot();
-  return snapshot;
+ipcMain.handle("get-equity-prices", async (_, symbols) => {
+  return await fetchEquityPrices(symbols);
 });
 
 app.whenReady().then(createWindow);
