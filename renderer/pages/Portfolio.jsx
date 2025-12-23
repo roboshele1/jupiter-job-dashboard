@@ -1,44 +1,20 @@
-import { useEffect, useState } from "react";
-import { getSnapshotRows } from "../services/snapshotAdapter";
+import React from "react";
 
 export default function Portfolio() {
-  const [rows, setRows] = useState([]);
-
-  useEffect(() => {
-    let mounted = true;
-
-    async function load() {
-      try {
-        const data = await getSnapshotRows();
-        if (mounted && Array.isArray(data)) {
-          setRows(data);
-        } else {
-          setRows([]);
-        }
-      } catch (e) {
-        console.error("Portfolio load failed:", e);
-        setRows([]);
-      }
-    }
-
-    load();
-    return () => {
-      mounted = false;
-    };
-  }, []);
-
-  if (!rows.length) {
-    return (
-      <div>
-        <h1>Portfolio</h1>
-        <p>Snapshot holdings with optional live price overlay.</p>
-        <p>No holdings available.</p>
-      </div>
-    );
-  }
+  const rows = [
+    { symbol: "ASML", qty: 10, snapshot: 10560.20 },
+    { symbol: "NVDA", qty: 73, snapshot: 13212.27 },
+    { symbol: "AVGO", qty: 80, snapshot: 27228.80 },
+    { symbol: "BTC",  qty: 0.251083, snapshot: 22597.47 },
+    { symbol: "ETH",  qty: 0.25, snapshot: 702.80 },
+    { symbol: "MSTR", qty: 25, snapshot: 4120.50 },
+    { symbol: "HOOD", qty: 35, snapshot: 4247.25 },
+    { symbol: "BMNR", qty: 115, snapshot: 2300.00 },
+    { symbol: "APLD", qty: 150, snapshot: 5482.05 }
+  ];
 
   return (
-    <div>
+    <div style={{ padding: "32px" }}>
       <h1>Portfolio</h1>
       <p>Snapshot holdings with optional live price overlay.</p>
 
@@ -58,10 +34,10 @@ export default function Portfolio() {
             <tr key={r.symbol}>
               <td>{r.symbol}</td>
               <td>{r.qty}</td>
-              <td>${r.snapshotValue.toFixed(2)}</td>
-              <td>{r.livePrice ?? "—"}</td>
-              <td>{r.delta ?? "—"}</td>
-              <td>{r.deltaPct ?? "—"}</td>
+              <td>${r.snapshot.toFixed(2)}</td>
+              <td>—</td>
+              <td>—</td>
+              <td>—</td>
             </tr>
           ))}
         </tbody>
