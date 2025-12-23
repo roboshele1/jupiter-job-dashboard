@@ -1,6 +1,55 @@
+import { useEffect, useMemo, useState } from "react";
+import * as snapshotStore from "../state/snapshotStore";
 import "../styles/portfolio.css";
 
+function safeNum(n) {
+  const x = Number(n);
+  return Number.isFinite(x) ? x : 0;
+}
+
+function fmtMoney(n) {
+  const num = safeNum(n);
+  return `$${num.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+function pickSnapshot() {
+  try {
+    if (typeof snapshotStore.getLatestSnapshot === "function") return snapshotStore.getLatestSnapshot() || {};
+    if (typeof snapshotStore.getSnapshot === "function") return snapshotStore.getSnapshot() || {};
+    if (typeof snapshotStore.default === "function") return snapshotStore.default() || {};
+    return {};
+  } catch {
+    return {};
+  }
+}
+
 export default function Portfolio() {
+  const [snap, setSnap] = useState({});
+
+  useEffect(() => {
+    const s = pickSnapshot();
+    setSnap(s);
+  }, []);
+
+  const holdings = Array.isArray(snap.holdings) ? snap.holdings : [];
+
+  const totalValue = safeNum(snap.totalValue);
+
+  const allocation = snap.allocation || {};
+  const equityPct = safeNum(allocation.Equity);
+  const digitalPct = safeNum(allocation.Digital);
+
+  const rows = useMemo(() => {
+    return holdings.map((h) => {
+      const symbol = (h.symbol || h.ticker || h.asset || "—").toUpperCase();
+      const qty = safeNum(h.qty ?? h.quantity ?? h.shares ?? 0);
+      const price = safeNum(h.price ?? h.last ?? h.lastPrice ?? 0);
+      const value = safeNum(h.value ?? h.marketValue ?? h.market_value ?? 0);
+
+      return { symbol, qty, price, value };
+    });
+  }, [holdings]);
+
   return (
     <div className="portfolio-page">
       <h1>Portfolio</h1>
@@ -8,20 +57,23 @@ export default function Portfolio() {
       <div className="portfolio-cards">
         <div className="card">
           <span className="label">Total Value</span>
-          <span className="value">$90,451.34</span>
+          <span className="value">{fmtMoney(totalValue)}</span>
         </div>
+
         <div className="card">
           <span className="label">Equities</span>
-          <span className="value">74.24%</span>
+          <span className="value">{equityPct.toFixed(2)}%</span>
         </div>
+
         <div className="card">
           <span className="label">Digital Assets</span>
-          <span className="value">25.76%</span>
+          <span className="value">{digitalPct.toFixed(2)}%</span>
         </div>
       </div>
 
       <div className="card table-card">
         <h2>Holdings</h2>
+
         <table>
           <thead>
             <tr>
@@ -32,11 +84,22 @@ export default function Portfolio() {
             </tr>
           </thead>
           <tbody>
-            <tr><td>ASML</td><td>10</td><td>$1,056.02</td><td>$10,560.20</td></tr>
-            <tr><td>NVDA</td><td>73</td><td>$180.99</td><td>$13,212.27</td></tr>
-            <tr><td>AVGO</td><td>80</td><td>$340.36</td><td>$27,228.80</td></tr>
-            <tr><td>MSTR</td><td>25</td><td>$164.82</td><td>$4,120.50</td></tr>
-            <tr><td>HOOD</td><td>35</td><td>$121.35</td><td>$4,247.25</td></tr>
+            {rows.length === 0 ? (
+              <tr>
+                <td colSpan="4" className="muted">
+                  No holdings found in snapshot.
+                </td>
+              </tr>
+            ) : (
+              rows.map((r) => (
+                <tr key={r.symbol}>
+                  <td>{r.symbol}</td>
+                  <td>{r.qty}</td>
+                  <td>{fmtMoney(r.price)}</td>
+                  <td>{fmtMoney(r.value)}</td>
+                </tr>
+              ))
+            )}
           </tbody>
         </table>
       </div>
