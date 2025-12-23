@@ -1,21 +1,31 @@
 // renderer/services/snapshotAdapter.js
-// Read-only adapter layer
-// Normalizes real holdings for snapshot consumers
-
-import { fetchSnapshotHoldings } from "./snapshotSource";
-import {
-  getPortfolioSummary,
-  getPortfolioAllocation
-} from "./portfolioSnapshot";
+// Snapshot Adapter — READ ONLY
+// Phase 5 — Renderer consumes backend snapshot ONLY
+// LOCKED CONTRACT
 
 export async function buildSnapshot() {
-  const { holdings, meta } = await fetchSnapshotHoldings();
+  try {
+    const res = await fetch("http://localhost:3001/snapshot");
+    if (!res.ok) throw new Error("Snapshot server unavailable");
 
-  return {
-    meta,
-    summary: getPortfolioSummary(holdings),
-    allocation: getPortfolioAllocation(holdings),
-    holdings
-  };
+    const live = await res.json();
+
+    return {
+      meta: {
+        source: live.source,
+        timestamp: live.timestamp,
+      },
+      prices: live.prices,
+    };
+  } catch (err) {
+    return {
+      meta: {
+        source: "unavailable",
+        timestamp: null,
+      },
+      prices: {},
+      error: err.message,
+    };
+  }
 }
 
