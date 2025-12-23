@@ -1,93 +1,80 @@
 // renderer/pages/Chat.jsx
-// Phase 2 — Read-only Chat with semantic interpretation
-// ZERO inference, ZERO actions, ZERO mutation
+// Phase 3: Read-only Chat with semantic interpretation enrichment
 
-import React, { useEffect, useState } from "react";
+import React from "react";
+
 import { readDashboardTruth } from "../stores/dashboardRead";
+import { interpretDashboard } from "../engine/interpretationEngine";
+import { enrichInterpretation } from "../chat/interpretationEnrichment";
 
 export default function Chat() {
-  const [truth, setTruth] = useState(null);
+  // Layer 1: Raw dashboard truth
+  const dashboardTruth = readDashboardTruth();
 
-  useEffect(() => {
-    const snapshot = readDashboardTruth();
-    setTruth(snapshot);
-  }, []);
+  // Layer 2: Structured interpretation
+  const interpretation = interpretDashboard(dashboardTruth);
 
-  if (!truth) {
-    return (
-      <div className="page">
-        <h1>Chat</h1>
-        <p>Initializing dashboard context…</p>
-      </div>
-    );
-  }
-
-  const {
-    portfolioValue,
-    dailyPL,
-    dailyPLPct,
-    allocation,
-    topHoldings,
-    snapshotTimestamp
-  } = truth;
+  // Layer 3: Semantic enrichment
+  const enrichment = enrichInterpretation(interpretation);
 
   return (
-    <div className="page">
+    <div style={{ padding: "32px", maxWidth: 960 }}>
       <h1>Chat</h1>
-      <p className="muted">
-        Read-only Dashboard context (Phase 2).
+      <p style={{ opacity: 0.7 }}>
+        Read-only Dashboard context (Phase 3 · Observer).
       </p>
 
-      <div className="card">
+      {/* Raw Truth */}
+      <section style={{ marginTop: 32 }}>
+        <h2>Dashboard Truth</h2>
+        <pre className="panel">
+          {JSON.stringify(dashboardTruth, null, 2)}
+        </pre>
+      </section>
+
+      {/* Structured Interpretation */}
+      <section style={{ marginTop: 32 }}>
         <h2>Dashboard Interpretation</h2>
+        <pre className="panel">
+          {JSON.stringify(interpretation, null, 2)}
+        </pre>
+      </section>
 
-        <ul className="interpretation">
-          <li>
-            <strong>Snapshot time:</strong>{" "}
-            {snapshotTimestamp || "Not available"}
-          </li>
+      {/* Enriched Interpretation */}
+      <section style={{ marginTop: 32 }}>
+        <h2>Enriched Interpretation</h2>
 
-          <li>
-            <strong>Total portfolio value:</strong>{" "}
-            {portfolioValue != null
-              ? `$${portfolioValue.toLocaleString()}`
-              : "Not yet computed"}
-          </li>
+        <div className="panel">
+          <p><strong>Summary</strong></p>
+          <p>{enrichment.summary}</p>
 
-          <li>
-            <strong>Daily P/L:</strong>{" "}
-            {dailyPL != null ? dailyPL : "Unavailable"}
-          </li>
+          {enrichment.insights?.length > 0 && (
+            <>
+              <p><strong>Insights</strong></p>
+              <ul>
+                {enrichment.insights.map((item, idx) => (
+                  <li key={idx}>{item}</li>
+                ))}
+              </ul>
+            </>
+          )}
 
-          <li>
-            <strong>Daily P/L %:</strong>{" "}
-            {dailyPLPct != null ? `${dailyPLPct}%` : "Unavailable"}
-          </li>
+          {enrichment.riskNotes?.length > 0 && (
+            <>
+              <p><strong>Risk Notes</strong></p>
+              <ul>
+                {enrichment.riskNotes.map((item, idx) => (
+                  <li key={idx}>{item}</li>
+                ))}
+              </ul>
+            </>
+          )}
 
-          <li>
-            <strong>Allocation summary:</strong>{" "}
-            {allocation
-              ? Object.entries(allocation)
-                  .map(([k, v]) => `${k}: ${v}%`)
-                  .join(" | ")
-              : "Not hydrated"}
-          </li>
-
-          <li>
-            <strong>Top holdings:</strong>{" "}
-            {topHoldings && topHoldings.length > 0
-              ? topHoldings
-                  .map(h => `${h.symbol} (${h.quantity})`)
-                  .join(", ")
-              : "Not hydrated"}
-          </li>
-        </ul>
-
-        <p className="muted">
-          Chat is operating in observer mode. No inference or actions
-          are permitted in Phase 2.
-        </p>
-      </div>
+          <p style={{ marginTop: 16, opacity: 0.6 }}>
+            System mode: {enrichment.system.mode} · Phase {enrichment.system.phase}
+          </p>
+        </div>
+      </section>
     </div>
   );
 }
