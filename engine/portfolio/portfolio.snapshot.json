@@ -1,0 +1,12 @@
+{
+  "contract": "PORTFOLIO_VALUATION_DETERMINISTIC_V1",
+  "currency": "CAD",
+  "totals": {
+    "snapshotValue": 96832.16,
+    "liveValue": 90451.34,
+    "delta": -6380.82,
+    "deltaPct": -6.59
+  },
+  "positions": [],
+  "_asOf": 1766590963154
+}
