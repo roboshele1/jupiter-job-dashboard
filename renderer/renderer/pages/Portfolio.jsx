@@ -1,33 +1,54 @@
 import { useEffect } from "react";
-import { writeSnapshot } from "../state/snapshotStore";
+import { usePortfolioSnapshotStore } from "../state/portfolioSnapshotStore";
 
 export default function Portfolio() {
-  const computed = [
-    { symbol: "ASML", qty: 10, price: 1056.02, value: 10560.2, source: "polygon" },
-    { symbol: "NVDA", qty: 73, price: 180.99, value: 13212.27, source: "polygon" },
-    { symbol: "AVGO", qty: 80, price: 340.36, value: 27228.8, source: "polygon" },
-    { symbol: "BTC", qty: 0.251083, price: 89756.16, value: 22536.25, source: "coinbase" },
-    { symbol: "ETH", qty: 0.25, price: 3048.7, value: 762.17, source: "coinbase" },
-    { symbol: "MSTR", qty: 25, price: 164.82, value: 4120.5, source: "polygon" },
-    { symbol: "HOOD", qty: 35, price: 121.35, value: 4247.25, source: "polygon" },
-    { symbol: "BMNR", qty: 115, price: 31.36, value: 3606.4, source: "polygon" },
-    { symbol: "APLD", qty: 150, price: 27.85, value: 4177.5, source: "polygon" }
-  ];
-
-  const totalValue = computed.reduce((s, r) => s + r.value, 0);
+  const snapshot = usePortfolioSnapshotStore((s) => s.snapshot);
 
   useEffect(() => {
-    writeSnapshot({
-      timestamp: new Date().toISOString(),
-      totalValue,
-      rows: computed
-    });
-  }, []);
+    if (!snapshot) {
+      console.warn("PORTFOLIO: snapshot not yet loaded");
+    }
+  }, [snapshot]);
+
+  if (!snapshot) {
+    return <div>Loading portfolio…</div>;
+  }
+
+  const { totals, positions } = snapshot;
 
   return (
     <div>
       <h1>Portfolio</h1>
-      <h2>Total Value: ${totalValue.toFixed(2)}</h2>
+
+      <h2>
+        Total Portfolio Value: $
+        {totals?.liveValue?.toFixed(2) ?? "—"}
+      </h2>
+
+      <table>
+        <thead>
+          <tr>
+            <th>Symbol</th>
+            <th>Qty</th>
+            <th>Snapshot $</th>
+            <th>Live $</th>
+            <th>Δ</th>
+            <th>Δ%</th>
+          </tr>
+        </thead>
+        <tbody>
+          {positions.map((p) => (
+            <tr key={p.symbol}>
+              <td>{p.symbol}</td>
+              <td>{p.qty}</td>
+              <td>${p.snapshot.toFixed(2)}</td>
+              <td>${p.live.toFixed(2)}</td>
+              <td>${p.delta.toFixed(2)}</td>
+              <td>{p.deltaPct.toFixed(2)}%</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }
