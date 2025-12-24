@@ -1,46 +1,58 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState } from 'react';
 
 export default function Portfolio() {
-  const [rows, setRows] = useState([]);
+  const [snapshot, setSnapshot] = useState(null);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
-    (async () => {
-      const res = await window.portfolio.getSnapshot();
-      if (!res.ok) {
-        console.error("Snapshot IPC failed");
-        return;
+    async function load() {
+      try {
+        if (!window.jupiter?.getSnapshot) {
+          throw new Error('IPC_NOT_AVAILABLE');
+        }
+        const data = await window.jupiter.getSnapshot();
+        setSnapshot(data);
+      } catch (err) {
+        setError(err.message);
       }
-      setRows(res.rows);
-    })();
+    }
+    load();
   }, []);
+
+  if (error) {
+    return <div style={{ color: 'red' }}>Error: {error}</div>;
+  }
+
+  if (!snapshot) {
+    return <div>Loading portfolio…</div>;
+  }
 
   return (
     <div>
       <h1>Portfolio</h1>
+
       <table>
         <thead>
           <tr>
             <th>Symbol</th>
-            <th>Qty</th>
-            <th>Snapshot $</th>
-            <th>Live $</th>
+            <th>Cost USD</th>
+            <th>Live USD</th>
             <th>Δ</th>
-            <th>Δ%</th>
           </tr>
         </thead>
         <tbody>
-          {rows.map(r => (
-            <tr key={r.symbol}>
-              <td>{r.symbol}</td>
-              <td>{r.qty}</td>
-              <td>${r.snapshot.toFixed(2)}</td>
-              <td>${r.live.toFixed(2)}</td>
-              <td>${r.delta.toFixed(2)}</td>
-              <td>{r.deltaPct.toFixed(2)}%</td>
+          {snapshot.positions.map((p) => (
+            <tr key={p.symbol}>
+              <td>{p.symbol}</td>
+              <td>{p.costUSD.toFixed(2)}</td>
+              <td>{p.liveUSD.toFixed(2)}</td>
+              <td>{p.deltaUSD.toFixed(2)}</td>
             </tr>
           ))}
         </tbody>
       </table>
+
+      <h3>Total Value (USD): {snapshot.totals.valueUSD.toFixed(2)}</h3>
     </div>
   );
 }

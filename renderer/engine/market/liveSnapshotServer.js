@@ -1,67 +1,49 @@
 // renderer/engine/market/liveSnapshotServer.js
-// Market Snapshot Server (READ-ONLY)
-// Phase 5 — Institutional live snapshot backend
-// PORT 3001 — LOCKED
-
-import express from "express";
-import cors from "cors";
-import axios from "axios";
+import express from 'express';
+import fetch from 'node-fetch';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
 
-const POLYGON_API_KEY = "jyA2YblY5AP7pkvNtyBhpfTNQcSczcAS";
-
-app.use(cors());
-app.use(express.json());
-
-async function fetchLivePrices(symbols = []) {
-  const prices = {};
+/**
+ * Canonical Live Pricing Contract
+ * @param {string[]} symbols
+ * @returns {Object} { SYMBOL: { price } }
+ */
+export async function getLivePrices(symbols = []) {
+  const results = {};
 
   for (const symbol of symbols) {
-    // Crypto via Coinbase
-    if (symbol === "BTC" || symbol === "ETH") {
-      const res = await axios.get(
-        `https://api.coinbase.com/v2/prices/${symbol}-USD/spot`
-      );
-      prices[symbol] = {
-        price: Number(res.data.data.amount),
-        currency: "USD",
-      };
-    }
+    try {
+      let url;
 
-    // Equities via Polygon
-    else {
-      const res = await axios.get(
-        `https://api.polygon.io/v2/aggs/ticker/${symbol}/prev`,
-        { params: { apiKey: POLYGON_API_KEY } }
-      );
-      prices[symbol] = {
-        price: res.data.results?.[0]?.c ?? null,
-        currency: "USD",
-      };
+      // Simple routing: crypto vs equity
+      if (symbol === 'BTC' || symbol === 'ETH') {
+        url = `https://api.coinbase.com/v2/prices/${symbol}-USD/spot`;
+        const res = await fetch(url);
+        const json = await res.json();
+        results[symbol] = { price: Number(json.data.amount) };
+      } else {
+        // Polygon equity pricing (last trade)
+        const apiKey = process.env.POLYGON_API_KEY;
+        url = `https://api.polygon.io/v2/last/trade/${symbol}?apiKey=${apiKey}`;
+        const res = await fetch(url);
+        const json = await res.json();
+        results[symbol] = { price: json?.results?.p ?? 0 };
+      }
+    } catch (err) {
+      results[symbol] = { price: 0 };
     }
   }
 
-  return {
-    source: "live",
-    timestamp: new Date().toISOString(),
-    prices,
-  };
+  return results;
 }
 
-app.get("/health", (_, res) => {
-  res.json({ status: "ok", service: "market-snapshot" });
-});
-
-app.get("/snapshot", async (_, res) => {
-  try {
-    const symbols = ["BTC", "ETH"]; // placeholder until holdings injected
-    const live = await fetchLivePrices(symbols);
-    res.json(live);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
+/* --- Optional HTTP wrapper (non-blocking) --- */
+app.get('/prices', async (req, res) => {
+  const symbols = (req.query.symbols || '').split(',').filter(Boolean);
+  const prices = await getLivePrices(symbols);
+  res.json(prices);
 });
 
 app.listen(PORT, () => {

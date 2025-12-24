@@ -1,7 +1,7 @@
-const { contextBridge, ipcRenderer } = require("electron");
+const { contextBridge, ipcRenderer } = require('electron');
 
-contextBridge.exposeInMainWorld("portfolio", {
-  getSnapshot: () =>
-    ipcRenderer.invoke("portfolio:getAuthoritativeSnapshot")
+contextBridge.exposeInMainWorld('jupiter', {
+  getSnapshot: () => ipcRenderer.invoke('portfolio:getSnapshot'),
+  getLivePrices: () => ipcRenderer.invoke('market:getLivePrices'),
 });
 

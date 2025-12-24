@@ -1,6 +1,6 @@
 {
-  "name": "electron",
-  "main": "main.js",
-  "type": "module"
+  "name": "jupiter-electron",
+  "version": "1.0.0",
+  "main": "main.js"
 }
 
