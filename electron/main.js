@@ -1,14 +1,36 @@
 import { app, BrowserWindow, ipcMain } from "electron";
 import path from "path";
-import axios from "axios";
 import "dotenv/config";
+
+import { valuePortfolio } from "../engine/portfolio/portfolioValuation.js";
 
 let mainWindow;
 
+const HOLDINGS = [
+  { symbol: "NVDA", qty: 73, assetClass: "equity", totalCostBasis: 12881.13, currency: "CAD" },
+  { symbol: "ASML", qty: 10, assetClass: "equity", totalCostBasis: 8649.52, currency: "CAD" },
+  { symbol: "AVGO", qty: 74, assetClass: "equity", totalCostBasis: 26190.68, currency: "CAD" },
+  { symbol: "MSTR", qty: 24, assetClass: "equity", totalCostBasis: 12496.18, currency: "CAD" },
+  { symbol: "HOOD", qty: 70, assetClass: "equity", totalCostBasis: 3316.68, currency: "CAD" },
+  { symbol: "BMNR", qty: 115, assetClass: "equity", totalCostBasis: 6320.18, currency: "CAD" },
+  { symbol: "APLD", qty: 150, assetClass: "equity", totalCostBasis: 1615.58, currency: "CAD" },
+  { symbol: "BTC", qty: 0.251083, assetClass: "crypto", totalCostBasis: 24764.31, currency: "CAD" },
+  { symbol: "ETH", qty: 0.25, assetClass: "crypto", totalCostBasis: 597.9, currency: "CAD" }
+];
+
+let cachedValuation = null;
+
+async function computeAndCache() {
+  cachedValuation = await valuePortfolio(HOLDINGS);
+  cachedValuation._asOf = Date.now();
+  console.log("[AUTHORITATIVE PORTFOLIO CACHED]", JSON.stringify(cachedValuation, null, 2));
+  return cachedValuation;
+}
+
 function createWindow() {
   mainWindow = new BrowserWindow({
-    width: 1200,
-    height: 800,
+    width: 1400,
+    height: 900,
     webPreferences: {
       preload: path.join(process.cwd(), "electron/preload.js"),
       contextIsolation: true,
@@ -16,67 +38,20 @@ function createWindow() {
     }
   });
 
-  mainWindow.loadURL("http://localhost:5173");
+  mainWindow.loadURL(process.env.VITE_DEV_SERVER_URL);
 }
 
-app.whenReady().then(createWindow);
+app.whenReady().then(async () => {
+  await computeAndCache();
+  createWindow();
+});
 
-/**
- * AUTHORITATIVE POSITIONS CONTRACT (V1 LOCK)
- */
-const POSITIONS = [
-  { symbol: "BTC", qty: 0.251083, snapshot: 22597.47, type: "crypto" },
-  { symbol: "ETH", qty: 0.25, snapshot: 702.8, type: "crypto" },
+ipcMain.handle("portfolio:getValuation", async () => {
+  if (!cachedValuation) await computeAndCache();
+  return cachedValuation; // NO REFRESH (deterministic)
+});
 
-  { symbol: "NVDA", qty: 73, snapshot: 0, type: "equity" },
-  { symbol: "ASML", qty: 10, snapshot: 0, type: "equity" },
-  { symbol: "AVGO", qty: 74, snapshot: 0, type: "equity" },
-  { symbol: "MSTR", qty: 24, snapshot: 0, type: "equity" },
-  { symbol: "HOOD", qty: 70, snapshot: 0, type: "equity" },
-  { symbol: "BMNR", qty: 115, snapshot: 0, type: "equity" },
-  { symbol: "APLD", qty: 150, snapshot: 0, type: "equity" }
-];
-
-ipcMain.handle("portfolio:getAuthoritativeSnapshot", async () => {
-  const prices = {};
-  const POLY_KEY = process.env.POLYGON_API_KEY;
-
-  try {
-    // ---- CRYPTO ----
-    for (const p of POSITIONS.filter(p => p.type === "crypto")) {
-      const res = await axios.get(
-        `https://api.coinbase.com/v2/prices/${p.symbol}-USD/spot`
-      );
-      prices[p.symbol] = parseFloat(res.data.data.amount);
-    }
-
-    // ---- EQUITIES ----
-    for (const p of POSITIONS.filter(p => p.type === "equity")) {
-      const res = await axios.get(
-        `https://api.polygon.io/v2/aggs/ticker/${p.symbol}/prev?adjusted=true&apiKey=${POLY_KEY}`
-      );
-      prices[p.symbol] = res.data.results?.[0]?.c ?? 0;
-    }
-
-    const rows = POSITIONS.map(p => {
-      const liveValue = prices[p.symbol] * p.qty;
-      const delta = liveValue - p.snapshot;
-      const deltaPct = p.snapshot ? (delta / p.snapshot) * 100 : 0;
-
-      return {
-        ...p,
-        live: liveValue,
-        delta,
-        deltaPct
-      };
-    });
-
-    console.log("[AUTHORITATIVE SNAPSHOT]", rows);
-
-    return { ok: true, rows };
-  } catch (err) {
-    console.error("[AUTHORITATIVE SNAPSHOT ERROR]", err);
-    return { ok: false, rows: [] };
-  }
+ipcMain.handle("portfolio:refreshValuation", async () => {
+  return await computeAndCache(); // explicit refresh only
 });
 

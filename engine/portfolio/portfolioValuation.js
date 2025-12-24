@@ -1,52 +1,51 @@
-/**
- * engine/portfolio/portfolioValuation.js
- * Terminal-authoritative portfolio valuation + totals
- */
+import { getLivePrices } from "../market/getLivePrices.js";
 
-import { resolvePrice } from "../market/priceResolver.js";
+export async function valuePortfolio(holdings = []) {
+  const symbols = holdings.map(h => h.symbol);
+  const livePrices = await getLivePrices(symbols);
 
-export async function valuePortfolio(holdings) {
-  const positions = [];
-  let totalValue = 0;
+  const positions = holdings.map(h => {
+    const livePrice = livePrices[h.symbol]?.price ?? 0;
+    const snapshotValue = h.totalCostBasis;
+    const liveValue = h.qty * livePrice;
+    const delta = liveValue - snapshotValue;
+    const deltaPct = snapshotValue > 0 ? (delta / snapshotValue) * 100 : 0;
 
-  // First pass: resolve prices + values
-  for (const h of holdings) {
-    const resolved = await resolvePrice(h);
-
-    const price = Number(resolved.price || 0);
-    const qty = Number(h.qty || 0);
-
-    const value =
-      price > 0 && qty > 0
-        ? Number((price * qty).toFixed(2))
-        : null;
-
-    if (value !== null) totalValue += value;
-
-    positions.push({
+    return {
       symbol: h.symbol,
-      qty,
+      qty: h.qty,
       assetClass: h.assetClass,
-      price,
-      value,
-      priceSource: resolved.source,
-      timestamp: resolved.timestamp
-    });
-  }
+      snapshotValue,
+      livePrice,
+      liveValue,
+      delta,
+      deltaPct,
+      currency: h.currency,
+      priceSource: livePrices[h.symbol]?.source ?? "unknown",
+      timestamp: Date.now()
+    };
+  });
 
-  // Second pass: compute weights
-  const enriched = positions.map(p => ({
-    ...p,
-    weightPct:
-      p.value !== null && totalValue > 0
-        ? Number(((p.value / totalValue) * 100).toFixed(2))
-        : null
-  }));
+  const totals = positions.reduce(
+    (acc, p) => {
+      acc.snapshotValue += p.snapshotValue;
+      acc.liveValue += p.liveValue;
+      acc.delta += p.delta;
+      return acc;
+    },
+    { snapshotValue: 0, liveValue: 0, delta: 0 }
+  );
+
+  totals.deltaPct =
+    totals.snapshotValue > 0
+      ? (totals.delta / totals.snapshotValue) * 100
+      : 0;
 
   return {
-    totalValue: Number(totalValue.toFixed(2)),
-    currency: "USD",
-    positions: enriched
+    contract: "PORTFOLIO_VALUATION_DETERMINISTIC_V1",
+    currency: "CAD",
+    totals,
+    positions
   };
 }
 

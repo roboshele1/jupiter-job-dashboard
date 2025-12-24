@@ -1,67 +1,62 @@
-// renderer/pages/Portfolio.jsx
-// JUPITER — Portfolio (V1 Read-Only, Deterministic, Null-Safe)
-
-import React from "react";
-import { usePortfolioSnapshotStore } from "../state/portfolioSnapshotStore";
+import { useEffect, useState } from "react";
 
 export default function Portfolio() {
-  const snapshot = usePortfolioSnapshotStore(s => s.snapshot);
+  const [data, setData] = useState(null);
 
-  if (!snapshot || !snapshot.positions || !snapshot.totals) {
-    return (
-      <div style={{ padding: 24 }}>
-        <h1>Portfolio</h1>
-        <p>Loading portfolio snapshot...</p>
-      </div>
-    );
-  }
+  useEffect(() => {
+    (async () => {
+      const result = await window.jupiter.getPortfolioValuation();
+      setData(result);
+    })();
+  }, []);
 
-  const {
-    totals: { snapshotValue = 0, liveValue = 0, delta = 0, deltaPct = 0 },
-    positions = []
-  } = snapshot;
+  if (!data) return <div>Loading portfolio…</div>;
 
   return (
-    <div style={{ padding: 24 }}>
+    <div>
       <h1>Portfolio</h1>
 
-      <div style={{ marginBottom: 24 }}>
-        <div>Total Snapshot: ${snapshotValue.toFixed(2)}</div>
-        <div>Total Live: ${liveValue.toFixed(2)}</div>
-        <div>
-          Δ ${delta.toFixed(2)} ({deltaPct.toFixed(2)}%)
-        </div>
+      <div style={{ marginBottom: 14 }}>
+        <div><strong>Currency:</strong> {data.currency}</div>
+        <div><strong>As-Of:</strong> {data._asOf ? new Date(data._asOf).toLocaleString() : "n/a"}</div>
+        <div><strong>Total Snapshot:</strong> ${data.totals.snapshotValue.toFixed(2)}</div>
+        <div><strong>Total Live:</strong> ${data.totals.liveValue.toFixed(2)}</div>
+        <div><strong>Δ:</strong> ${data.totals.delta.toFixed(2)} ({data.totals.deltaPct.toFixed(2)}%)</div>
+
+        <button
+          onClick={async () => setData(await window.jupiter.refreshPortfolioValuation())}
+          style={{ marginTop: 10 }}
+        >
+          Refresh Prices
+        </button>
       </div>
 
-      <table style={{ width: "100%", borderCollapse: "collapse" }}>
+      <table border="1" cellPadding="6">
         <thead>
           <tr>
-            <th align="left">Symbol</th>
-            <th align="right">Qty</th>
-            <th align="right">Snapshot $</th>
-            <th align="right">Live $</th>
-            <th align="right">Δ</th>
-            <th align="right">Δ%</th>
+            <th>Symbol</th>
+            <th>Qty</th>
+            <th>Snapshot $</th>
+            <th>Live Price</th>
+            <th>Live $</th>
+            <th>Δ</th>
+            <th>Δ%</th>
+            <th>Source</th>
           </tr>
         </thead>
         <tbody>
-          {positions.map((p, i) => {
-            const snap = Number(p.snapshot || 0);
-            const live = Number(p.live || 0);
-            const d = live - snap;
-            const dp = snap !== 0 ? (d / snap) * 100 : 0;
-
-            return (
-              <tr key={i}>
-                <td>{p.symbol}</td>
-                <td align="right">{p.qty}</td>
-                <td align="right">${snap.toFixed(2)}</td>
-                <td align="right">${live.toFixed(2)}</td>
-                <td align="right">${d.toFixed(2)}</td>
-                <td align="right">{dp.toFixed(2)}%</td>
-              </tr>
-            );
-          })}
+          {data.positions.map(p => (
+            <tr key={p.symbol}>
+              <td>{p.symbol}</td>
+              <td>{p.qty}</td>
+              <td>${p.snapshotValue.toFixed(2)}</td>
+              <td>{Number(p.livePrice).toFixed(4)}</td>
+              <td>${p.liveValue.toFixed(2)}</td>
+              <td>${p.delta.toFixed(2)}</td>
+              <td>{p.deltaPct.toFixed(2)}%</td>
+              <td>{p.priceSource}</td>
+            </tr>
+          ))}
         </tbody>
       </table>
     </div>

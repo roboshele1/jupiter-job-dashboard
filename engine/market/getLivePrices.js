@@ -1,48 +1,31 @@
-/**
- * engine/market/getLivePrices.js
- * Live equities pricing (Polygon)
- * Safe to import from Electron main
- */
-
-import fetch from 'node-fetch';
+import fetch from "node-fetch";
 
 const POLYGON_KEY = process.env.POLYGON_API_KEY;
 
-export async function getLivePrices() {
-  if (!POLYGON_KEY) {
-    return {};
-  }
-
-  const symbols = [
-    'ASML',
-    'NVDA',
-    'AVGO',
-    'MSTR',
-    'HOOD',
-    'BMNR',
-    'APLD'
-  ];
-
-  const results = {};
+export async function getLivePrices(symbols = []) {
+  const prices = {};
 
   for (const symbol of symbols) {
-    try {
+    if (symbol === "BTC" || symbol === "ETH") {
+      const res = await fetch(`https://api.coinbase.com/v2/prices/${symbol}-USD/spot`);
+      const json = await res.json();
+      prices[symbol] = {
+        price: Number(json.data.amount),
+        source: "coinbase"
+      };
+    } else {
       const res = await fetch(
         `https://api.polygon.io/v2/aggs/ticker/${symbol}/prev?adjusted=true&apiKey=${POLYGON_KEY}`
       );
       const json = await res.json();
-
-      if (json?.results?.[0]?.c) {
-        results[symbol] = {
-          price: json.results[0].c,
-          source: 'polygon'
-        };
-      }
-    } catch {
-      // silent fail
+      const close = json?.results?.[0]?.c ?? 0;
+      prices[symbol] = {
+        price: Number(close),
+        source: "polygon-prev-close"
+      };
     }
   }
 
-  return results;
+  return prices;
 }
 

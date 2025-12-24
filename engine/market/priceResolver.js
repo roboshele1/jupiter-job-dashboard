@@ -1,30 +1,36 @@
 /**
  * engine/market/priceResolver.js
- * Terminal-safe unified price resolver
+ * Authoritative live price resolver (CAD)
+ * Currency is hard-locked to CAD
  */
 
 import { getCryptoPrices } from "./live/cryptoLiveFeed.js";
 import { getEquityPrices } from "./live/equityLiveFeed.js";
 
-export async function resolvePrice(holding) {
-  const now = Date.now();
+export async function resolvePrices(positions) {
+  const crypto = await getCryptoPrices();   // CAD
+  const equity = await getEquityPrices();   // CAD
 
-  if (holding.assetClass === "crypto") {
-    const crypto = await getCryptoPrices();
-    const q = crypto[holding.symbol];
-    return q
-      ? { price: q.price, source: q.source, timestamp: now }
-      : { price: 0, source: "crypto-missing", timestamp: now };
+  const out = {};
+
+  for (const p of positions) {
+    if (p.type === "crypto") {
+      out[p.symbol] = {
+        price: crypto[p.symbol]?.price ?? 0,
+        source: crypto[p.symbol]?.source ?? "unknown",
+        currency: "CAD"
+      };
+    }
+
+    if (p.type === "equity") {
+      out[p.symbol] = {
+        price: equity[p.symbol]?.price ?? 0,
+        source: equity[p.symbol]?.source ?? "unknown",
+        currency: "CAD"
+      };
+    }
   }
 
-  if (holding.assetClass === "equity") {
-    const equities = await getEquityPrices();
-    const q = equities[holding.symbol];
-    return q
-      ? { price: q.price, source: q.source, timestamp: now }
-      : { price: 0, source: "equity-missing", timestamp: now };
-  }
-
-  return { price: 0, source: "unknown-asset", timestamp: now };
+  return out;
 }
 
