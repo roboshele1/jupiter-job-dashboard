@@ -1,0 +1,48 @@
+{
+  "contract": "PORTFOLIO_VALUATION_DETERMINISTIC_V1",
+  "currency": "CAD",
+  "totals": {
+    "snapshotValue": 21912.00125,
+    "liveValue": 21912.00125,
+    "delta": 0,
+    "deltaPct": 0
+  },
+  "positions": [
+    {
+      "symbol": "NVDA",
+      "qty": 100,
+      "livePrice": 0,
+      "liveValue": 0,
+      "currency": "CAD"
+    },
+    {
+      "symbol": "AVGO",
+      "qty": 50,
+      "livePrice": 0,
+      "liveValue": 0,
+      "currency": "CAD"
+    },
+    {
+      "symbol": "ASML",
+      "qty": 30,
+      "livePrice": 0,
+      "liveValue": 0,
+      "currency": "CAD"
+    },
+    {
+      "symbol": "MSTR",
+      "qty": 20,
+      "livePrice": 0,
+      "liveValue": 0,
+      "currency": "CAD"
+    },
+    {
+      "symbol": "BTC",
+      "qty": 0.25,
+      "livePrice": 87648.005,
+      "liveValue": 21912.00125,
+      "currency": "CAD"
+    }
+  ],
+  "_asOf": 1766621426121
+}

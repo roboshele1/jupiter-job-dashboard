@@ -1,13 +1,11 @@
-const { ipcMain } = require("electron");
-const { getPortfolioSnapshot } = require("../engine/portfolioEngine");
-const { computeRisk } = require("../engine/riskEngine");
+// electron/ipc/riskIpc.js
 
-function registerRiskIpc() {
+import { ipcMain } from "electron";
+import { deriveRiskSnapshot } from "../../engine/risk/riskEngine.js";
+
+export function registerRiskIpc() {
   ipcMain.handle("risk:getSnapshot", async () => {
-    const snapshot = await getPortfolioSnapshot();
-    return computeRisk(snapshot);
+    return await deriveRiskSnapshot();
   });
 }
-
-module.exports = { registerRiskIpc };
 

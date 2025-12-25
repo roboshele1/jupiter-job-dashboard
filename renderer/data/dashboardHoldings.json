@@ -1,0 +1,7 @@
+[
+  { "symbol": "NVDA", "weight": 31 },
+  { "symbol": "AVGO", "weight": 23 },
+  { "symbol": "ASML", "weight": 21 },
+  { "symbol": "MSTR", "weight": 14 },
+  { "symbol": "BTC",  "weight": 11 }
+]

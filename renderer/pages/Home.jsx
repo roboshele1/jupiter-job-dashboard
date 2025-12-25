@@ -1,37 +1,54 @@
-// renderer/pages/Home.jsx
-
 import React from "react";
-import { computePortfolioTotals } from "../services/portfolioEngine";
+import Dashboard from "./Dashboard";
+import Portfolio from "./Portfolio";
+import Signals from "./Signals";
+import DiscoveryLab from "./DiscoveryLab";
+import GrowthEngine from "./GrowthEngine";
+import Insights from "./Insights";
+import RiskCentre from "./RiskCentre";
+import MarketMonitor from "./MarketMonitor";
+import Chat from "./Chat";
 
-export default function Home({ holdings }) {
-  const totals = computePortfolioTotals(holdings);
+/**
+ * Home.jsx
+ * -----------------------------
+ * PURE SHELL / ROUTER ONLY
+ * - No engine imports
+ * - No IPC
+ * - No portfolio logic
+ */
 
-  return (
-    <div>
-      <h1>Dashboard</h1>
+export default function Home({ activeTab }) {
+  switch (activeTab) {
+    case "dashboard":
+      return <Dashboard />;
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16 }}>
-        <div>
-          <h3>Total Portfolio Value</h3>
-          <div>${totals.totalValue.toFixed(2)}</div>
-        </div>
+    case "portfolio":
+      return <Portfolio />;
 
-        <div>
-          <h3>Daily P/L</h3>
-          <div
-            style={{ color: totals.totalPL >= 0 ? "#4CAF50" : "#F44336" }}
-          >
-            {totals.totalPL >= 0 ? "+" : "-"}$
-            {Math.abs(totals.totalPL).toFixed(2)}
-          </div>
-        </div>
+    case "signals":
+      return <Signals />;
 
-        <div>
-          <h3>P/L %</h3>
-          <div>{totals.totalPLPct.toFixed(2)}%</div>
-        </div>
-      </div>
-    </div>
-  );
+    case "discovery":
+      return <DiscoveryLab />;
+
+    case "growth":
+      return <GrowthEngine />;
+
+    case "insights":
+      return <Insights />;
+
+    case "risk":
+      return <RiskCentre />;
+
+    case "market":
+      return <MarketMonitor />;
+
+    case "chat":
+      return <Chat />;
+
+    default:
+      return null;
+  }
 }
 

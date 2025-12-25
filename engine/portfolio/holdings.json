@@ -1,0 +1,7 @@
+[
+  { "symbol": "NVDA", "qty": 100 },
+  { "symbol": "AVGO", "qty": 50 },
+  { "symbol": "ASML", "qty": 30 },
+  { "symbol": "MSTR", "qty": 20 },
+  { "symbol": "BTC",  "qty": 0.25 }
+]

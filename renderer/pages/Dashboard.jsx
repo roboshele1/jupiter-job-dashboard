@@ -1,193 +1,143 @@
-import { useEffect, useMemo, useState } from "react";
-import * as snapshotStore from "../state/snapshotStore";
-import "../styles/dashboard.css";
-
-const BUCKET_COLORS = {
-  Semiconductors: "#4cc9f0",
-  Software: "#8b5cf6",
-  Crypto: "#fbbf24",
-  Cash: "#e5e7eb"
-};
-
-function pickSnapshot() {
-  try {
-    if (typeof snapshotStore.getLatestSnapshot === "function") return snapshotStore.getLatestSnapshot() || {};
-    if (typeof snapshotStore.getSnapshot === "function") return snapshotStore.getSnapshot() || {};
-    if (typeof snapshotStore.default === "function") return snapshotStore.default() || {};
-    return {};
-  } catch {
-    return {};
-  }
-}
-
-function fmtMoney(n) {
-  const num = Number(n || 0);
-  return `$${num.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-}
-
-function safeNum(n) {
-  const num = Number(n);
-  return Number.isFinite(num) ? num : 0;
-}
+import React, { useEffect, useState } from "react";
+import holdings from "../data/dashboardHoldings.json";
 
 export default function Dashboard() {
-  const [snap, setSnap] = useState({});
+  const [snapshot, setSnapshot] = useState(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const s = pickSnapshot();
-    setSnap(s);
+    let mounted = true;
+
+    async function load() {
+      try {
+        if (window?.jupiter?.getDashboardSnapshot) {
+          const snap = await window.jupiter.getDashboardSnapshot();
+          if (mounted) setSnapshot(snap);
+        }
+      } catch (e) {
+        console.error("Dashboard snapshot load failed", e);
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    }
+
+    load();
+    return () => {
+      mounted = false;
+    };
   }, []);
 
-  const timestamp =
-    snap.snapshotTime ||
-    snap.snapshot_time ||
-    snap.timestamp ||
-    snap.time ||
-    snap.asOf ||
-    "—";
-
-  const holdings = Array.isArray(snap.holdings)
-    ? snap.holdings
-    : Array.isArray(snap.positions)
-      ? snap.positions
-      : Array.isArray(snap.assets)
-        ? snap.assets
-        : [];
-
-  const totalValue =
-    safeNum(snap.totalValue) ||
-    safeNum(snap.totalPortfolioValue) ||
-    safeNum(snap.total_portfolio_value) ||
-    holdings.reduce((acc, h) => acc + safeNum(h.value), 0);
-
-  const dailyPL = safeNum(snap.dailyPL) || safeNum(snap.dailyPl) || safeNum(snap.daily_pnl) || 0;
-  const dailyPLPct =
-    safeNum(snap.dailyPLPct) || safeNum(snap.dailyPlPct) || safeNum(snap.daily_pnl_pct) || 0;
-
-  const plClass = dailyPL > 0 ? "pl-positive" : dailyPL < 0 ? "pl-negative" : "pl-neutral";
-
-  const topHoldings = useMemo(() => {
-    const rows = holdings
-      .map((h) => ({
-        symbol: h.symbol || h.ticker || h.asset || "—",
-        qty: h.qty ?? h.quantity ?? h.shares ?? "—",
-        value: safeNum(h.value)
-      }))
-      .filter((r) => r.symbol !== "—")
-      .sort((a, b) => b.value - a.value)
-      .slice(0, 5);
-    return rows;
-  }, [holdings]);
-
-  const allocationBands = useMemo(() => {
-    if (!holdings.length || totalValue <= 0) {
-      // deterministic fallback (visual-only) if holdings not present
-      return [
-        { name: "Semiconductors", percent: 52, color: BUCKET_COLORS.Semiconductors },
-        { name: "Software", percent: 28, color: BUCKET_COLORS.Software },
-        { name: "Crypto", percent: 12, color: BUCKET_COLORS.Crypto },
-        { name: "Cash", percent: 8, color: BUCKET_COLORS.Cash }
-      ];
-    }
-
-    const SEMIS = new Set(["NVDA", "AVGO", "ASML", "TSM", "AMD", "MU", "ARM", "QCOM", "INTC", "AMAT", "LRCX", "KLAC", "ASX"]);
-    const SOFTWARE = new Set(["HOOD", "MSFT", "AAPL", "GOOGL", "GOOG", "META", "AMZN", "CRM", "ORCL", "ADBE", "NOW", "SNOW", "MSTR"]);
-    const CRYPTO = new Set(["BTC", "ETH", "BTCCAD", "ETHCAD", "IBIT"]);
-
-    const buckets = {
-      Semiconductors: 0,
-      Software: 0,
-      Crypto: 0,
-      Cash: 0
-    };
-
-    for (const h of holdings) {
-      const sym = (h.symbol || h.ticker || "").toUpperCase();
-      const v = safeNum(h.value);
-
-      if (CRYPTO.has(sym) || sym.includes("BTC") || sym.includes("ETH")) buckets.Crypto += v;
-      else if (SEMIS.has(sym) || sym.includes("ASML") || sym.includes("NVDA") || sym.includes("AVGO")) buckets.Semiconductors += v;
-      else if (SOFTWARE.has(sym) || sym.includes("HOOD") || sym.includes("MSTR")) buckets.Software += v;
-      else buckets.Cash += v;
-    }
-
-    const bands = Object.entries(buckets)
-      .map(([name, val]) => ({
-        name,
-        percent: Math.max(0, Math.round((val / totalValue) * 100)),
-        color: BUCKET_COLORS[name] || "#94a3b8"
-      }))
-      .filter((b) => b.percent > 0);
-
-    const sum = bands.reduce((a, b) => a + b.percent, 0);
-    if (sum !== 100 && bands.length) {
-      bands[0].percent = Math.max(0, bands[0].percent + (100 - sum));
-    }
-    return bands;
-  }, [holdings, totalValue]);
-
   return (
-    <div className="dashboard">
-      <h1>Dashboard</h1>
+    <div style={styles.container}>
+      <h1 style={styles.title}>Dashboard</h1>
 
-      <div className="card wide">
-        <div className="label">SNAPSHOT TIME</div>
-        <div className="value">{timestamp}</div>
-      </div>
-
-      <div className="card-row">
-        <div className="card">
-          <div className="label">TOTAL PORTFOLIO VALUE</div>
-          <div className="value">{fmtMoney(totalValue)}</div>
+      {loading && (
+        <div style={styles.placeholder}>
+          <p>Loading portfolio snapshot…</p>
         </div>
+      )}
 
-        <div className={`card ${plClass}`}>
-          <div className="label">DAILY P/L</div>
-          <div className="value">
-            {fmtMoney(dailyPL)} ({dailyPLPct.toFixed(2)}%)
-          </div>
+      {!loading && !snapshot && (
+        <div style={styles.placeholder}>
+          <p>Portfolio snapshot not available.</p>
+          <p style={styles.subtle}>
+            Waiting for Portfolio to publish a snapshot.
+          </p>
         </div>
-      </div>
+      )}
 
-      <div className="card wide">
-        <div className="label">ALLOCATION BANDS</div>
-        <div className="allocation-band">
-          {allocationBands.map((b) => (
-            <div
-              key={b.name}
-              className="band"
-              style={{ width: `${b.percent}%`, backgroundColor: b.color }}
-              title={`${b.name} ${b.percent}%`}
-            >
-              {b.name} {b.percent}%
+      {!loading && snapshot && (
+        <>
+          <div style={styles.card}>
+            <h2 style={styles.cardTitle}>Portfolio Summary</h2>
+
+            <div style={styles.row}>
+              <span>Live Value</span>
+              <strong>
+                {Number.isFinite(snapshot.totals?.liveValue)
+                  ? `$${snapshot.totals.liveValue.toLocaleString()}`
+                  : "—"}
+              </strong>
             </div>
-          ))}
-        </div>
-      </div>
 
-      <div className="card wide">
-        <div className="label">TOP HOLDINGS</div>
-        <div className="holdings-list">
-          {topHoldings.length === 0 ? (
-            <div className="muted">No holdings found in snapshot.</div>
-          ) : (
-            topHoldings.map((h) => (
-              <div key={h.symbol} className="holding-row">
-                <span className="symbol">{h.symbol}</span>
-                <span className="qty">{h.qty}</span>
+            <div style={styles.row}>
+              <span>Snapshot Value</span>
+              <strong>
+                {Number.isFinite(snapshot.totals?.snapshotValue)
+                  ? `$${snapshot.totals.snapshotValue.toLocaleString()}`
+                  : "—"}
+              </strong>
+            </div>
+
+            <div style={styles.row}>
+              <span>Δ</span>
+              <strong>
+                {Number.isFinite(snapshot.totals?.delta)
+                  ? `$${snapshot.totals.delta.toLocaleString()}`
+                  : "—"}
+              </strong>
+            </div>
+
+            <div style={styles.footer}>
+              Snapshot as of{" "}
+              {snapshot._asOf
+                ? new Date(snapshot._asOf).toLocaleString()
+                : "unknown"}
+            </div>
+          </div>
+
+          <div style={{ ...styles.card, marginTop: "24px" }}>
+            <h2 style={styles.cardTitle}>Top Holdings</h2>
+
+            {holdings.map((h) => (
+              <div key={h.symbol} style={styles.row}>
+                <span>{h.symbol}</span>
+                <strong>{h.weight}%</strong>
               </div>
-            ))
-          )}
-        </div>
-      </div>
-
-      <div className="card wide">
-        <div className="label">SYSTEM STATUS</div>
-        <div className="status-line">Market Data: LIVE</div>
-        <div className="status-line">Refresh: 60s</div>
-        <div className="status-line">Automation: ALERT-ONLY</div>
-        <div className="status-line">Audit: IMMUTABLE</div>
-      </div>
+            ))}
+          </div>
+        </>
+      )}
     </div>
   );
 }
+
+const styles = {
+  container: {
+    padding: "40px",
+    color: "#e5e7eb",
+  },
+  title: {
+    fontSize: "28px",
+    marginBottom: "24px",
+  },
+  placeholder: {
+    opacity: 0.6,
+  },
+  subtle: {
+    fontSize: "13px",
+    marginTop: "6px",
+  },
+  card: {
+    background: "rgba(255,255,255,0.04)",
+    borderRadius: "14px",
+    padding: "22px",
+    maxWidth: "460px",
+    boxShadow: "0 10px 30px rgba(0,0,0,0.35)",
+  },
+  cardTitle: {
+    fontSize: "18px",
+    marginBottom: "18px",
+  },
+  row: {
+    display: "flex",
+    justifyContent: "space-between",
+    marginBottom: "12px",
+  },
+  footer: {
+    marginTop: "18px",
+    fontSize: "12px",
+    opacity: 0.6,
+  },
+};
+

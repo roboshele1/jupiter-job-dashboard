@@ -1,65 +1,115 @@
-import { useEffect, useState } from "react";
+// renderer/pages/Portfolio.jsx
+// READ-ONLY Portfolio view
+// Consumes Portfolio snapshot via preload → IPC
+// No calculations, no mutations, no authority
+
+import React, { useEffect, useState } from "react";
 
 export default function Portfolio() {
-  const [data, setData] = useState(null);
+  const [snapshot, setSnapshot] = useState(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    (async () => {
-      const result = await window.jupiter.getPortfolioValuation();
-      setData(result);
-    })();
+    let mounted = true;
+
+    async function load() {
+      try {
+        if (window.jupiter?.getPortfolioSnapshot) {
+          const data = await window.jupiter.getPortfolioSnapshot();
+          if (mounted) setSnapshot(data);
+        }
+      } catch (err) {
+        console.error("Portfolio load failed", err);
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    }
+
+    load();
+    return () => {
+      mounted = false;
+    };
   }, []);
 
-  if (!data) return <div>Loading portfolio…</div>;
+  if (loading) {
+    return <div style={styles.container}>Loading portfolio…</div>;
+  }
+
+  if (!snapshot || !snapshot.positions?.length) {
+    return (
+      <div style={styles.container}>
+        <h1 style={styles.title}>Portfolio</h1>
+        <p style={styles.subtle}>No positions available.</p>
+      </div>
+    );
+  }
 
   return (
-    <div>
-      <h1>Portfolio</h1>
+    <div style={styles.container}>
+      <h1 style={styles.title}>Portfolio</h1>
 
-      <div style={{ marginBottom: 14 }}>
-        <div><strong>Currency:</strong> {data.currency}</div>
-        <div><strong>As-Of:</strong> {data._asOf ? new Date(data._asOf).toLocaleString() : "n/a"}</div>
-        <div><strong>Total Snapshot:</strong> ${data.totals.snapshotValue.toFixed(2)}</div>
-        <div><strong>Total Live:</strong> ${data.totals.liveValue.toFixed(2)}</div>
-        <div><strong>Δ:</strong> ${data.totals.delta.toFixed(2)} ({data.totals.deltaPct.toFixed(2)}%)</div>
+      <div style={styles.card}>
+        <div style={styles.headerRow}>
+          <span>Symbol</span>
+          <span>Qty</span>
+          <span>Live Price</span>
+          <span>Live Value</span>
+        </div>
 
-        <button
-          onClick={async () => setData(await window.jupiter.refreshPortfolioValuation())}
-          style={{ marginTop: 10 }}
-        >
-          Refresh Prices
-        </button>
+        {snapshot.positions.map((p) => (
+          <div key={p.symbol} style={styles.row}>
+            <strong>{p.symbol}</strong>
+            <span>{p.qty}</span>
+            <span>
+              {p.livePrice?.toLocaleString("en-CA", {
+                style: "currency",
+                currency: "CAD",
+              }) ?? "—"}
+            </span>
+            <span>
+              {p.liveValue?.toLocaleString("en-CA", {
+                style: "currency",
+                currency: "CAD",
+              }) ?? "—"}
+            </span>
+          </div>
+        ))}
       </div>
-
-      <table border="1" cellPadding="6">
-        <thead>
-          <tr>
-            <th>Symbol</th>
-            <th>Qty</th>
-            <th>Snapshot $</th>
-            <th>Live Price</th>
-            <th>Live $</th>
-            <th>Δ</th>
-            <th>Δ%</th>
-            <th>Source</th>
-          </tr>
-        </thead>
-        <tbody>
-          {data.positions.map(p => (
-            <tr key={p.symbol}>
-              <td>{p.symbol}</td>
-              <td>{p.qty}</td>
-              <td>${p.snapshotValue.toFixed(2)}</td>
-              <td>{Number(p.livePrice).toFixed(4)}</td>
-              <td>${p.liveValue.toFixed(2)}</td>
-              <td>${p.delta.toFixed(2)}</td>
-              <td>{p.deltaPct.toFixed(2)}%</td>
-              <td>{p.priceSource}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
     </div>
   );
 }
+
+const styles = {
+  container: {
+    padding: "40px",
+    color: "#e5e7eb",
+    width: "100%",
+  },
+  title: {
+    fontSize: "28px",
+    marginBottom: "24px",
+  },
+  subtle: {
+    opacity: 0.6,
+  },
+  card: {
+    background: "rgba(255,255,255,0.04)",
+    borderRadius: "14px",
+    padding: "20px",
+    maxWidth: "800px",
+  },
+  headerRow: {
+    display: "grid",
+    gridTemplateColumns: "1fr 1fr 1fr 1fr",
+    fontSize: "13px",
+    opacity: 0.6,
+    marginBottom: "12px",
+  },
+  row: {
+    display: "grid",
+    gridTemplateColumns: "1fr 1fr 1fr 1fr",
+    padding: "10px 0",
+    borderTop: "1px solid rgba(255,255,255,0.06)",
+  },
+};
 

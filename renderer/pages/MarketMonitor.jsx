@@ -1,14 +1,142 @@
-import React from "react";
+// renderer/pages/MarketMonitor.jsx
+// Read-only Market Monitor
+// NO authority, NO IPC writes, NO portfolio mutation
+
+import React, { useEffect, useState } from "react";
 
 export default function MarketMonitor() {
+  const [snapshot, setSnapshot] = useState(null);
+  const [status, setStatus] = useState("loading");
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    let alive = true;
+
+    async function load() {
+      try {
+        if (!window.jupiter?.getPortfolioSnapshot) {
+          throw new Error("Portfolio snapshot unavailable");
+        }
+
+        const data = await window.jupiter.getPortfolioSnapshot();
+
+        if (alive) {
+          setSnapshot(data);
+          setStatus("ready");
+        }
+      } catch (err) {
+        if (alive) {
+          setError(err.message);
+          setStatus("error");
+        }
+      }
+    }
+
+    load();
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  if (status === "loading") {
+    return (
+      <div style={styles.container}>
+        <h1>Market Monitor</h1>
+        <p style={styles.muted}>Syncing market context…</p>
+      </div>
+    );
+  }
+
+  if (status === "error") {
+    return (
+      <div style={styles.container}>
+        <h1>Market Monitor</h1>
+        <p style={{ color: "#ef4444" }}>{error}</p>
+      </div>
+    );
+  }
+
+  if (!snapshot) {
+    return (
+      <div style={styles.container}>
+        <h1>Market Monitor</h1>
+        <p style={styles.muted}>No market data available.</p>
+      </div>
+    );
+  }
+
+  const positions = snapshot.positions || [];
+
   return (
-    <div>
+    <div style={styles.container}>
       <h1>Market Monitor</h1>
-      <p>
-        Read-only market state overview.  
-        Live feeds and alerts will be activated post-V1.
-      </p>
+
+      <div style={styles.card}>
+        <h2>Tracked Assets</h2>
+
+        {positions.length === 0 && (
+          <p style={styles.muted}>No active symbols.</p>
+        )}
+
+        {positions.map((p) => (
+          <div key={p.symbol} style={styles.row}>
+            <span>{p.symbol}</span>
+            <span>
+              {p.livePrice
+                ? `$${p.livePrice.toLocaleString()}`
+                : "—"}
+            </span>
+          </div>
+        ))}
+      </div>
+
+      <div style={styles.card}>
+        <h2>Market State (Locked)</h2>
+        <p style={styles.muted}>
+          • Volatility regime  
+          • Liquidity conditions  
+          • Correlation clustering  
+          • Macro risk overlays  
+          <br />
+          <br />
+          (Activated in Market Intelligence phase)
+        </p>
+      </div>
+
+      <div style={styles.footer}>
+        Snapshot as of{" "}
+        {snapshot._asOf
+          ? new Date(snapshot._asOf).toLocaleString()
+          : "unknown"}
+      </div>
     </div>
   );
 }
+
+const styles = {
+  container: {
+    padding: "32px",
+    maxWidth: "900px",
+    color: "#e5e7eb",
+  },
+  card: {
+    background: "rgba(255,255,255,0.04)",
+    borderRadius: "12px",
+    padding: "20px",
+    marginBottom: "24px",
+  },
+  row: {
+    display: "flex",
+    justifyContent: "space-between",
+    marginBottom: "8px",
+  },
+  muted: {
+    opacity: 0.7,
+  },
+  footer: {
+    marginTop: "24px",
+    fontSize: "12px",
+    opacity: 0.6,
+  },
+};
 

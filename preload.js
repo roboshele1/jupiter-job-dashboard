@@ -1,6 +1,9 @@
-const { contextBridge, ipcRenderer } = require("electron");
+// preload.js
 
-contextBridge.exposeInMainWorld("portfolio", {
-  getSnapshot: () => ipcRenderer.invoke("portfolio:getSnapshot"),
+import { contextBridge, ipcRenderer } from "electron";
+
+contextBridge.exposeInMainWorld("jupiter", {
+  getPortfolioSnapshot: () => ipcRenderer.invoke("portfolio:getSnapshot"),
+  getRiskSnapshot: () => ipcRenderer.invoke("risk:getSnapshot"),
 });
 

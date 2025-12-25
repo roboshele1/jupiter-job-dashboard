@@ -1,47 +1,62 @@
+// renderer/components/Sidebar.jsx
+
 import React from "react";
 import { NavLink } from "react-router-dom";
 
 const navItems = [
-  { label: "Dashboard", path: "/" },
+  { label: "Dashboard", path: "/dashboard" },
   { label: "Portfolio", path: "/portfolio" },
+  { label: "Risk Centre", path: "/risk-centre" },
   { label: "Signals", path: "/signals" },
+  { label: "Insights", path: "/insights" },
+  { label: "Chat", path: "/chat" },
   { label: "Discovery Lab", path: "/discovery" },
   { label: "Growth Engine", path: "/growth" },
-  { label: "Insights", path: "/insights" },
-  { label: "Risk Centre", path: "/risk" },
-  { label: "Market Monitor", path: "/market-monitor" },
-  { label: "Chat", path: "/chat" },
+  { label: "Market Monitor", path: "/market" },
 ];
 
 export default function Sidebar() {
   return (
-    <aside
+    <div
       style={{
         width: "240px",
-        background: "linear-gradient(180deg, #0b1020, #050812)",
-        padding: "24px",
-        color: "#fff",
+        padding: "24px 16px",
+        borderRight: "1px solid rgba(255,255,255,0.06)",
+        display: "flex",
+        flexDirection: "column",
+        gap: "6px",
       }}
     >
-      <h2 style={{ marginBottom: "24px" }}>JUPITER</h2>
+      <div
+        style={{
+          fontWeight: 700,
+          fontSize: "20px",
+          marginBottom: "24px",
+          letterSpacing: "1px",
+        }}
+      >
+        JUPITER
+      </div>
 
-      <nav style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-        {navItems.map((item) => (
-          <NavLink
-            key={item.path}
-            to={item.path}
-            style={({ isActive }) => ({
-              color: "#fff",
-              textDecoration: "none",
-              fontWeight: isActive ? "600" : "400",
-              opacity: isActive ? 1 : 0.7,
-            })}
-          >
-            {item.label}
-          </NavLink>
-        ))}
-      </nav>
-    </aside>
+      {navItems.map(item => (
+        <NavLink
+          key={item.path}
+          to={item.path}
+          style={({ isActive }) => ({
+            padding: "10px 14px",
+            borderRadius: "8px",
+            textDecoration: "none",
+            color: isActive ? "#fff" : "#9ca3af",
+            background: isActive
+              ? "rgba(255,255,255,0.08)"
+              : "transparent",
+            fontWeight: isActive ? 600 : 400,
+          })}
+        >
+          {item.label}
+        </NavLink>
+      ))}
+    </div>
   );
 }
 
