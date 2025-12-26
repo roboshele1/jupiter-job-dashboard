@@ -1,40 +1,37 @@
+// renderer/components/Sidebar.jsx
+// JUPITER — Sidebar Navigation (V1, route-safe)
+
 import React from "react";
 import { NavLink } from "react-router-dom";
 
-const navItems = [
-  { label: "Dashboard", path: "/" },
+const items = [
+  { label: "Dashboard", path: "/dashboard" },
   { label: "Portfolio", path: "/portfolio" },
   { label: "Signals", path: "/signals" },
   { label: "Discovery Lab", path: "/discovery" },
   { label: "Growth Engine", path: "/growth" },
   { label: "Insights", path: "/insights" },
   { label: "Risk Centre", path: "/risk" },
-  { label: "Market Monitor", path: "/market-monitor" },
-  { label: "Chat", path: "/chat" },
+  // ✅ FIX: must match router exactly
+  { label: "Market Monitor", path: "/market" },
+  { label: "Chat", path: "/chat" }
 ];
 
 export default function Sidebar() {
   return (
-    <aside
-      style={{
-        width: "240px",
-        background: "linear-gradient(180deg, #0b1020, #050812)",
-        padding: "24px",
-        color: "#fff",
-      }}
-    >
-      <h2 style={{ marginBottom: "24px" }}>JUPITER</h2>
-
-      <nav style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-        {navItems.map((item) => (
+    <aside style={{ width: 220, padding: "16px 8px" }}>
+      <nav style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        {items.map(item => (
           <NavLink
             key={item.path}
             to={item.path}
             style={({ isActive }) => ({
-              color: "#fff",
+              padding: "10px 12px",
+              borderRadius: 6,
               textDecoration: "none",
-              fontWeight: isActive ? "600" : "400",
-              opacity: isActive ? 1 : 0.7,
+              color: isActive ? "#fff" : "#b5b5b5",
+              background: isActive ? "#1f2937" : "transparent",
+              fontWeight: isActive ? 600 : 400
             })}
           >
             {item.label}
