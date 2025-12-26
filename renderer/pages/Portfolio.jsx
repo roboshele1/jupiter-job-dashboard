@@ -1,37 +1,43 @@
 import { useEffect, useState } from "react";
 
 export default function Portfolio() {
-  const [data, setData] = useState(null);
+  const [snapshot, setSnapshot] = useState(null);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
-    (async () => {
-      const result = await window.jupiter.getPortfolioValuation();
-      setData(result);
-    })();
+    async function load() {
+      try {
+        if (!window.jupiter || !window.jupiter.getPortfolioValuation) {
+          throw new Error("Portfolio API not available");
+        }
+
+        const data = await window.jupiter.getPortfolioValuation();
+        setSnapshot(data);
+      } catch (err) {
+        console.error("[PORTFOLIO_RENDER_ERROR]", err);
+        setError(err.message);
+      }
+    }
+
+    load();
   }, []);
 
-  if (!data) return <div>Loading portfolio…</div>;
+  if (error) return <div style={{ color: "red" }}>{error}</div>;
+  if (!snapshot) return <div>Loading portfolio…</div>;
 
   return (
     <div>
       <h1>Portfolio</h1>
 
-      <div style={{ marginBottom: 14 }}>
-        <div><strong>Currency:</strong> {data.currency}</div>
-        <div><strong>As-Of:</strong> {data._asOf ? new Date(data._asOf).toLocaleString() : "n/a"}</div>
-        <div><strong>Total Snapshot:</strong> ${data.totals.snapshotValue.toFixed(2)}</div>
-        <div><strong>Total Live:</strong> ${data.totals.liveValue.toFixed(2)}</div>
-        <div><strong>Δ:</strong> ${data.totals.delta.toFixed(2)} ({data.totals.deltaPct.toFixed(2)}%)</div>
-
-        <button
-          onClick={async () => setData(await window.jupiter.refreshPortfolioValuation())}
-          style={{ marginTop: 10 }}
-        >
-          Refresh Prices
-        </button>
+      <div>
+        Currency: {snapshot.currency}<br />
+        As-Of: {new Date(snapshot._asOf).toLocaleString()}<br />
+        Total Snapshot: ${snapshot.totals.snapshotValue.toFixed(2)}<br />
+        Total Live: ${snapshot.totals.liveValue.toFixed(2)}<br />
+        Δ: ${snapshot.totals.delta.toFixed(2)} ({snapshot.totals.deltaPct.toFixed(2)}%)
       </div>
 
-      <table border="1" cellPadding="6">
+      <table border="1" cellPadding="6" style={{ marginTop: 20 }}>
         <thead>
           <tr>
             <th>Symbol</th>
@@ -45,12 +51,12 @@ export default function Portfolio() {
           </tr>
         </thead>
         <tbody>
-          {data.positions.map(p => (
+          {snapshot.positions.map(p => (
             <tr key={p.symbol}>
               <td>{p.symbol}</td>
               <td>{p.qty}</td>
               <td>${p.snapshotValue.toFixed(2)}</td>
-              <td>{Number(p.livePrice).toFixed(4)}</td>
+              <td>{p.livePrice.toFixed(4)}</td>
               <td>${p.liveValue.toFixed(2)}</td>
               <td>${p.delta.toFixed(2)}</td>
               <td>{p.deltaPct.toFixed(2)}%</td>

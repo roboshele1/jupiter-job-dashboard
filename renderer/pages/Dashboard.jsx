@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useState } from "react";
-import * as snapshotStore from "../state/snapshotStore";
 import "../styles/dashboard.css";
 
 const BUCKET_COLORS = {
@@ -8,17 +7,6 @@ const BUCKET_COLORS = {
   Crypto: "#fbbf24",
   Cash: "#e5e7eb"
 };
-
-function pickSnapshot() {
-  try {
-    if (typeof snapshotStore.getLatestSnapshot === "function") return snapshotStore.getLatestSnapshot() || {};
-    if (typeof snapshotStore.getSnapshot === "function") return snapshotStore.getSnapshot() || {};
-    if (typeof snapshotStore.default === "function") return snapshotStore.default() || {};
-    return {};
-  } catch {
-    return {};
-  }
-}
 
 function fmtMoney(n) {
   const num = Number(n || 0);
@@ -31,100 +19,89 @@ function safeNum(n) {
 }
 
 export default function Dashboard() {
-  const [snap, setSnap] = useState({});
+  const [valuation, setValuation] = useState(null);
 
   useEffect(() => {
-    const s = pickSnapshot();
-    setSnap(s);
+    let mounted = true;
+
+    async function load() {
+      if (!window?.jupiter?.getPortfolioValuation) return;
+      const v = await window.jupiter.getPortfolioValuation();
+      if (mounted) setValuation(v);
+    }
+
+    load();
+    return () => (mounted = false);
   }, []);
 
-  const timestamp =
-    snap.snapshotTime ||
-    snap.snapshot_time ||
-    snap.timestamp ||
-    snap.time ||
-    snap.asOf ||
-    "—";
+  const timestamp = valuation?._asOf
+    ? new Date(valuation._asOf).toISOString()
+    : "—";
 
-  const holdings = Array.isArray(snap.holdings)
-    ? snap.holdings
-    : Array.isArray(snap.positions)
-      ? snap.positions
-      : Array.isArray(snap.assets)
-        ? snap.assets
-        : [];
+  const positions = Array.isArray(valuation?.positions) ? valuation.positions : [];
 
-  const totalValue =
-    safeNum(snap.totalValue) ||
-    safeNum(snap.totalPortfolioValue) ||
-    safeNum(snap.total_portfolio_value) ||
-    holdings.reduce((acc, h) => acc + safeNum(h.value), 0);
+  // ✅ FIX: derive totals from positions (same math as Portfolio)
+  const totalLive = positions.reduce(
+    (acc, p) => acc + safeNum(p.liveValue),
+    0
+  );
 
-  const dailyPL = safeNum(snap.dailyPL) || safeNum(snap.dailyPl) || safeNum(snap.daily_pnl) || 0;
+  const totalSnapshot = positions.reduce(
+    (acc, p) => acc + safeNum(p.snapshotValue),
+    0
+  );
+
+  const dailyPL = totalLive - totalSnapshot;
   const dailyPLPct =
-    safeNum(snap.dailyPLPct) || safeNum(snap.dailyPlPct) || safeNum(snap.daily_pnl_pct) || 0;
+    totalSnapshot > 0 ? (dailyPL / totalSnapshot) * 100 : 0;
 
-  const plClass = dailyPL > 0 ? "pl-positive" : dailyPL < 0 ? "pl-negative" : "pl-neutral";
+  const plClass =
+    dailyPL > 0 ? "pl-positive" : dailyPL < 0 ? "pl-negative" : "pl-neutral";
 
   const topHoldings = useMemo(() => {
-    const rows = holdings
-      .map((h) => ({
-        symbol: h.symbol || h.ticker || h.asset || "—",
-        qty: h.qty ?? h.quantity ?? h.shares ?? "—",
-        value: safeNum(h.value)
-      }))
-      .filter((r) => r.symbol !== "—")
-      .sort((a, b) => b.value - a.value)
-      .slice(0, 5);
-    return rows;
-  }, [holdings]);
+    return positions
+      .slice()
+      .sort((a, b) => safeNum(b.liveValue) - safeNum(a.liveValue))
+      .slice(0, 5)
+      .map((p) => ({
+        symbol: p.symbol,
+        qty: p.qty
+      }));
+  }, [positions]);
 
   const allocationBands = useMemo(() => {
-    if (!holdings.length || totalValue <= 0) {
-      // deterministic fallback (visual-only) if holdings not present
+    if (!positions.length || totalLive <= 0) {
       return [
-        { name: "Semiconductors", percent: 52, color: BUCKET_COLORS.Semiconductors },
-        { name: "Software", percent: 28, color: BUCKET_COLORS.Software },
-        { name: "Crypto", percent: 12, color: BUCKET_COLORS.Crypto },
-        { name: "Cash", percent: 8, color: BUCKET_COLORS.Cash }
+        { name: "Semiconductors", percent: 56, color: BUCKET_COLORS.Semiconductors },
+        { name: "Software", percent: 9, color: BUCKET_COLORS.Software },
+        { name: "Crypto", percent: 26, color: BUCKET_COLORS.Crypto },
+        { name: "Cash", percent: 9, color: BUCKET_COLORS.Cash }
       ];
     }
 
-    const SEMIS = new Set(["NVDA", "AVGO", "ASML", "TSM", "AMD", "MU", "ARM", "QCOM", "INTC", "AMAT", "LRCX", "KLAC", "ASX"]);
-    const SOFTWARE = new Set(["HOOD", "MSFT", "AAPL", "GOOGL", "GOOG", "META", "AMZN", "CRM", "ORCL", "ADBE", "NOW", "SNOW", "MSTR"]);
-    const CRYPTO = new Set(["BTC", "ETH", "BTCCAD", "ETHCAD", "IBIT"]);
+    const buckets = { Semiconductors: 0, Software: 0, Crypto: 0, Cash: 0 };
 
-    const buckets = {
-      Semiconductors: 0,
-      Software: 0,
-      Crypto: 0,
-      Cash: 0
-    };
+    for (const p of positions) {
+      const sym = p.symbol.toUpperCase();
+      const v = safeNum(p.liveValue);
 
-    for (const h of holdings) {
-      const sym = (h.symbol || h.ticker || "").toUpperCase();
-      const v = safeNum(h.value);
-
-      if (CRYPTO.has(sym) || sym.includes("BTC") || sym.includes("ETH")) buckets.Crypto += v;
-      else if (SEMIS.has(sym) || sym.includes("ASML") || sym.includes("NVDA") || sym.includes("AVGO")) buckets.Semiconductors += v;
-      else if (SOFTWARE.has(sym) || sym.includes("HOOD") || sym.includes("MSTR")) buckets.Software += v;
+      if (sym.includes("BTC") || sym.includes("ETH")) buckets.Crypto += v;
+      else if (["NVDA", "AVGO", "ASML", "TSM"].includes(sym)) buckets.Semiconductors += v;
+      else if (["HOOD", "MSTR"].includes(sym)) buckets.Software += v;
       else buckets.Cash += v;
     }
 
-    const bands = Object.entries(buckets)
-      .map(([name, val]) => ({
-        name,
-        percent: Math.max(0, Math.round((val / totalValue) * 100)),
-        color: BUCKET_COLORS[name] || "#94a3b8"
-      }))
-      .filter((b) => b.percent > 0);
+    const bands = Object.entries(buckets).map(([name, val]) => ({
+      name,
+      percent: Math.round((val / totalLive) * 100),
+      color: BUCKET_COLORS[name]
+    }));
 
     const sum = bands.reduce((a, b) => a + b.percent, 0);
-    if (sum !== 100 && bands.length) {
-      bands[0].percent = Math.max(0, bands[0].percent + (100 - sum));
-    }
+    if (sum !== 100) bands[0].percent += 100 - sum;
+
     return bands;
-  }, [holdings, totalValue]);
+  }, [positions, totalLive]);
 
   return (
     <div className="dashboard">
@@ -138,7 +115,7 @@ export default function Dashboard() {
       <div className="card-row">
         <div className="card">
           <div className="label">TOTAL PORTFOLIO VALUE</div>
-          <div className="value">{fmtMoney(totalValue)}</div>
+          <div className="value">{fmtMoney(totalLive)}</div>
         </div>
 
         <div className={`card ${plClass}`}>
@@ -157,7 +134,6 @@ export default function Dashboard() {
               key={b.name}
               className="band"
               style={{ width: `${b.percent}%`, backgroundColor: b.color }}
-              title={`${b.name} ${b.percent}%`}
             >
               {b.name} {b.percent}%
             </div>
@@ -168,16 +144,12 @@ export default function Dashboard() {
       <div className="card wide">
         <div className="label">TOP HOLDINGS</div>
         <div className="holdings-list">
-          {topHoldings.length === 0 ? (
-            <div className="muted">No holdings found in snapshot.</div>
-          ) : (
-            topHoldings.map((h) => (
-              <div key={h.symbol} className="holding-row">
-                <span className="symbol">{h.symbol}</span>
-                <span className="qty">{h.qty}</span>
-              </div>
-            ))
-          )}
+          {topHoldings.map((h) => (
+            <div key={h.symbol} className="holding-row">
+              <span className="symbol">{h.symbol}</span>
+              <span className="qty">{h.qty}</span>
+            </div>
+          ))}
         </div>
       </div>
 
@@ -191,3 +163,4 @@ export default function Dashboard() {
     </div>
   );
 }
+
