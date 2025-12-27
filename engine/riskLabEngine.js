@@ -1,91 +1,86 @@
 // engine/riskLabEngine.js
-// Risk Lab Engine — read-only, deterministic, IPC-safe
-// Purpose: surface portfolio risk diagnostics without mutation
+// Phase 3 — Risk Centre (ENGINE ONLY)
+// Pure, deterministic risk derivation
+// INPUT: authoritative portfolio snapshot
+// OUTPUT: risk metrics object
+// NO side effects, NO IO, NO IPC
 
-const portfolioEngine = require("./portfolioEngine");
-
-function nowIso() {
-  return new Date().toISOString();
-}
-
-function safeNumber(n) {
+function safeNum(n) {
   const x = Number(n);
   return Number.isFinite(x) ? x : 0;
 }
 
-function round(n, d = 2) {
-  const m = Math.pow(10, d);
-  return Math.round(safeNumber(n) * m) / m;
-}
+export function buildRiskFromSnapshot(snapshot) {
+  if (!snapshot || !Array.isArray(snapshot.positions)) {
+    return {
+      totalValue: 0,
+      exposure: { equityPct: 0, cryptoPct: 0 },
+      concentration: { top1Pct: 0, top3Pct: 0, top5Pct: 0 },
+      flags: {
+        highCryptoExposure: false,
+        highConcentration: false
+      }
+    };
+  }
 
-function buildRiskFromSnapshot(snapshot) {
-  const totals = snapshot?.totals || {};
-  const allocation = snapshot?.allocation || {};
-  const rows = Array.isArray(snapshot?.rows) ? snapshot.rows : [];
+  const positions = snapshot.positions;
+  const totalValue = safeNum(snapshot.totals?.liveValue);
 
-  const portfolioValue = safeNumber(totals.portfolioValue);
-  const dailyPLPercent = safeNumber(totals.dailyPLPercent);
+  if (totalValue <= 0) {
+    return {
+      totalValue: 0,
+      exposure: { equityPct: 0, cryptoPct: 0 },
+      concentration: { top1Pct: 0, top3Pct: 0, top5Pct: 0 },
+      flags: {
+        highCryptoExposure: false,
+        highConcentration: false
+      }
+    };
+  }
 
-  // Concentration
-  const byValue = rows
-    .map((r) => ({ symbol: r.symbol, value: safeNumber(r.value) }))
-    .sort((a, b) => b.value - a.value);
+  // ── Exposure ─────────────────────────────
+  let equityValue = 0;
+  let cryptoValue = 0;
 
-  const top1 = byValue[0];
-  const top3 = byValue.slice(0, 3);
+  for (const p of positions) {
+    const v = safeNum(p.liveValue);
+    if (p.assetClass === "crypto") cryptoValue += v;
+    else equityValue += v;
+  }
 
-  const top1Pct = portfolioValue
-    ? round((safeNumber(top1?.value) / portfolioValue) * 100)
-    : 0;
+  const equityPct = equityValue / totalValue;
+  const cryptoPct = cryptoValue / totalValue;
 
-  const top3Pct = portfolioValue
-    ? round(
-        (top3.reduce((s, r) => s + safeNumber(r.value), 0) / portfolioValue) *
-          100
-      )
-    : 0;
+  // ── Concentration ────────────────────────
+  const sorted = positions
+    .map(p => safeNum(p.liveValue))
+    .sort((a, b) => b - a);
 
-  const flags = [];
-  if (top1Pct >= 35)
-    flags.push({
-      code: "CONCENTRATION_TOP1",
-      level: "warn",
-      detail: `Top holding ${top1Pct}%`,
-    });
+  const sumTop = (n) =>
+    sorted.slice(0, n).reduce((a, b) => a + b, 0) / totalValue;
 
-  if (top3Pct >= 70)
-    flags.push({
-      code: "CONCENTRATION_TOP3",
-      level: "warn",
-      detail: `Top 3 holdings ${top3Pct}%`,
-    });
+  const top1Pct = sumTop(1);
+  const top3Pct = sumTop(3);
+  const top5Pct = sumTop(5);
 
-  if (Math.abs(dailyPLPercent) >= 3)
-    flags.push({
-      code: "DAILY_VOLATILITY",
-      level: "info",
-      detail: `Daily move ${round(dailyPLPercent, 2)}%`,
-    });
+  // ── Flags ─────────────────────────────────
+  const flags = {
+    highCryptoExposure: cryptoPct >= 0.60,
+    highConcentration: top1Pct >= 0.40 || top3Pct >= 0.65
+  };
 
   return {
-    ts: nowIso(),
-    summary: {
-      portfolioValue: round(portfolioValue),
+    totalValue,
+    exposure: {
+      equityPct,
+      cryptoPct
+    },
+    concentration: {
       top1Pct,
       top3Pct,
-      equityPct: round(safeNumber(allocation.equity)),
-      cryptoPct: round(safeNumber(allocation.crypto)),
+      top5Pct
     },
-    flags,
+    flags
   };
 }
-
-async function getRiskSnapshot() {
-  const snapshot = await portfolioEngine.getSnapshot();
-  return buildRiskFromSnapshot(snapshot);
-}
-
-module.exports = {
-  getRiskSnapshot,
-};
 

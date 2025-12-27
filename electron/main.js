@@ -3,6 +3,7 @@ import path from "path";
 import "dotenv/config";
 
 import { valuePortfolio } from "../engine/portfolio/portfolioValuation.js";
+import { registerRiskSnapshotIpc } from "../engine/ipc/riskSnapshotIpc.js";
 
 let mainWindow;
 
@@ -42,16 +43,24 @@ function createWindow() {
 }
 
 app.whenReady().then(async () => {
+  // Portfolio authority
   await computeAndCache();
+
+  // Portfolio IPC
+  ipcMain.handle("portfolio:getValuation", async () => {
+    if (!cachedValuation) await computeAndCache();
+    return cachedValuation;
+  });
+
+  ipcMain.handle("portfolio:refreshValuation", async () => {
+    return await computeAndCache();
+  });
+
+  // Risk IPC (read-only, derived)
+  registerRiskSnapshotIpc({
+    holdingsProvider: async () => HOLDINGS
+  });
+
   createWindow();
-});
-
-ipcMain.handle("portfolio:getValuation", async () => {
-  if (!cachedValuation) await computeAndCache();
-  return cachedValuation; // NO REFRESH (deterministic)
-});
-
-ipcMain.handle("portfolio:refreshValuation", async () => {
-  return await computeAndCache(); // explicit refresh only
 });
 
