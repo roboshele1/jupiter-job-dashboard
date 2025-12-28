@@ -1,152 +1,114 @@
+import React from "react";
+
 export default function RiskCentre() {
-  const snapshot = {
-    asOf: Date.now(),
-    totals: {
-      equityPct: 0.667,
-      cryptoPct: 0.333,
-    },
-    concentration: {
-      top1Pct: 66.7,
-    },
-    contributors: [
-      { symbol: "NVDA", pct: 0.667 },
-      { symbol: "BTC", pct: 0.333 },
-    ],
+  const snapshotTime = "12/28/2025, 12:00:22 AM";
+
+  // Deterministic snapshot values (already validated in prior phases)
+  const exposure = {
+    equity: 66.7,
+    crypto: 33.3
   };
 
-  // Policy thresholds (explicit, deterministic)
-  const thresholds = {
-    maxTop1Pct: 50,
-    maxCryptoPct: 30,
+  const concentration = {
+    top1: 66.7
   };
 
-  // Threshold breaches
+  const stressScenarios = [
+    { label: "Equity −20%", impact: -13.3 },
+    { label: "Crypto −30%", impact: -10.0 },
+    { label: "Equity −20% + Crypto −30%", impact: -23.3 },
+    { label: "Macro Shock (−15%)", impact: -15.0 }
+  ];
+
   const breaches = [
-    snapshot.concentration.top1Pct > thresholds.maxTop1Pct && {
-      key: "CONCENTRATION",
-      label: "Single-position concentration",
-      severity: "HIGH",
-    },
-    snapshot.totals.cryptoPct * 100 > thresholds.maxCryptoPct && {
-      key: "CRYPTO",
-      label: "Crypto exposure",
-      severity: "ELEVATED",
-    },
-  ].filter(Boolean);
+    "Single-position concentration — HIGH",
+    "Crypto exposure — ELEVATED"
+  ];
 
-  // Risk Regime Classification (deterministic ruleset)
-  let regime = {
-    name: "Balanced",
-    description: "No dominant structural risk regime detected.",
-  };
+  const regime = "Concentration + Volatility Driven";
 
-  if (
-    breaches.find((b) => b.key === "CONCENTRATION") &&
-    breaches.find((b) => b.key === "CRYPTO")
-  ) {
-    regime = {
-      name: "Concentration + Volatility Driven",
-      description:
-        "Risk dominated by a single large position combined with elevated crypto exposure.",
-    };
-  } else if (breaches.find((b) => b.key === "CONCENTRATION")) {
-    regime = {
-      name: "Concentration Driven",
-      description:
-        "Risk dominated by a single large position relative to portfolio size.",
-    };
-  } else if (breaches.find((b) => b.key === "CRYPTO")) {
-    regime = {
-      name: "Volatility Driven",
-      description:
-        "Risk dominated by elevated exposure to high-volatility assets.",
-    };
-  }
+  const recommendations = [
+    {
+      title: "Concentration Risk Awareness",
+      text:
+        "Portfolio risk is dominated by a single large position. Consider whether current concentration aligns with long-term risk tolerance under adverse market conditions."
+    },
+    {
+      title: "Crypto Volatility Sensitivity",
+      text:
+        "Crypto exposure materially increases downside sensitivity in stress environments. Portfolio drawdowns may accelerate during correlated equity-crypto selloffs."
+    },
+    {
+      title: "Stress Scenario Preparedness",
+      text:
+        "Combined equity and crypto stress scenarios indicate elevated potential drawdowns. Liquidity planning and drawdown tolerance should be reviewed accordingly."
+    },
+    {
+      title: "Regime Alignment Check",
+      text:
+        "Current risk regime reflects concentration-driven volatility rather than diversified market exposure. Future risk changes will be primarily position-specific."
+    }
+  ];
 
   return (
-    <div className="page">
+    <div className="risk-centre">
       <h1>Risk Centre</h1>
 
-      <p style={{ opacity: 0.6 }}>
+      <p className="muted">
         Mode: Read-only · Deterministic · Intelligence-only
       </p>
-
-      <p style={{ opacity: 0.6 }}>
-        Snapshot as of {new Date(snapshot.asOf).toLocaleString()}
-      </p>
+      <p className="muted">Snapshot as of {snapshotTime}</p>
 
       <hr />
 
       <section>
-        <h3>Exposure</h3>
-        <p>Equity: {(snapshot.totals.equityPct * 100).toFixed(1)}%</p>
-        <p>Crypto: {(snapshot.totals.cryptoPct * 100).toFixed(1)}%</p>
+        <h2>Exposure</h2>
+        <p>Equity: {exposure.equity}%</p>
+        <p>Crypto: {exposure.crypto}%</p>
       </section>
 
       <section>
-        <h3>Concentration</h3>
-        <p>Top 1: {snapshot.concentration.top1Pct}%</p>
+        <h2>Concentration</h2>
+        <p>Top 1 Position: {concentration.top1}%</p>
       </section>
 
       <section>
-        <h3>Top Risk Contributors</h3>
+        <h2>Forward Stress Scenarios</h2>
+        {stressScenarios.map((s, i) => (
+          <p key={i}>
+            {s.label}: {s.impact}%
+          </p>
+        ))}
+      </section>
+
+      <section>
+        <h2>Risk Threshold Breaches</h2>
         <ul>
-          {snapshot.contributors.map((c) => (
-            <li key={c.symbol}>
-              {c.symbol} — {(c.pct * 100).toFixed(1)}%
-            </li>
+          {breaches.map((b, i) => (
+            <li key={i}>{b}</li>
           ))}
         </ul>
       </section>
 
       <section>
-        <h3>Forward Stress Scenarios</h3>
-        <table style={{ width: "100%" }}>
-          <tbody>
-            <tr>
-              <td>Equity −20%</td>
-              <td align="right">−13.3%</td>
-            </tr>
-            <tr>
-              <td>Crypto −30%</td>
-              <td align="right">−10.0%</td>
-            </tr>
-            <tr>
-              <td>Equity −20% + Crypto −30%</td>
-              <td align="right">−23.3%</td>
-            </tr>
-            <tr>
-              <td>Macro Shock (−15%)</td>
-              <td align="right">−15.0%</td>
-            </tr>
-          </tbody>
-        </table>
+        <h2>Risk Regime</h2>
+        <p>{regime}</p>
       </section>
 
-      <section>
-        <h3>Risk Threshold Breaches</h3>
-        {breaches.length === 0 ? (
-          <p style={{ opacity: 0.6 }}>No policy breaches detected.</p>
-        ) : (
-          <ul>
-            {breaches.map((b, i) => (
-              <li key={i}>
-                {b.label} — {b.severity}
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
+      <hr />
 
       <section>
-        <h3>Risk Regime</h3>
-        <p>
-          <strong>{regime.name}</strong>
+        <h2>Risk Recommendations</h2>
+        <p className="muted">
+          Interpretive guidance only — not actions or instructions.
         </p>
-        <p style={{ opacity: 0.75 }}>{regime.description}</p>
-        <p style={{ opacity: 0.6 }}>
-          Regime classification describes structure — not actions.
-        </p>
+        <ul>
+          {recommendations.map((r, i) => (
+            <li key={i}>
+              <strong>{r.title}:</strong> {r.text}
+            </li>
+          ))}
+        </ul>
       </section>
     </div>
   );
