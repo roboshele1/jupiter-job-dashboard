@@ -15,38 +15,54 @@ import MarketMonitor from "./pages/MarketMonitor";
 import Chat from "./pages/Chat";
 
 import Sidebar from "./components/Sidebar";
-
-// ✅ AUTHORITATIVE SNAPSHOT — SAME DATA AS YOUR TERMINAL/UI
 import { usePortfolioSnapshotStore } from "./state/portfolioSnapshotStore";
 
-const SNAPSHOT = {
+/**
+ * RAW PORTFOLIO SNAPSHOT (authoritative source)
+ */
+const RAW_SNAPSHOT = {
   contract: "PORTFOLIO_SNAPSHOT_V1",
   currency: "USD",
-  totals: {
-    snapshotValue: 23300.27,
-    liveValue: 22606.40,
-    delta: -693.87,
-    deltaPct: -2.98
-  },
   positions: [
-    { symbol: "BTC", qty: 0.251083, assetClass: "crypto", snapshot: 22597.47, live: 21848.25 },
-    { symbol: "ETH", qty: 0.25, assetClass: "crypto", snapshot: 702.8, live: 731.84 },
-    { symbol: "NVDA", qty: 73, assetClass: "equity", snapshot: 0, live: 13812.33 },
-    { symbol: "ASML", qty: 10, assetClass: "equity", snapshot: 0, live: 10618.4 },
-    { symbol: "AVGO", qty: 74, assetClass: "equity", snapshot: 0, live: 25849.68 },
-    { symbol: "MSTR", qty: 24, assetClass: "equity", snapshot: 0, live: 3789.12 },
-    { symbol: "HOOD", qty: 70, assetClass: "equity", snapshot: 0, live: 8416.8 },
-    { symbol: "BMNR", qty: 115, assetClass: "equity", snapshot: 0, live: 3424.7 },
-    { symbol: "APLD", qty: 150, assetClass: "equity", snapshot: 0, live: 3912.0 }
+    { symbol: "BTC", qty: 0.251083, assetClass: "crypto", live: 21848.25 },
+    { symbol: "ETH", qty: 0.25, assetClass: "crypto", live: 731.84 },
+    { symbol: "NVDA", qty: 73, assetClass: "equity", live: 13812.33 },
+    { symbol: "ASML", qty: 10, assetClass: "equity", live: 10618.4 },
+    { symbol: "AVGO", qty: 74, assetClass: "equity", live: 25849.68 },
+    { symbol: "MSTR", qty: 24, assetClass: "equity", live: 3789.12 },
+    { symbol: "HOOD", qty: 70, assetClass: "equity", live: 8416.8 },
+    { symbol: "BMNR", qty: 115, assetClass: "equity", live: 3424.7 },
+    { symbol: "APLD", qty: 150, assetClass: "equity", live: 3912.0 }
   ]
 };
+
+/**
+ * NORMALIZE SNAPSHOT FOR ALL CONSUMERS
+ */
+function normalizeSnapshot(raw) {
+  const holdings = raw.positions.map(p => ({
+    symbol: p.symbol,
+    assetClass: p.assetClass,
+    value: p.live
+  }));
+
+  const totalValue = holdings.reduce((sum, h) => sum + h.value, 0);
+
+  return {
+    contract: raw.contract,
+    timestamp: Date.now(),
+    holdings,
+    totalValue
+  };
+}
 
 export default function App() {
   const writeSnapshot = usePortfolioSnapshotStore(s => s.writeSnapshot);
 
   useEffect(() => {
-    console.log("[BOOTSTRAP] Writing portfolio snapshot to store");
-    writeSnapshot(SNAPSHOT);
+    const normalized = normalizeSnapshot(RAW_SNAPSHOT);
+    console.log("[BOOTSTRAP] Writing NORMALIZED portfolio snapshot", normalized);
+    writeSnapshot(normalized);
   }, [writeSnapshot]);
 
   return (
