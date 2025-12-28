@@ -1,77 +1,48 @@
-// electron/api/marketDataService.js
-// CANONICAL SNAPSHOT AUTHORITY — V1 LOCK
-// DO NOT FILTER POSITIONS ANYWHERE ELSE
+const axios = require("axios");
 
-const CANONICAL_HOLDINGS = [
-  { symbol: "NVDA", qty: 73, type: "equity" },
-  { symbol: "AVGO", qty: 74, type: "equity" },
-  { symbol: "ASML", qty: 10, type: "equity" },
-  { symbol: "MSTR", qty: 24, type: "equity" },
-  { symbol: "HOOD", qty: 70, type: "equity" },
-  { symbol: "APLD", qty: 150, type: "equity" },
-  { symbol: "BMNR", qty: 115, type: "equity" },
-  { symbol: "BTC", qty: 0.251, type: "crypto" },
-  { symbol: "ETH", qty: 0.25, type: "crypto" }
-];
+const POLYGON_KEY = process.env.POLYGON_API_KEY;
+const COINBASE = "https://api.coinbase.com/v2/prices";
 
-// TEMP PRICE SOURCE — STABLE V1
-// (Live pricing comes later — do NOT refactor this in V1)
-const PRICE_MAP = {
-  NVDA: 170.94,
-  AVGO: 326.17,
-  ASML: 1015.86,
-  MSTR: 160.38,
-  HOOD: 115.80,
-  APLD: 21.97,
-  BMNR: 29.31,
-  BTC: 86149.00,
-  ETH: 2823.93
-};
+async function getEquityPrices(symbols) {
+  const out = {};
+  for (const s of symbols) {
+    try {
+      const r = await axios.get(
+        `https://api.polygon.io/v2/aggs/ticker/${s}/prev`,
+        { params: { adjusted: true, apiKey: POLYGON_KEY } }
+      );
+      out[s] = r.data?.results?.[0]?.c ?? null;
+    } catch {
+      out[s] = null;
+    }
+  }
+  return out;
+}
 
-function buildSnapshot() {
-  const positions = CANONICAL_HOLDINGS.map(h => {
-    const price = PRICE_MAP[h.symbol];
-    const marketValue = price * h.qty;
+async function getCryptoPrices(symbols) {
+  const out = {};
+  for (const s of symbols) {
+    try {
+      const pair = `${s}-USD`;
+      const r = await axios.get(`${COINBASE}/${pair}/spot`);
+      out[s] = Number(r.data?.data?.amount) || null;
+    } catch {
+      out[s] = null;
+    }
+  }
+  return out;
+}
 
-    return {
-      symbol: h.symbol,
-      qty: h.qty,
-      price,
-      marketValue,
-      type: h.type
-    };
-  });
-
-  const totalValue = positions.reduce((s, p) => s + p.marketValue, 0);
-
-  const enriched = positions.map(p => ({
-    ...p,
-    allocationPct: +(p.marketValue / totalValue * 100).toFixed(2)
-  }));
-
-  const equityValue = enriched
-    .filter(p => p.type === "equity")
-    .reduce((s, p) => s + p.marketValue, 0);
-
-  const cryptoValue = enriched
-    .filter(p => p.type === "crypto")
-    .reduce((s, p) => s + p.marketValue, 0);
+async function getLivePrices() {
+  // symbols are inferred from snapshot in renderer
+  const equities = ["NVDA","ASML","AVGO","MSTR","HOOD","BMNR","APLD"];
+  const crypto = ["BTC","ETH"];
 
   return {
-    contract: "JUPITER_PORTFOLIO_SNAPSHOT_V1_CANONICAL",
-    timestamp: Date.now(),
-    currency: "USD",
-    totalValue: +totalValue.toFixed(2),
-    equityValue: +equityValue.toFixed(2),
-    cryptoValue: +cryptoValue.toFixed(2),
-    equityPct: +(equityValue / totalValue).toFixed(2),
-    cryptoPct: +(cryptoValue / totalValue).toFixed(2),
-    positions: enriched,
-    topHolding: enriched.reduce((a, b) => b.marketValue > a.marketValue ? b : a).symbol
+    ...(await getEquityPrices(equities)),
+    ...(await getCryptoPrices(crypto))
   };
 }
 
-module.exports = {
-  getPortfolioSnapshot: buildSnapshot
-};
+module.exports = { getLivePrices };
 
