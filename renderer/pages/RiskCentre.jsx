@@ -1,32 +1,60 @@
+// renderer/pages/RiskCentre.jsx
 import React from "react";
 import { usePortfolioSnapshotStore } from "../state/portfolioSnapshotStore";
 
 /**
  * RISK CENTRE — READ ONLY
- * V15-A: Snapshot Guard + Safe Render
- * V15-B: Presentation-only visuals
+ * V16 FINAL — CANONICAL PRESENTATION
+ * ----------------------------------
+ * - ZERO logic changes
+ * - ZERO snapshot mutations
+ * - Canonical color tokens ONLY
+ * - Exposure distribution bars
+ * - Holding concentration donut
+ * - Deterministic, scalable, frozen UI contract
  */
+
+/**
+ * CANONICAL COLOR TOKENS
+ * (Single-source design contract shared across tabs)
+ */
+const COLORS = {
+  bg: "#0B1220",
+  panel: "#111827",
+  panelAlt: "#0F172A",
+  border: "#1F2937",
+  textPrimary: "#E5E7EB",
+  textSecondary: "#9CA3AF",
+  accentBlue: "#3B82F6",
+  accentGreen: "#22C55E",
+  accentYellow: "#FACC15",
+  accentRed: "#EF4444",
+  accentPurple: "#8B5CF6",
+};
 
 export default function RiskCentre() {
   const snapshot = usePortfolioSnapshotStore((s) => s.snapshot);
 
-  /**
-   * HARD GUARD
-   */
+  // HARD GUARD — NO SNAPSHOT, NO RENDER
   if (!snapshot || !snapshot.holdings || snapshot.holdings.length === 0) {
     return (
-      <div style={{ padding: "32px" }}>
+      <div
+        style={{
+          padding: "32px",
+          background: COLORS.bg,
+          color: COLORS.textPrimary,
+          minHeight: "100vh",
+        }}
+      >
         <h1>Risk Centre</h1>
-        <p style={{ opacity: 0.7 }}>
+        <p style={{ color: COLORS.textSecondary }}>
           Risk analytics unavailable — portfolio snapshot not yet loaded.
         </p>
       </div>
     );
   }
 
-  /**
-   * SAFE DERIVATIONS (UNCHANGED)
-   */
+  // SAFE DERIVATIONS (UNCHANGED)
   const totalValue = snapshot.totalValue ?? 0;
   const holdings = snapshot.holdings;
 
@@ -38,270 +66,372 @@ export default function RiskCentre() {
     .filter((h) => h.assetClass === "crypto")
     .reduce((sum, h) => sum + h.value, 0);
 
-  const equityExposure = totalValue > 0 ? (equityValue / totalValue) * 100 : 0;
-  const cryptoExposure = totalValue > 0 ? (cryptoValue / totalValue) * 100 : 0;
+  const equityExposure =
+    totalValue > 0 ? (equityValue / totalValue) * 100 : 0;
+  const cryptoExposure =
+    totalValue > 0 ? (cryptoValue / totalValue) * 100 : 0;
 
-  const sortedHoldings = [...holdings].sort((a, b) => b.value - a.value);
-  const largestHolding = sortedHoldings[0];
+  const largestHolding = [...holdings].sort((a, b) => b.value - a.value)[0];
   const largestPct =
     totalValue > 0 ? (largestHolding.value / totalValue) * 100 : 0;
 
-  /**
-   * RISK POSTURE (UNCHANGED)
-   */
+  // RISK POSTURE (UNCHANGED)
   let posture = "Moderate";
-  if (largestPct > 40) posture = "Elevated";
-  if (largestPct < 25 && equityExposure < 70) posture = "Low";
+  let postureColor = COLORS.accentYellow;
+  if (largestPct > 40) {
+    posture = "Elevated";
+    postureColor = COLORS.accentRed;
+  }
+  if (largestPct < 25 && equityExposure < 70) {
+    posture = "Low";
+    postureColor = COLORS.accentGreen;
+  }
 
-  const postureColor =
-    posture === "Low"
-      ? "#43aa8b"
-      : posture === "Elevated"
-      ? "#f94144"
-      : "#f9c74f";
-
-  /**
-   * STRESS SCENARIOS (UNCHANGED)
-   */
+  // STRESS SCENARIOS (UNCHANGED)
   const equityDrawdown20 = equityValue * 0.2;
   const cryptoDrawdown40 = cryptoValue * 0.4;
   const topHoldingShock30 = largestHolding.value * 0.3;
 
-  const stressScenarios = [
-    {
-      label: "Equity Drawdown (-20%)",
-      impact: equityDrawdown20,
-      color: "#f94144",
-    },
-    {
-      label: "Crypto Drawdown (-40%)",
-      impact: cryptoDrawdown40,
-      color: "#f9c74f",
-    },
-    {
-      label: `Top Holding Shock (-30% on ${largestHolding.symbol})`,
-      impact: topHoldingShock30,
-      color: "#f3722c",
-    },
+  // DONUT CALCULATIONS
+  const donutData = holdings
+    .map((h) => ({
+      symbol: h.symbol,
+      pct: totalValue > 0 ? (h.value / totalValue) * 100 : 0,
+    }))
+    .sort((a, b) => b.pct - a.pct);
+
+  const donutColors = [
+    COLORS.accentBlue,
+    COLORS.accentPurple,
+    COLORS.accentGreen,
+    COLORS.accentYellow,
+    COLORS.accentRed,
   ];
 
-  const cardStyle = {
-    background: "rgba(255,255,255,0.03)",
-    borderRadius: "14px",
-    padding: "20px",
-    marginBottom: "28px",
-  };
+  let cumulative = 0;
 
   return (
-    <div style={{ padding: "32px", maxWidth: "960px" }}>
-      <h1>Risk Centre</h1>
+    <div
+      style={{
+        padding: "32px",
+        maxWidth: "1200px",
+        margin: "0 auto",
+        background: COLORS.bg,
+        color: COLORS.textPrimary,
+        minHeight: "100vh",
+      }}
+    >
+      <h1 style={{ marginBottom: "24px" }}>Risk Centre</h1>
 
-      <p>
-        <strong>Snapshot timestamp:</strong>{" "}
-        {snapshot.timestamp ?? "N/A"}
-      </p>
-      <p>
-        <strong>Total portfolio value:</strong>{" "}
-        ${totalValue.toLocaleString(undefined, { maximumFractionDigits: 2 })}
-      </p>
-
-      {/* ================= RISK POSTURE ================= */}
-      <section style={cardStyle}>
-        <h2>Risk Posture</h2>
-
-        <div
-          style={{
-            display: "inline-flex",
-            alignItems: "center",
-            padding: "8px 16px",
-            borderRadius: "999px",
-            background: postureColor,
-            color: "#0b0d17",
-            fontWeight: 700,
-            fontSize: "13px",
-            marginBottom: "12px",
-          }}
-        >
-          {posture.toUpperCase()} RISK
-        </div>
-
-        <ul>
-          <li>Equity exposure dominates portfolio risk.</li>
-          <li>Single-asset concentration is a key driver.</li>
-        </ul>
-      </section>
-
-      {/* ============ SUPPORT METRICS ============ */}
-      <section style={cardStyle}>
-        <h2>Posture Support Metrics</h2>
-        <ul>
-          <li>
-            <strong>Largest position:</strong>{" "}
-            {largestHolding.symbol} — {largestPct.toFixed(1)}%
-          </li>
-          <li>
-            <strong>Equity exposure:</strong>{" "}
-            {equityExposure.toFixed(1)}%
-          </li>
-          <li>
-            <strong>Crypto exposure:</strong>{" "}
-            {cryptoExposure.toFixed(1)}%
-          </li>
-          <li>
-            <strong>Number of holdings:</strong>{" "}
-            {holdings.length}
-          </li>
-        </ul>
-      </section>
-
-      {/* ============ EXPOSURE DISTRIBUTION ============ */}
-      <section style={cardStyle}>
-        <h2>Exposure Distribution</h2>
-
-        <div
-          style={{
-            display: "flex",
-            height: "28px",
-            borderRadius: "10px",
-            overflow: "hidden",
-            background: "#1e1e2f",
-            marginTop: "12px",
-          }}
-        >
-          <div
-            style={{
-              width: `${equityExposure}%`,
-              background: "#4cc9f0",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              fontSize: "12px",
-              fontWeight: 600,
-              color: "#0b0d17",
-            }}
-          >
-            Equity {equityExposure.toFixed(1)}%
-          </div>
-
-          <div
-            style={{
-              width: `${cryptoExposure}%`,
-              background: "#f9c74f",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              fontSize: "12px",
-              fontWeight: 600,
-              color: "#0b0d17",
-            }}
-          >
-            Crypto {cryptoExposure.toFixed(1)}%
-          </div>
-        </div>
-      </section>
-
-      {/* ============ HOLDING CONCENTRATION ============ */}
-      <section style={cardStyle}>
-        <h2>Holding Concentration</h2>
-
-        {sortedHoldings.map((h) => {
-          const pct =
-            totalValue > 0 ? (h.value / totalValue) * 100 : 0;
-
-          return (
-            <div key={h.symbol} style={{ marginBottom: "12px" }}>
-              <div
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  fontSize: "13px",
-                  marginBottom: "4px",
-                }}
-              >
-                <span>{h.symbol}</span>
-                <span>{pct.toFixed(1)}%</span>
-              </div>
-
-              <div
-                style={{
-                  height: "10px",
-                  borderRadius: "6px",
-                  background: "#1e1e2f",
-                  overflow: "hidden",
-                }}
-              >
-                <div
-                  style={{
-                    width: `${pct}%`,
-                    height: "100%",
-                    background:
-                      h.symbol === largestHolding.symbol
-                        ? "#f94144"
-                        : "#4cc9f0",
-                  }}
-                />
-              </div>
-            </div>
-          );
-        })}
-      </section>
-
-      {/* ============ STRESS SCENARIO VISUALS ============ */}
-      <section style={cardStyle}>
-        <h2>Stress Scenario Impact</h2>
-
-        {stressScenarios.map((s) => {
-          const pct = totalValue > 0 ? (s.impact / totalValue) * 100 : 0;
-
-          return (
-            <div key={s.label} style={{ marginBottom: "14px" }}>
-              <div
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  fontSize: "13px",
-                  marginBottom: "4px",
-                }}
-              >
-                <span>{s.label}</span>
-                <span>-{pct.toFixed(1)}%</span>
-              </div>
-
-              <div
-                style={{
-                  height: "10px",
-                  borderRadius: "6px",
-                  background: "#1e1e2f",
-                  overflow: "hidden",
-                }}
-              >
-                <div
-                  style={{
-                    width: `${pct}%`,
-                    height: "100%",
-                    background: s.color,
-                  }}
-                />
-              </div>
-            </div>
-          );
-        })}
-      </section>
-
-      {/* ============ NARRATIVE ============ */}
-      <section style={cardStyle}>
-        <h2>Risk Narrative</h2>
+      {/* SNAPSHOT META */}
+      <div
+        style={{
+          background: COLORS.panel,
+          border: `1px solid ${COLORS.border}`,
+          borderRadius: "12px",
+          padding: "20px",
+          marginBottom: "24px",
+          display: "flex",
+          justifyContent: "space-between",
+        }}
+      >
         <p>
-          The portfolio currently exhibits a{" "}
-          <strong>{posture.toLowerCase()}</strong> overall risk posture,
-          driven primarily by equity concentration rather than leverage
-          or excessive asset-class breadth.
+          <strong>Snapshot timestamp:</strong>{" "}
+          <span style={{ color: COLORS.textSecondary }}>
+            {snapshot.timestamp ?? "N/A"}
+          </span>
         </p>
         <p>
-          Stress scenarios indicate that broad equity market weakness
-          would have a larger impact on portfolio value than isolated
-          crypto volatility. Concentration risk is therefore the primary
-          structural risk factor at this stage.
+          <strong>Total portfolio value:</strong>{" "}
+          <span style={{ color: COLORS.accentBlue }}>
+            ${totalValue.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+          </span>
+        </p>
+      </div>
+
+      {/* GRID */}
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "1fr 1fr",
+          gap: "24px",
+        }}
+      >
+        {/* LEFT COLUMN */}
+        <div>
+          {/* RISK POSTURE */}
+          <section
+            style={{
+              background: COLORS.panelAlt,
+              border: `1px solid ${COLORS.border}`,
+              borderRadius: "12px",
+              padding: "24px",
+              marginBottom: "24px",
+            }}
+          >
+            <h2>Risk Posture</h2>
+            <p>
+              <strong>Overall posture:</strong>{" "}
+              <span style={{ color: postureColor }}>{posture}</span>
+            </p>
+            <ul>
+              <li>Elevated single-asset concentration.</li>
+              <li>Equity exposure dominates portfolio risk.</li>
+            </ul>
+          </section>
+
+          {/* SUPPORT METRICS */}
+          <section
+            style={{
+              background: COLORS.panel,
+              border: `1px solid ${COLORS.border}`,
+              borderRadius: "12px",
+              padding: "24px",
+              marginBottom: "24px",
+            }}
+          >
+            <h2>Posture Support Metrics</h2>
+            <ul>
+              <li>
+                Largest position:{" "}
+                <strong>{largestHolding.symbol}</strong>{" "}
+                <span style={{ color: COLORS.textSecondary }}>
+                  ({largestPct.toFixed(1)}%)
+                </span>
+              </li>
+              <li>
+                Equity exposure:{" "}
+                <strong>{equityExposure.toFixed(1)}%</strong>
+              </li>
+              <li>
+                Crypto exposure:{" "}
+                <strong>{cryptoExposure.toFixed(1)}%</strong>
+              </li>
+              <li>
+                Number of holdings: <strong>{holdings.length}</strong>
+              </li>
+            </ul>
+          </section>
+
+          {/* EXPOSURE DISTRIBUTION BARS */}
+          <section
+            style={{
+              background: COLORS.panelAlt,
+              border: `1px solid ${COLORS.border}`,
+              borderRadius: "12px",
+              padding: "24px",
+            }}
+          >
+            <h2>Exposure Distribution</h2>
+
+            <div style={{ marginBottom: "16px" }}>
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  marginBottom: "6px",
+                }}
+              >
+                <span>Equity exposure</span>
+                <strong>{equityExposure.toFixed(1)}%</strong>
+              </div>
+              <div
+                style={{
+                  height: "10px",
+                  background: COLORS.border,
+                  borderRadius: "6px",
+                }}
+              >
+                <div
+                  style={{
+                    width: `${equityExposure}%`,
+                    height: "100%",
+                    background: COLORS.accentBlue,
+                    borderRadius: "6px",
+                  }}
+                />
+              </div>
+            </div>
+
+            <div>
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  marginBottom: "6px",
+                }}
+              >
+                <span>Crypto exposure</span>
+                <strong>{cryptoExposure.toFixed(1)}%</strong>
+              </div>
+              <div
+                style={{
+                  height: "10px",
+                  background: COLORS.border,
+                  borderRadius: "6px",
+                }}
+              >
+                <div
+                  style={{
+                    width: `${cryptoExposure}%`,
+                    height: "100%",
+                    background: COLORS.accentPurple,
+                    borderRadius: "6px",
+                  }}
+                />
+              </div>
+            </div>
+
+            <p
+              style={{
+                marginTop: "12px",
+                fontSize: "13px",
+                color: COLORS.textSecondary,
+              }}
+            >
+              Deterministic, snapshot-derived. Non-predictive.
+            </p>
+          </section>
+        </div>
+
+        {/* RIGHT COLUMN */}
+        <div>
+          {/* HOLDING CONCENTRATION DONUT */}
+          <section
+            style={{
+              background: COLORS.panel,
+              border: `1px solid ${COLORS.border}`,
+              borderRadius: "12px",
+              padding: "24px",
+              marginBottom: "24px",
+            }}
+          >
+            <h2>Holding Concentration</h2>
+
+            <svg width="220" height="220" viewBox="0 0 220 220">
+              <g transform="rotate(-90 110 110)">
+                {donutData.map((d, i) => {
+                  const radius = 90;
+                  const circumference = 2 * Math.PI * radius;
+                  const dash = (d.pct / 100) * circumference;
+                  const offset =
+                    circumference - dash - cumulative;
+                  cumulative += dash;
+
+                  return (
+                    <circle
+                      key={d.symbol}
+                      cx="110"
+                      cy="110"
+                      r={radius}
+                      fill="none"
+                      stroke={donutColors[i % donutColors.length]}
+                      strokeWidth="18"
+                      strokeDasharray={`${dash} ${circumference}`}
+                      strokeDashoffset={offset}
+                    />
+                  );
+                })}
+              </g>
+              <text
+                x="110"
+                y="105"
+                textAnchor="middle"
+                fill={COLORS.textPrimary}
+                fontSize="20"
+                fontWeight="600"
+              >
+                {largestHolding.symbol}
+              </text>
+              <text
+                x="110"
+                y="128"
+                textAnchor="middle"
+                fill={COLORS.textSecondary}
+                fontSize="14"
+              >
+                {largestPct.toFixed(1)}%
+              </text>
+            </svg>
+
+            <ul style={{ marginTop: "16px" }}>
+              {donutData.slice(0, 5).map((d, i) => (
+                <li key={d.symbol}>
+                  <span
+                    style={{
+                      color: donutColors[i % donutColors.length],
+                    }}
+                  >
+                    ●
+                  </span>{" "}
+                  {d.symbol}: {d.pct.toFixed(1)}%
+                </li>
+              ))}
+            </ul>
+          </section>
+
+          {/* STRESS SCENARIOS */}
+          <section
+            style={{
+              background: COLORS.panelAlt,
+              border: `1px solid ${COLORS.border}`,
+              borderRadius: "12px",
+              padding: "24px",
+            }}
+          >
+            <h2>Stress Scenarios</h2>
+            <ul>
+              <li>
+                Equity drawdown (-20%):{" "}
+                <span style={{ color: COLORS.accentRed }}>
+                  -$
+                  {equityDrawdown20.toLocaleString(undefined, {
+                    maximumFractionDigits: 2,
+                  })}
+                </span>
+              </li>
+              <li>
+                Crypto drawdown (-40%):{" "}
+                <span style={{ color: COLORS.accentRed }}>
+                  -$
+                  {cryptoDrawdown40.toLocaleString(undefined, {
+                    maximumFractionDigits: 2,
+                  })}
+                </span>
+              </li>
+              <li>
+                Top holding shock (-30% on {largestHolding.symbol}):{" "}
+                <span style={{ color: COLORS.accentRed }}>
+                  -$
+                  {topHoldingShock30.toLocaleString(undefined, {
+                    maximumFractionDigits: 2,
+                  })}
+                </span>
+              </li>
+            </ul>
+          </section>
+        </div>
+      </div>
+
+      {/* RISK NARRATIVE */}
+      <section
+        style={{
+          background: COLORS.panel,
+          border: `1px solid ${COLORS.border}`,
+          borderRadius: "12px",
+          padding: "24px",
+          marginTop: "24px",
+        }}
+      >
+        <h2>Risk Narrative</h2>
+        <p style={{ color: COLORS.textSecondary }}>
+          The portfolio exhibits a{" "}
+          <strong style={{ color: postureColor }}>
+            {posture.toLowerCase()}
+          </strong>{" "}
+          overall risk posture driven primarily by equity concentration rather
+          than leverage or excessive asset-class breadth. Crypto exposure
+          remains secondary to equity-driven risk.
         </p>
       </section>
     </div>
