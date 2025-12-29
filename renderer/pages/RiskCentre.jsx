@@ -6,101 +6,189 @@ export default function RiskCentre() {
 
   if (!snapshot || !snapshot.holdings || snapshot.holdings.length === 0) {
     return (
-      <div className="page">
+      <div style={{ padding: "2rem" }}>
         <h1>Risk Centre</h1>
-        <p>Status: Snapshot unavailable (fail-closed)</p>
+        <p>Mode: Read-only · Deterministic · Intelligence-only</p>
+        <p>No snapshot holdings found.</p>
       </div>
     );
   }
 
   const totalValue = snapshot.totalValue;
-  const holdings = snapshot.holdings;
 
-  // ---- Exposure by Asset Class ----
-  const byAssetClass = holdings.reduce((acc, h) => {
-    acc[h.assetClass] = (acc[h.assetClass] || 0) + h.value;
-    return acc;
-  }, {});
+  const holdings = snapshot.holdings.map(h => ({
+    symbol: h.symbol,
+    value: h.value,
+    weight: totalValue > 0 ? (h.value / totalValue) * 100 : 0
+  }));
 
-  const exposure = {
-    equity: ((byAssetClass.equity || 0) / totalValue) * 100,
-    crypto: ((byAssetClass.crypto || 0) / totalValue) * 100
-  };
+  /* ---------------------------
+     Exposure
+  ---------------------------- */
+  const equitySymbols = ["NVDA", "AVGO", "ASML", "HOOD", "MSTR", "BMNR", "APLD"];
+  const cryptoSymbols = ["BTC", "ETH"];
 
-  // ---- Concentration ----
-  const sorted = [...holdings].sort((a, b) => b.value - a.value);
-  const top = sorted[0];
-  const topPct = (top.value / totalValue) * 100;
+  const equityExposure = holdings
+    .filter(h => equitySymbols.includes(h.symbol))
+    .reduce((sum, h) => sum + h.weight, 0);
 
-  // ---- Stress Scenarios ----
-  const stress = [
-    { label: "Equity -10%", impact: exposure.equity * -0.10 },
-    { label: "Equity -20%", impact: exposure.equity * -0.20 },
-    { label: "Crypto -20%", impact: exposure.crypto * -0.20 },
-    { label: "Crypto -40%", impact: exposure.crypto * -0.40 },
-    { label: "Equity -20% + Crypto -30%", impact: (exposure.equity * -0.20) + (exposure.crypto * -0.30) }
+  const cryptoExposure = holdings
+    .filter(h => cryptoSymbols.includes(h.symbol))
+    .reduce((sum, h) => sum + h.weight, 0);
+
+  /* ---------------------------
+     Concentration
+  ---------------------------- */
+  const sortedByWeight = [...holdings].sort((a, b) => b.weight - a.weight);
+  const topPosition = sortedByWeight[0];
+
+  /* ---------------------------
+     Stress Scenarios
+  ---------------------------- */
+  const stressScenarios = [
+    { label: "Equity -10%", impact: -0.10 * equityExposure },
+    { label: "Equity -20%", impact: -0.20 * equityExposure },
+    { label: "Crypto -20%", impact: -0.20 * cryptoExposure },
+    { label: "Crypto -40%", impact: -0.40 * cryptoExposure },
+    {
+      label: "Equity -20% + Crypto -30%",
+      impact: -0.20 * equityExposure - 0.30 * cryptoExposure
+    }
   ];
 
-  // ---- Threshold Rules (Deterministic) ----
-  const breaches = [];
+  /* ---------------------------
+     Risk Scores (V9 Step 1)
+  ---------------------------- */
+  const baseRiskScores = {
+    BTC: 45,
+    ETH: 25,
+    NVDA: 15,
+    ASML: 15,
+    AVGO: 40,
+    MSTR: 5,
+    HOOD: 15,
+    BMNR: 5,
+    APLD: 5
+  };
 
-  if (topPct > 25) {
-    breaches.push(`High concentration: ${top.symbol} at ${topPct.toFixed(1)}%`);
+  const scoredAssets = holdings.map(h => ({
+    ...h,
+    riskScore: baseRiskScores[h.symbol] ?? 0
+  }));
+
+  /* ---------------------------
+     V9 STEP 2 — Risk Bands
+  ---------------------------- */
+  function riskBand(score) {
+    if (score >= 41) return "Critical";
+    if (score >= 26) return "High";
+    if (score >= 11) return "Moderate";
+    return "Low";
   }
 
-  if (exposure.crypto > 30) {
-    breaches.push(`Elevated crypto exposure: ${exposure.crypto.toFixed(1)}%`);
-  }
+  const assetsWithBands = scoredAssets.map(a => ({
+    ...a,
+    band: riskBand(a.riskScore)
+  }));
 
-  const worstStress = Math.min(...stress.map(s => s.impact));
-  if (worstStress < -20) {
-    breaches.push("Severe portfolio stress under combined shock");
-  }
+  /* ---------------------------
+     Portfolio Risk Severity
+  ---------------------------- */
+  const bandCounts = assetsWithBands.reduce(
+    (acc, a) => {
+      acc[a.band] += 1;
+      return acc;
+    },
+    { Low: 0, Moderate: 0, High: 0, Critical: 0 }
+  );
 
+  let portfolioSeverity = "LOW";
+  if (bandCounts.Critical >= 1) portfolioSeverity = "CRITICAL";
+  else if (bandCounts.High >= 2) portfolioSeverity = "HIGH";
+  else if (bandCounts.Moderate >= 1) portfolioSeverity = "MODERATE";
+
+  /* ---------------------------
+     Render
+  ---------------------------- */
   return (
-    <div className="page">
+    <div style={{ padding: "2rem", maxWidth: "900px" }}>
       <h1>Risk Centre</h1>
-
+      <p>Mode: Read-only · Deterministic · Intelligence-only</p>
       <p>
-        Mode: Read-only · Deterministic · Intelligence-only<br />
-        Snapshot as of: {new Date(snapshot.timestamp).toLocaleString()}
+        Snapshot as of:{" "}
+        {new Date(snapshot.timestamp).toLocaleString()}
       </p>
 
       <hr />
 
+      <h2>Total Value</h2>
+      <p>CA${totalValue.toFixed(2)}</p>
+
       <h2>Exposure</h2>
-      <p>Equity: {exposure.equity.toFixed(1)}%</p>
-      <p>Crypto: {exposure.crypto.toFixed(1)}%</p>
+      <p>Equity: {equityExposure.toFixed(1)}%</p>
+      <p>Crypto: {cryptoExposure.toFixed(1)}%</p>
 
       <h2>Concentration</h2>
-      <p>Top position: {top.symbol} — {topPct.toFixed(1)}%</p>
+      <p>
+        Top position: {topPosition.symbol} —{" "}
+        {topPosition.weight.toFixed(1)}%
+      </p>
 
       <h2>Risk Decomposition — By Asset</h2>
       <ul>
-        {sorted.map(h => (
-          <li key={h.symbol}>
-            {h.symbol} — {((h.value / totalValue) * 100).toFixed(1)}%
+        {assetsWithBands.map(a => (
+          <li key={a.symbol}>
+            {a.symbol} — {a.weight.toFixed(1)}%
           </li>
         ))}
       </ul>
 
       <h2>Stress Scenarios</h2>
       <ul>
-        {stress.map(s => (
+        {stressScenarios.map(s => (
           <li key={s.label}>
-            {s.label}: {s.impact.toFixed(1)}% ({Math.round((s.impact / 100) * totalValue)})
+            {s.label}: {(s.impact).toFixed(1)}% (
+            {Math.round((s.impact / 100) * totalValue)})
           </li>
         ))}
       </ul>
 
       <h2>Risk Threshold Breaches</h2>
-      {breaches.length === 0 ? (
-        <p>No threshold breaches detected</p>
-      ) : (
-        <ul>
-          {breaches.map((b, i) => <li key={i}>{b}</li>)}
-        </ul>
-      )}
+      <ul>
+        {topPosition.weight > 25 && (
+          <li>High concentration: {topPosition.symbol} at {topPosition.weight.toFixed(1)}%</li>
+        )}
+        {portfolioSeverity === "CRITICAL" || portfolioSeverity === "HIGH" ? (
+          <li>Elevated portfolio risk detected</li>
+        ) : (
+          <li>None</li>
+        )}
+      </ul>
+
+      <h2>Risk Scores — Per Asset (V9)</h2>
+      <table>
+        <thead>
+          <tr>
+            <th align="left">Asset</th>
+            <th align="right">Weight %</th>
+            <th align="right">Risk Score</th>
+            <th align="left">Risk Band</th>
+          </tr>
+        </thead>
+        <tbody>
+          {assetsWithBands.map(a => (
+            <tr key={a.symbol}>
+              <td>{a.symbol}</td>
+              <td align="right">{a.weight.toFixed(1)}</td>
+              <td align="right">{a.riskScore}</td>
+              <td>{a.band}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+
+      <h2>Overall Portfolio Risk</h2>
+      <p><strong>{portfolioSeverity}</strong></p>
     </div>
   );
 }
