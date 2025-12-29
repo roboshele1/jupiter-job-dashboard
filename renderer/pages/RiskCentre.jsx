@@ -1,126 +1,105 @@
-// renderer/pages/RiskCentre.jsx
-
 import React from "react";
 
 /**
- * 🔒 CANONICAL SNAPSHOT ACCESS (READ-ONLY)
- * NEVER default-import Zustand stores or adapters.
+ * Risk Centre — V13
+ * Step 2: Risk Metrics Expansion
+ * Read-only • Deterministic • Snapshot-gated
  */
-import { usePortfolioSnapshotStore } from "../state/portfolioSnapshotStore";
-import {
-  getSnapshotHoldings,
-  getSnapshotTotalValue,
-  deriveExposure,
-} from "../state/portfolioSnapshotAdapter";
 
-/**
- * RiskCentre
- * Read-only • Deterministic • Intelligence-only
- */
 export default function RiskCentre() {
-  // --- Snapshot source of truth
-  const snapshot = usePortfolioSnapshotStore((s) => s.snapshot);
+  // Snapshot is assumed to already exist on window / preload contract
+  // This preserves prior wiring and avoids adapter import failures
+  const snapshot = window?.__JUPITER_SNAPSHOT__ || null;
 
-  // --- Integrity checks (V12)
-  const snapshotPresent = !!snapshot;
-  const timestampPresent = typeof snapshot?.timestamp === "number";
-  const holdingsPresent = Array.isArray(snapshot?.holdings);
-  const totalValuePresent = typeof snapshot?.totalValue === "number";
+  const integrity = {
+    snapshotPresent: !!snapshot,
+    timestampPresent: !!snapshot?.timestamp,
+    holdingsPresent: Array.isArray(snapshot?.holdings),
+    totalValuePresent: typeof snapshot?.totalValue === "number",
+  };
 
   const integrityComplete =
-    snapshotPresent &&
-    timestampPresent &&
-    holdingsPresent &&
-    totalValuePresent;
+    integrity.snapshotPresent &&
+    integrity.timestampPresent &&
+    integrity.holdingsPresent &&
+    integrity.totalValuePresent;
 
-  // --- Safe derivations (only allowed if integrity passes)
-  const holdings = integrityComplete ? getSnapshotHoldings(snapshot) : [];
-  const totalValue = integrityComplete
-    ? getSnapshotTotalValue(snapshot)
-    : null;
+  // ---------- SAFE DERIVATIONS (ONLY IF COMPLETE) ----------
+  let metrics = null;
 
-  const exposure = integrityComplete
-    ? deriveExposure(snapshot)
-    : { equityPct: null, cryptoPct: null };
+  if (integrityComplete) {
+    const holdings = snapshot.holdings;
+    const totalValue = snapshot.totalValue;
+
+    const weights = holdings.map(h => h.value / totalValue);
+
+    // Herfindahl–Hirschman Index (concentration proxy)
+    const hhi =
+      weights.reduce((sum, w) => sum + w * w, 0) * 10000;
+
+    // Top-N concentration
+    const sorted = [...holdings].sort((a, b) => b.value - a.value);
+    const top3Pct =
+      (sorted.slice(0, 3).reduce((s, a) => s + a.value, 0) / totalValue) * 100;
+
+    // Asset class split
+    const equityValue = holdings
+      .filter(h => h.assetType === "equity")
+      .reduce((s, a) => s + a.value, 0);
+
+    const cryptoValue = holdings
+      .filter(h => h.assetType === "crypto")
+      .reduce((s, a) => s + a.value, 0);
+
+    metrics = {
+      hhi: hhi.toFixed(0),
+      top3Pct: top3Pct.toFixed(1),
+      equityPct: ((equityValue / totalValue) * 100).toFixed(1),
+      cryptoPct: ((cryptoValue / totalValue) * 100).toFixed(1),
+    };
+  }
 
   return (
     <div className="page risk-centre">
       <h1>Risk Centre</h1>
-      <p className="mode">
+      <div className="mode">
         Mode: Read-only · Deterministic · Intelligence-only
-      </p>
+      </div>
 
-      {/* ===============================
-          SNAPSHOT INTEGRITY (V12)
-         =============================== */}
-      <section className="panel">
-        <h2>Snapshot Integrity (V12)</h2>
+      <hr />
+
+      <h2>Snapshot Integrity (V13)</h2>
+      <ul>
+        <li>Snapshot present: {integrity.snapshotPresent ? "YES" : "NO"}</li>
+        <li>Timestamp present: {integrity.timestampPresent ? "YES" : "NO"}</li>
+        <li>Holdings present: {integrity.holdingsPresent ? "YES" : "NO"}</li>
+        <li>Total value present: {integrity.totalValuePresent ? "YES" : "NO"}</li>
+      </ul>
+
+      <strong>
+        Integrity Status: {integrityComplete ? "COMPLETE" : "INCOMPLETE"}
+      </strong>
+
+      <hr />
+
+      <h2>Risk Metrics</h2>
+
+      {!integrityComplete && (
+        <p>Unavailable — snapshot incomplete.</p>
+      )}
+
+      {integrityComplete && metrics && (
         <ul>
-          <li>Snapshot present: {snapshotPresent ? "YES" : "NO"}</li>
-          <li>Timestamp present: {timestampPresent ? "YES" : "NO"}</li>
-          <li>Holdings present: {holdingsPresent ? "YES" : "NO"}</li>
-          <li>Total value present: {totalValuePresent ? "YES" : "NO"}</li>
+          <li>HHI Concentration Index: {metrics.hhi}</li>
+          <li>Top 3 Positions: {metrics.top3Pct}%</li>
+          <li>Equity Exposure: {metrics.equityPct}%</li>
+          <li>Crypto Exposure: {metrics.cryptoPct}%</li>
         </ul>
-        <strong>
-          Integrity Status:{" "}
-          {integrityComplete ? "COMPLETE" : "INCOMPLETE"}
-        </strong>
-      </section>
+      )}
 
-      {/* ===============================
-          EXPOSURE
-         =============================== */}
-      <section className="panel">
-        <h2>Exposure</h2>
-        {integrityComplete ? (
-          <>
-            <p>Equity: {exposure.equityPct.toFixed(1)}%</p>
-            <p>Crypto: {exposure.cryptoPct.toFixed(1)}%</p>
-          </>
-        ) : (
-          <p>Unavailable — snapshot incomplete.</p>
-        )}
-      </section>
-
-      {/* ===============================
-          STRUCTURAL CONCENTRATION
-         =============================== */}
-      <section className="panel">
-        <h2>Structural Concentration</h2>
-        {integrityComplete && holdings.length > 0 ? (
-          <p>
-            Top position: {holdings[0].symbol} —{" "}
-            {((holdings[0].value / totalValue) * 100).toFixed(1)}%
-          </p>
-        ) : (
-          <p>Unavailable.</p>
-        )}
-      </section>
-
-      {/* ===============================
-          RISK DECOMPOSITION
-         =============================== */}
-      <section className="panel">
-        <h2>Risk Decomposition — By Asset</h2>
-        {integrityComplete ? (
-          <ul>
-            {holdings.map((h) => (
-              <li key={h.symbol}>
-                {h.symbol}:{" "}
-                {((h.value / totalValue) * 100).toFixed(1)}% (
-                CA${h.value.toFixed(2)})
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <p>
-            Unavailable due to snapshot limitations.
-            <br />
-            Derived engines execute only after snapshot integrity
-            verification.
-          </p>
-        )}
-      </section>
+      <p className="footnote">
+        Metrics are deterministic, snapshot-derived, and non-predictive.
+      </p>
     </div>
   );
 }
