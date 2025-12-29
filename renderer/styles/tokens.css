@@ -1,0 +1,34 @@
+/* =========================================================
+   JUPITER — CANONICAL COLOR TOKENS
+   Design Contract (Institutional Grade)
+   ---------------------------------------------------------
+   Rules:
+   - No component may hardcode colors
+   - All charts, bars, UI surfaces consume these tokens
+   - Meanings NEVER change — only values may evolve
+   ========================================================= */
+
+:root {
+  /* ===== Background & Surfaces ===== */
+  --color-background: #0b0f1a;      /* App shell / canvas */
+  --color-surface:    #121826;      /* Cards, panels */
+  --color-border:     #1e2638;      /* Subtle separators */
+
+  /* ===== Text ===== */
+  --color-text-primary: #e6e9f2;    /* Headings, key values */
+  --color-text-muted:   #9aa4bf;    /* Secondary labels */
+
+  /* ===== Semantic Risk Tokens ===== */
+  --color-equity:   #4fd1ff;        /* Equity exposure */
+  --color-crypto:   #9b6cff;        /* Crypto exposure */
+  --color-risk:     #ff5c5c;        /* Drawdowns / danger */
+  --color-positive: #3ddc97;        /* Gains / positive delta */
+  --color-neutral:  #3a425a;        /* Other / remainder */
+
+  /* ===== Utility (Gradients / Accents) ===== */
+  --color-equity-soft:   rgba(79, 209, 255, 0.35);
+  --color-crypto-soft:   rgba(155, 108, 255, 0.35);
+  --color-risk-soft:     rgba(255, 92, 92, 0.35);
+  --color-positive-soft: rgba(61, 220, 151, 0.35);
+}
+
