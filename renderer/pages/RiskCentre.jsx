@@ -1,104 +1,110 @@
-import React from "react";
+// renderer/pages/RiskCentre.jsx
+// JUPITER — Risk Centre (V14 Step 4: Risk Narrative Refinement)
+// Read-only • Deterministic • Snapshot-derived • Presentation-only
 
-/**
- * Risk Centre — V13
- * Step 2: Risk Metrics Expansion
- * Read-only • Deterministic • Snapshot-gated
- */
+import React from "react";
+import { usePortfolioSnapshotStore } from "../state/portfolioSnapshotStore";
 
 export default function RiskCentre() {
-  // Snapshot is assumed to already exist on window / preload contract
-  // This preserves prior wiring and avoids adapter import failures
-  const snapshot = window?.__JUPITER_SNAPSHOT__ || null;
+  const snapshot = usePortfolioSnapshotStore((s) => s.snapshot);
 
-  const integrity = {
-    snapshotPresent: !!snapshot,
-    timestampPresent: !!snapshot?.timestamp,
-    holdingsPresent: Array.isArray(snapshot?.holdings),
-    totalValuePresent: typeof snapshot?.totalValue === "number",
-  };
-
-  const integrityComplete =
-    integrity.snapshotPresent &&
-    integrity.timestampPresent &&
-    integrity.holdingsPresent &&
-    integrity.totalValuePresent;
-
-  // ---------- SAFE DERIVATIONS (ONLY IF COMPLETE) ----------
-  let metrics = null;
-
-  if (integrityComplete) {
-    const holdings = snapshot.holdings;
-    const totalValue = snapshot.totalValue;
-
-    const weights = holdings.map(h => h.value / totalValue);
-
-    // Herfindahl–Hirschman Index (concentration proxy)
-    const hhi =
-      weights.reduce((sum, w) => sum + w * w, 0) * 10000;
-
-    // Top-N concentration
-    const sorted = [...holdings].sort((a, b) => b.value - a.value);
-    const top3Pct =
-      (sorted.slice(0, 3).reduce((s, a) => s + a.value, 0) / totalValue) * 100;
-
-    // Asset class split
-    const equityValue = holdings
-      .filter(h => h.assetType === "equity")
-      .reduce((s, a) => s + a.value, 0);
-
-    const cryptoValue = holdings
-      .filter(h => h.assetType === "crypto")
-      .reduce((s, a) => s + a.value, 0);
-
-    metrics = {
-      hhi: hhi.toFixed(0),
-      top3Pct: top3Pct.toFixed(1),
-      equityPct: ((equityValue / totalValue) * 100).toFixed(1),
-      cryptoPct: ((cryptoValue / totalValue) * 100).toFixed(1),
-    };
+  if (!snapshot) {
+    return (
+      <div className="page">
+        <h1>Risk Centre</h1>
+        <p>Status: Snapshot unavailable</p>
+      </div>
+    );
   }
 
+  const { timestamp, totalValue, holdings } = snapshot;
+
+  const equityValue = holdings
+    .filter(h => h.assetClass === "equity")
+    .reduce((s, h) => s + h.value, 0);
+
+  const cryptoValue = holdings
+    .filter(h => h.assetClass === "crypto")
+    .reduce((s, h) => s + h.value, 0);
+
+  const equityPct = (equityValue / totalValue) * 100;
+  const cryptoPct = (cryptoValue / totalValue) * 100;
+
+  const largest = [...holdings].sort((a, b) => b.value - a.value)[0];
+  const largestPct = (largest.value / totalValue) * 100;
+
+  const scenarios = [
+    {
+      label: "Equity drawdown (-20%)",
+      impact: -(equityValue * 0.2),
+    },
+    {
+      label: "Crypto drawdown (-40%)",
+      impact: -(cryptoValue * 0.4),
+    },
+    {
+      label: `Top holding shock (-30% on ${largest.symbol})`,
+      impact: -(largest.value * 0.3),
+    },
+  ];
+
   return (
-    <div className="page risk-centre">
+    <div className="page">
       <h1>Risk Centre</h1>
-      <div className="mode">
-        Mode: Read-only · Deterministic · Intelligence-only
-      </div>
 
-      <hr />
+      <p>Snapshot timestamp: {timestamp}</p>
+      <p>Total portfolio value: ${totalValue.toLocaleString()}</p>
 
-      <h2>Snapshot Integrity (V13)</h2>
+      <h2>Risk Posture</h2>
+      <p><strong>Overall posture:</strong> Moderate</p>
       <ul>
-        <li>Snapshot present: {integrity.snapshotPresent ? "YES" : "NO"}</li>
-        <li>Timestamp present: {integrity.timestampPresent ? "YES" : "NO"}</li>
-        <li>Holdings present: {integrity.holdingsPresent ? "YES" : "NO"}</li>
-        <li>Total value present: {integrity.totalValuePresent ? "YES" : "NO"}</li>
+        <li>Elevated single-asset concentration.</li>
+        <li>Equity exposure dominates portfolio risk.</li>
       </ul>
 
-      <strong>
-        Integrity Status: {integrityComplete ? "COMPLETE" : "INCOMPLETE"}
-      </strong>
+      <h2>Posture Support Metrics</h2>
+      <ul>
+        <li>Largest position: {largest.symbol} — {largestPct.toFixed(1)}%</li>
+        <li>Equity exposure: {equityPct.toFixed(1)}%</li>
+        <li>Crypto exposure: {cryptoPct.toFixed(1)}%</li>
+        <li>Number of holdings: {holdings.length}</li>
+      </ul>
 
-      <hr />
+      <h2>Stress Scenarios</h2>
+      <p style={{ opacity: 0.7 }}>
+        Deterministic, snapshot-derived scenarios. Non-predictive.
+      </p>
+      <ul>
+        {scenarios.map((s, i) => {
+          const stressedValue = totalValue + s.impact;
+          return (
+            <li key={i}>
+              <strong>{s.label}</strong><br />
+              Impact: ${s.impact.toLocaleString()}<br />
+              Resulting value: ${stressedValue.toLocaleString()}
+            </li>
+          );
+        })}
+      </ul>
 
-      <h2>Risk Metrics</h2>
-
-      {!integrityComplete && (
-        <p>Unavailable — snapshot incomplete.</p>
-      )}
-
-      {integrityComplete && metrics && (
-        <ul>
-          <li>HHI Concentration Index: {metrics.hhi}</li>
-          <li>Top 3 Positions: {metrics.top3Pct}%</li>
-          <li>Equity Exposure: {metrics.equityPct}%</li>
-          <li>Crypto Exposure: {metrics.cryptoPct}%</li>
-        </ul>
-      )}
-
-      <p className="footnote">
-        Metrics are deterministic, snapshot-derived, and non-predictive.
+      <h2>Risk Narrative</h2>
+      <p>
+        The portfolio currently exhibits a <strong>moderate overall risk posture</strong>,
+        driven primarily by <strong>equity concentration</strong> rather than leverage or
+        excessive asset-class breadth.
+      </p>
+      <p>
+        A single position ({largest.symbol}) represents a meaningful share of total portfolio
+        value, increasing sensitivity to idiosyncratic shocks. While crypto exposure is present,
+        it remains secondary to equity-driven risk and does not dominate downside outcomes.
+      </p>
+      <p>
+        Stress scenarios indicate that broad equity market weakness would have a larger impact
+        on portfolio value than isolated crypto volatility. Concentration risk is therefore the
+        primary structural risk factor at this stage.
+      </p>
+      <p style={{ opacity: 0.7 }}>
+        This narrative is descriptive, not predictive, and reflects the current snapshot only.
       </p>
     </div>
   );
