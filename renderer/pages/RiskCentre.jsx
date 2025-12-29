@@ -2,193 +2,180 @@ import React from "react";
 import { usePortfolioSnapshotStore } from "../state/portfolioSnapshotStore";
 
 export default function RiskCentre() {
-  const snapshot = usePortfolioSnapshotStore(s => s.snapshot);
+  const snapshot = usePortfolioSnapshotStore((s) => s.snapshot);
 
-  if (!snapshot || !snapshot.holdings || snapshot.holdings.length === 0) {
-    return (
-      <div style={{ padding: "2rem" }}>
-        <h1>Risk Centre</h1>
-        <p>Mode: Read-only · Deterministic · Intelligence-only</p>
-        <p>No snapshot holdings found.</p>
-      </div>
-    );
-  }
+  // -----------------------------
+  // Snapshot presence & fields
+  // -----------------------------
+  const hasSnapshot = snapshot && typeof snapshot === "object";
 
-  const totalValue = snapshot.totalValue;
+  const timestamp =
+    typeof snapshot?.timestamp === "number" ? snapshot.timestamp : null;
 
-  const holdings = snapshot.holdings.map(h => ({
-    symbol: h.symbol,
-    value: h.value,
-    weight: totalValue > 0 ? (h.value / totalValue) * 100 : 0
-  }));
+  const holdings = Array.isArray(snapshot?.holdings)
+    ? snapshot.holdings
+    : null;
 
-  /* ---------------------------
-     Exposure
-  ---------------------------- */
-  const equitySymbols = ["NVDA", "AVGO", "ASML", "HOOD", "MSTR", "BMNR", "APLD"];
-  const cryptoSymbols = ["BTC", "ETH"];
+  const totalValue =
+    typeof snapshot?.totalValue === "number" ? snapshot.totalValue : null;
 
-  const equityExposure = holdings
-    .filter(h => equitySymbols.includes(h.symbol))
-    .reduce((sum, h) => sum + h.weight, 0);
-
-  const cryptoExposure = holdings
-    .filter(h => cryptoSymbols.includes(h.symbol))
-    .reduce((sum, h) => sum + h.weight, 0);
-
-  /* ---------------------------
-     Concentration
-  ---------------------------- */
-  const sortedByWeight = [...holdings].sort((a, b) => b.weight - a.weight);
-  const topPosition = sortedByWeight[0];
-
-  /* ---------------------------
-     Stress Scenarios
-  ---------------------------- */
-  const stressScenarios = [
-    { label: "Equity -10%", impact: -0.10 * equityExposure },
-    { label: "Equity -20%", impact: -0.20 * equityExposure },
-    { label: "Crypto -20%", impact: -0.20 * cryptoExposure },
-    { label: "Crypto -40%", impact: -0.40 * cryptoExposure },
-    {
-      label: "Equity -20% + Crypto -30%",
-      impact: -0.20 * equityExposure - 0.30 * cryptoExposure
-    }
-  ];
-
-  /* ---------------------------
-     Risk Scores (V9 Step 1)
-  ---------------------------- */
-  const baseRiskScores = {
-    BTC: 45,
-    ETH: 25,
-    NVDA: 15,
-    ASML: 15,
-    AVGO: 40,
-    MSTR: 5,
-    HOOD: 15,
-    BMNR: 5,
-    APLD: 5
+  // -----------------------------
+  // Completeness diagnostics
+  // -----------------------------
+  const completeness = {
+    snapshot: !!hasSnapshot,
+    timestamp: !!timestamp,
+    holdings: Array.isArray(holdings),
+    totalValue: typeof totalValue === "number",
   };
 
-  const scoredAssets = holdings.map(h => ({
-    ...h,
-    riskScore: baseRiskScores[h.symbol] ?? 0
-  }));
+  const missingFields = Object.entries(completeness)
+    .filter(([, ok]) => !ok)
+    .map(([k]) => k);
 
-  /* ---------------------------
-     V9 STEP 2 — Risk Bands
-  ---------------------------- */
-  function riskBand(score) {
-    if (score >= 41) return "Critical";
-    if (score >= 26) return "High";
-    if (score >= 11) return "Moderate";
-    return "Low";
+  // -----------------------------
+  // Escalation tiers
+  // -----------------------------
+  const tier = {
+    structural: completeness.holdings,
+    valuation: completeness.holdings && completeness.totalValue,
+    temporal: completeness.timestamp,
+  };
+
+  // -----------------------------
+  // Risk confidence logic
+  // -----------------------------
+  let riskConfidence = "LOW";
+  let confidenceNote =
+    "Risk confidence reflects snapshot completeness — not market prediction.";
+
+  if (tier.structural && !tier.valuation) {
+    riskConfidence = "MEDIUM (Structural)";
+    confidenceNote =
+      "Structural risk intelligence available; valuation data incomplete.";
   }
 
-  const assetsWithBands = scoredAssets.map(a => ({
-    ...a,
-    band: riskBand(a.riskScore)
-  }));
+  if (tier.structural && tier.valuation && tier.temporal) {
+    riskConfidence = "HIGH";
+    confidenceNote =
+      "Snapshot complete and fresh; full risk intelligence available.";
+  }
 
-  /* ---------------------------
-     Portfolio Risk Severity
-  ---------------------------- */
-  const bandCounts = assetsWithBands.reduce(
-    (acc, a) => {
-      acc[a.band] += 1;
-      return acc;
-    },
-    { Low: 0, Moderate: 0, High: 0, Critical: 0 }
+  // -----------------------------
+  // Structural intelligence
+  // -----------------------------
+  const assetCount = tier.structural ? holdings.length : null;
+
+  // -----------------------------
+  // Render helpers
+  // -----------------------------
+  const renderUnavailable = (label) => (
+    <div style={{ opacity: 0.6 }}>{label}: Unavailable</div>
   );
 
-  let portfolioSeverity = "LOW";
-  if (bandCounts.Critical >= 1) portfolioSeverity = "CRITICAL";
-  else if (bandCounts.High >= 2) portfolioSeverity = "HIGH";
-  else if (bandCounts.Moderate >= 1) portfolioSeverity = "MODERATE";
-
-  /* ---------------------------
-     Render
-  ---------------------------- */
   return (
-    <div style={{ padding: "2rem", maxWidth: "900px" }}>
+    <div className="page risk-centre">
       <h1>Risk Centre</h1>
-      <p>Mode: Read-only · Deterministic · Intelligence-only</p>
-      <p>
-        Snapshot as of:{" "}
-        {new Date(snapshot.timestamp).toLocaleString()}
-      </p>
+      <div className="subtle">
+        Mode: Read-only · Deterministic · Intelligence-only
+      </div>
 
       <hr />
 
-      <h2>Total Value</h2>
-      <p>CA${totalValue.toFixed(2)}</p>
-
-      <h2>Exposure</h2>
-      <p>Equity: {equityExposure.toFixed(1)}%</p>
-      <p>Crypto: {cryptoExposure.toFixed(1)}%</p>
-
-      <h2>Concentration</h2>
-      <p>
-        Top position: {topPosition.symbol} —{" "}
-        {topPosition.weight.toFixed(1)}%
-      </p>
-
-      <h2>Risk Decomposition — By Asset</h2>
-      <ul>
-        {assetsWithBands.map(a => (
-          <li key={a.symbol}>
-            {a.symbol} — {a.weight.toFixed(1)}%
+      {/* Snapshot Lineage */}
+      <section>
+        <h2>Snapshot Lineage & Freshness (V11.4)</h2>
+        <ul>
+          <li>Lineage: {hasSnapshot ? "BOOTSTRAPPED" : "NONE"}</li>
+          <li>
+            Snapshot Timestamp:{" "}
+            {timestamp !== null ? timestamp : "Unavailable"}
           </li>
-        ))}
-      </ul>
-
-      <h2>Stress Scenarios</h2>
-      <ul>
-        {stressScenarios.map(s => (
-          <li key={s.label}>
-            {s.label}: {(s.impact).toFixed(1)}% (
-            {Math.round((s.impact / 100) * totalValue)})
+          <li>
+            Snapshot Age:{" "}
+            {timestamp !== null ? "Derivable" : "Unavailable"}
           </li>
-        ))}
-      </ul>
+        </ul>
+      </section>
 
-      <h2>Risk Threshold Breaches</h2>
-      <ul>
-        {topPosition.weight > 25 && (
-          <li>High concentration: {topPosition.symbol} at {topPosition.weight.toFixed(1)}%</li>
+      <hr />
+
+      {/* Risk Confidence */}
+      <section>
+        <h2>Risk Confidence (V11)</h2>
+        <strong>{riskConfidence}</strong>
+        <div className="subtle">{confidenceNote}</div>
+      </section>
+
+      <hr />
+
+      {/* Snapshot Diagnostics */}
+      <section>
+        <h2>Snapshot Diagnostics</h2>
+        <div>Status: {missingFields.length === 0 ? "COMPLETE" : "PARTIAL"}</div>
+        {missingFields.length > 0 && (
+          <>
+            <div>Missing Fields:</div>
+            <ul>
+              {missingFields.map((f) => (
+                <li key={f}>{f}</li>
+              ))}
+            </ul>
+          </>
         )}
-        {portfolioSeverity === "CRITICAL" || portfolioSeverity === "HIGH" ? (
-          <li>Elevated portfolio risk detected</li>
+      </section>
+
+      <hr />
+
+      {/* Exposure */}
+      <section>
+        <h2>Exposure</h2>
+        {tier.valuation ? (
+          <>
+            <div>Equity: Derivable</div>
+            <div>Crypto: Derivable</div>
+          </>
         ) : (
-          <li>None</li>
+          <>
+            {renderUnavailable("Equity")}
+            {renderUnavailable("Crypto")}
+          </>
         )}
-      </ul>
+      </section>
 
-      <h2>Risk Scores — Per Asset (V9)</h2>
-      <table>
-        <thead>
-          <tr>
-            <th align="left">Asset</th>
-            <th align="right">Weight %</th>
-            <th align="right">Risk Score</th>
-            <th align="left">Risk Band</th>
-          </tr>
-        </thead>
-        <tbody>
-          {assetsWithBands.map(a => (
-            <tr key={a.symbol}>
-              <td>{a.symbol}</td>
-              <td align="right">{a.weight.toFixed(1)}</td>
-              <td align="right">{a.riskScore}</td>
-              <td>{a.band}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      <hr />
 
-      <h2>Overall Portfolio Risk</h2>
-      <p><strong>{portfolioSeverity}</strong></p>
+      {/* Structural Concentration */}
+      <section>
+        <h2>Structural Concentration</h2>
+        {tier.structural ? (
+          <div>Total distinct assets: {assetCount}</div>
+        ) : (
+          <div>Unavailable due to missing holdings.</div>
+        )}
+      </section>
+
+      <hr />
+
+      {/* Risk Decomposition */}
+      <section>
+        <h2>Risk Decomposition — By Asset</h2>
+        {tier.valuation ? (
+          <div>Valuation-based decomposition available.</div>
+        ) : tier.structural ? (
+          <div>
+            Structural decomposition only (valuation data missing).
+          </div>
+        ) : (
+          <div>Unavailable due to incomplete snapshot.</div>
+        )}
+      </section>
+
+      <hr />
+
+      <div className="footnote">
+        Snapshot intelligence enforces data integrity before risk computation.
+      </div>
     </div>
   );
 }
