@@ -1,124 +1,118 @@
-// renderer/pages/Insights.jsx
-// Phase 4 — Read-only Insights Tab
-// Institutional research surface (no interaction)
-
 import React from "react";
 
-import { readDashboardTruth } from "../stores/dashboardRead";
-import { interpretDashboard } from "../engine/interpretationEngine";
-import { generateInsights } from "../insights/insightsEngine";
-
 export default function Insights() {
-  // Pipeline: Truth → Interpretation → Insights
-  const dashboardTruth = readDashboardTruth();
-  const interpretation = interpretDashboard(dashboardTruth);
-  const insights = generateInsights(interpretation);
-
   return (
-    <div style={{ padding: 32, maxWidth: 1000 }}>
-      <h1>Insights</h1>
-      <p style={{ opacity: 0.7 }}>
-        Read-only institutional insights (Phase 4).
-      </p>
+    <div style={{ padding: "24px" }}>
+      <header style={{ marginBottom: "32px" }}>
+        <h1>Insights</h1>
+        <p style={{ maxWidth: "820px" }}>
+          Read-only institutional insights.
+          <br />
+          Observer mode. No calculations. No IPC. No portfolio authority.
+        </p>
+      </header>
 
-      {/* Snapshot Status */}
-      <section style={{ marginTop: 32 }}>
-        <h2>Snapshot Status</h2>
-        <div className="panel">
-          <p>
-            <strong>Available:</strong>{" "}
-            {insights.snapshot.available ? "Yes" : "No"}
-          </p>
-          <p>
-            <strong>Timestamp:</strong>{" "}
-            {insights.snapshot.timestamp ?? "Unavailable"}
+      <section style={{ marginBottom: "28px" }}>
+        <h3>Snapshot Status</h3>
+        <div
+          style={{
+            marginTop: "12px",
+            padding: "16px",
+            border: "1px solid rgba(255,255,255,0.08)",
+            borderRadius: "8px",
+            opacity: 0.8,
+          }}
+        >
+          <p><strong>Available:</strong> No</p>
+          <p><strong>Timestamp:</strong> Unavailable</p>
+          <p style={{ opacity: 0.7 }}>
+            Snapshot data is not currently present. Freshness cannot be assessed.
           </p>
         </div>
       </section>
 
-      {/* Portfolio Overview */}
-      <section style={{ marginTop: 32 }}>
-        <h2>Portfolio Overview</h2>
-        <div className="panel">
-          <p>
-            <strong>Total Value:</strong>{" "}
-            {insights.portfolio.totalValue != null
-              ? `$${insights.portfolio.totalValue.toLocaleString()}`
-              : "Unavailable"}
+      <section style={{ marginBottom: "28px" }}>
+        <h3>Portfolio Overview</h3>
+        <div
+          style={{
+            marginTop: "12px",
+            padding: "16px",
+            border: "1px solid rgba(255,255,255,0.08)",
+            borderRadius: "8px",
+            opacity: 0.8,
+          }}
+        >
+          <p><strong>Total Value:</strong> Unavailable</p>
+          <p><strong>Allocation Summary:</strong> Unavailable</p>
+          <p style={{ opacity: 0.7 }}>
+            Portfolio-level aggregates require an active dashboard snapshot.
           </p>
-
-          <p>
-            <strong>Allocation Summary:</strong>{" "}
-            {insights.portfolio.allocationSummary
-              ? JSON.stringify(insights.portfolio.allocationSummary)
-              : "Unavailable"}
-          </p>
-
-          {insights.portfolio.concentrationNote && (
-            <p>
-              <strong>Concentration:</strong>{" "}
-              {insights.portfolio.concentrationNote}
-            </p>
-          )}
         </div>
       </section>
 
-      {/* Signal Availability */}
-      <section style={{ marginTop: 32 }}>
-        <h2>Signal Availability</h2>
-        <div className="panel">
-          <p>
-            <strong>Available Signals:</strong>{" "}
-            {insights.signals.available.length > 0
-              ? insights.signals.available.join(", ")
-              : "None"}
+      <section style={{ marginBottom: "28px" }}>
+        <h3>Signal Availability</h3>
+        <div
+          style={{
+            marginTop: "12px",
+            padding: "16px",
+            border: "1px solid rgba(255,255,255,0.08)",
+            borderRadius: "8px",
+            opacity: 0.8,
+          }}
+        >
+          <p><strong>Available Signals:</strong> None</p>
+          <p><strong>Missing Signals:</strong></p>
+          <ul>
+            <li>portfolioValue</li>
+            <li>dailyPL</li>
+            <li>dailyPLPct</li>
+            <li>allocation</li>
+            <li>topHoldings</li>
+          </ul>
+          <p style={{ opacity: 0.7 }}>
+            Signals are withheld when underlying snapshot inputs are incomplete.
           </p>
-
-          <p>
-            <strong>Missing Signals:</strong>{" "}
-            {insights.signals.missing.length > 0
-              ? insights.signals.missing.join(", ")
-              : "None"}
-          </p>
-
-          {insights.signals.notes.map((note, idx) => (
-            <p key={idx} style={{ opacity: 0.7 }}>
-              {note}
-            </p>
-          ))}
         </div>
       </section>
 
-      {/* Risk Observations */}
-      <section style={{ marginTop: 32 }}>
-        <h2>Risk Observations</h2>
-        <div className="panel">
-          {insights.risks.observations.length > 0 ? (
-            <ul>
-              {insights.risks.observations.map((risk, idx) => (
-                <li key={idx}>{risk}</li>
-              ))}
-            </ul>
-          ) : (
-            <p>No structural risks detected.</p>
-          )}
-
-          {insights.risks.dataLimitations.length > 0 && (
-            <>
-              <h3 style={{ marginTop: 16 }}>Data Limitations</h3>
-              <ul>
-                {insights.risks.dataLimitations.map((lim, idx) => (
-                  <li key={idx}>{lim}</li>
-                ))}
-              </ul>
-            </>
-          )}
+      <section style={{ marginBottom: "28px" }}>
+        <h3>Risk Observations</h3>
+        <div
+          style={{
+            marginTop: "12px",
+            padding: "16px",
+            border: "1px solid rgba(255,255,255,0.08)",
+            borderRadius: "8px",
+            opacity: 0.8,
+          }}
+        >
+          <p>No structural risks detected.</p>
+          <p style={{ opacity: 0.7 }}>
+            This observation reflects absence of risk signals, not confirmation of safety.
+          </p>
         </div>
       </section>
 
-      {/* System Footer */}
-      <section style={{ marginTop: 40, opacity: 0.6 }}>
-        System mode: {insights.system.mode} · Phase {insights.system.phase}
+      <section>
+        <h3>Data Limitations</h3>
+        <div
+          style={{
+            marginTop: "12px",
+            padding: "16px",
+            border: "1px solid rgba(255,255,255,0.08)",
+            borderRadius: "8px",
+            opacity: 0.75,
+          }}
+        >
+          <ul>
+            <li>Snapshot timestamp unavailable; freshness cannot be assessed.</li>
+            <li>Portfolio aggregates unavailable due to missing snapshot inputs.</li>
+          </ul>
+          <p style={{ marginTop: "8px", opacity: 0.6 }}>
+            System mode: observer · Phase 4
+          </p>
+        </div>
       </section>
     </div>
   );

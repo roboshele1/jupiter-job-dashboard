@@ -1,80 +1,68 @@
-// renderer/pages/Chat.jsx
-// Phase 3: Read-only Chat with semantic interpretation enrichment
-
 import React from "react";
-
-import { readDashboardTruth } from "../stores/dashboardRead";
-import { interpretDashboard } from "../engine/interpretationEngine";
-import { enrichInterpretation } from "../chat/interpretationEnrichment";
+import { buildSnapshot } from "../services/snapshotAdapter";
+import { interpretDashboard } from "../chat/interpretationEngine";
 
 export default function Chat() {
-  // Layer 1: Raw dashboard truth
-  const dashboardTruth = readDashboardTruth();
+  // Deterministic, read-only snapshot rows
+  const snapshotRows = buildSnapshot();
 
-  // Layer 2: Structured interpretation
-  const interpretation = interpretDashboard(dashboardTruth);
-
-  // Layer 3: Semantic enrichment
-  const enrichment = enrichInterpretation(interpretation);
+  // Interpret snapshot rows (observer-only)
+  const interpretation = interpretDashboard({
+    topHoldings: snapshotRows,
+  });
 
   return (
-    <div style={{ padding: "32px", maxWidth: 960 }}>
+    <div style={{ padding: "24px" }}>
       <h1>Chat</h1>
-      <p style={{ opacity: 0.7 }}>
+      <p style={{ opacity: 0.8 }}>
         Read-only Dashboard context (Phase 3 · Observer).
       </p>
 
-      {/* Raw Truth */}
-      <section style={{ marginTop: 32 }}>
-        <h2>Dashboard Truth</h2>
-        <pre className="panel">
-          {JSON.stringify(dashboardTruth, null, 2)}
-        </pre>
-      </section>
+      <h2>Snapshot Rows</h2>
+      <pre>{JSON.stringify(snapshotRows ?? [], null, 2)}</pre>
 
-      {/* Structured Interpretation */}
-      <section style={{ marginTop: 32 }}>
-        <h2>Dashboard Interpretation</h2>
-        <pre className="panel">
-          {JSON.stringify(interpretation, null, 2)}
-        </pre>
-      </section>
+      <h2>Dashboard Interpretation</h2>
+      <pre>{JSON.stringify(interpretation, null, 2)}</pre>
 
-      {/* Enriched Interpretation */}
-      <section style={{ marginTop: 32 }}>
-        <h2>Enriched Interpretation</h2>
-
-        <div className="panel">
-          <p><strong>Summary</strong></p>
-          <p>{enrichment.summary}</p>
-
-          {enrichment.insights?.length > 0 && (
-            <>
-              <p><strong>Insights</strong></p>
-              <ul>
-                {enrichment.insights.map((item, idx) => (
-                  <li key={idx}>{item}</li>
-                ))}
-              </ul>
-            </>
-          )}
-
-          {enrichment.riskNotes?.length > 0 && (
-            <>
-              <p><strong>Risk Notes</strong></p>
-              <ul>
-                {enrichment.riskNotes.map((item, idx) => (
-                  <li key={idx}>{item}</li>
-                ))}
-              </ul>
-            </>
-          )}
-
-          <p style={{ marginTop: 16, opacity: 0.6 }}>
-            System mode: {enrichment.system.mode} · Phase {enrichment.system.phase}
+      {/* ---- Portfolio Reasoning (read-only exposure) ---- */}
+      <h2>Portfolio Reasoning</h2>
+      <div
+        style={{
+          marginTop: "12px",
+          padding: "16px",
+          border: "1px solid rgba(255,255,255,0.08)",
+          borderRadius: "8px",
+          maxWidth: "900px",
+          opacity: 0.85,
+        }}
+      >
+        {interpretation.reasoning ? (
+          <>
+            <p>
+              <strong>Concentration:</strong>{" "}
+              {interpretation.reasoning.concentration.summary ??
+                "Unavailable"}
+            </p>
+            <p>
+              <strong>Diversification:</strong>{" "}
+              {interpretation.reasoning.diversification.summary ??
+                "Unavailable"}
+            </p>
+            <p>
+              <strong>Risk Exposure:</strong>{" "}
+              {interpretation.reasoning.riskExposure.summary ??
+                "Unavailable"}
+            </p>
+            <p style={{ opacity: 0.7, marginTop: "8px" }}>
+              Observer mode · Explanatory only · No judgments
+            </p>
+          </>
+        ) : (
+          <p style={{ opacity: 0.7 }}>
+            Reasoning unavailable — snapshot missing.
           </p>
-        </div>
-      </section>
+        )}
+      </div>
     </div>
   );
 }
