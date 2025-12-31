@@ -1,5 +1,5 @@
 /**
- * Growth Engine — Scenario Batch Runner
+ * Growth Engine — Scenario Batch Runner (Extended)
  *
  * Contract:
  *  - Deterministic
@@ -7,11 +7,12 @@
  *  - No IPC / UI / side effects
  *
  * Pipeline:
- *  REQUIRED_RETURN → GOAL_FEASIBILITY
+ *  REQUIRED_RETURN → GOAL_FEASIBILITY → HISTORICAL_SANITY
  */
 
 import { requiredReturnScenario } from "./scenarios/requiredReturnScenario.js";
 import { goalFeasibilityScenario } from "./scenarios/goalFeasibilityScenario.js";
+import { historicalSanityBands } from "./scenarios/historicalSanityBands.js";
 
 export function runScenarioBatch({ startingValue, targetValue, months }) {
   const requiredReturn = requiredReturnScenario({
@@ -26,10 +27,15 @@ export function runScenarioBatch({ startingValue, targetValue, months }) {
     months
   });
 
+  const historicalSanity = historicalSanityBands({
+    requiredCAGR: requiredReturn.requiredCAGR
+  });
+
   return {
-    batch: "REQUIRED_RETURN → GOAL_FEASIBILITY",
+    batch: "REQUIRED_RETURN → GOAL_FEASIBILITY → HISTORICAL_SANITY",
     inputs: { startingValue, targetValue, months },
     requiredReturn,
-    feasibility
+    feasibility,
+    historicalSanity
   };
 }
