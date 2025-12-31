@@ -1,30 +1,8 @@
-// electron/api/growthBridge.js
-const { ipcMain } = require("electron");
-const growthEngine = require("../../engine/growthEngine");
+export async function runGrowthSnapshot(jupiter) {
+  if (!jupiter?.invoke) {
+    throw new Error("IPC bridge unavailable");
+  }
 
-function registerGrowthIPC() {
-  ipcMain.handle("growth:getSnapshot", async () => {
-    try {
-      if (typeof growthEngine.getGrowthSnapshot !== "function") {
-        return {
-          status: "error",
-          message: "Growth engine not initialized"
-        };
-      }
-
-      const snapshot = await growthEngine.getGrowthSnapshot();
-      return {
-        status: "ok",
-        data: snapshot
-      };
-    } catch (err) {
-      return {
-        status: "error",
-        message: err.message
-      };
-    }
-  });
+  return await jupiter.invoke("growthEngine:run");
 }
-
-module.exports = { registerGrowthIPC };
 

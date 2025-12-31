@@ -3,6 +3,7 @@ import path from "path";
 import "dotenv/config";
 
 import { valuePortfolio } from "../engine/portfolio/portfolioValuation.js";
+import { registerAllIpc } from "./ipc/registerIpc.js"; // ← ADDITIVE, REQUIRED
 
 let mainWindow;
 
@@ -42,16 +43,17 @@ function createWindow() {
 }
 
 app.whenReady().then(async () => {
+  registerAllIpc(ipcMain); // ← THIS WAS MISSING (ROOT CAUSE)
   await computeAndCache();
   createWindow();
 });
 
 ipcMain.handle("portfolio:getValuation", async () => {
   if (!cachedValuation) await computeAndCache();
-  return cachedValuation; // NO REFRESH (deterministic)
+  return cachedValuation;
 });
 
 ipcMain.handle("portfolio:refreshValuation", async () => {
-  return await computeAndCache(); // explicit refresh only
+  return await computeAndCache();
 });
 

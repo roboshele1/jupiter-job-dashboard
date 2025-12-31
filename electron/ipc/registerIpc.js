@@ -1,12 +1,6 @@
-kconst { registerPortfolioIpc } = require("./portfolioIpc");
-const { registerIntelligenceIpc } = require("./intelligenceIpc");
-const { registerGrowthEngineIpc } = require("./growthEngineIpc");
+import { registerGrowthEngineIpc } from "./growthEngineIpc.js";
 
-function registerAllIpc(ipcMain) {
-  registerPortfolioIpc(ipcMain);
-  registerIntelligenceIpc(ipcMain);
+export function registerAllIpc(ipcMain) {
   registerGrowthEngineIpc(ipcMain);
 }
-
-module.exports = { registerAllIpc };
 
