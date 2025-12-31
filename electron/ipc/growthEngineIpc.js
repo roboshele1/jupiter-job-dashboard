@@ -1,3 +1,5 @@
+import { ipcMain } from "electron";
+import { valuePortfolio } from "../../engine/portfolio/portfolioValuation.js";
 import { runGrowthEngine } from "../../engine/growthEngine.js";
 
 const HOLDINGS = [
@@ -12,9 +14,14 @@ const HOLDINGS = [
   { symbol: "ETH", qty: 0.25, assetClass: "crypto", totalCostBasis: 597.9, currency: "CAD" }
 ];
 
-export function registerGrowthEngineIpc(ipcMain) {
+export function registerGrowthEngineIpc() {
   ipcMain.handle("growthEngine:run", async () => {
-    return await runGrowthEngine({ holdings: HOLDINGS });
+    const valuation = await valuePortfolio(HOLDINGS);
+
+    return await runGrowthEngine({
+      holdings: HOLDINGS,
+      startingValue: Math.round(valuation.totals.liveValue),
+      authority: "PORTFOLIO_VALUATION_V1",
+    });
   });
 }
-
