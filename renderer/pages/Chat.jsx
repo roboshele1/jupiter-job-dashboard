@@ -1,3 +1,7 @@
+// renderer/pages/Chat.jsx
+// -----------------------
+// Phase 17 — Full insights rendering
+
 import React from "react";
 import { buildChatInsight } from "../chat/chatPipeline.js";
 import { usePortfolioSnapshotStore } from "../state/portfolioSnapshotStore.js";
@@ -27,42 +31,55 @@ export default function Chat() {
   const activeSnapshot =
     snapshot?.allocation?.top?.length > 0 ? snapshot : FALLBACK_SNAPSHOT;
 
-  const topHoldings = activeSnapshot.allocation.top ?? [];
-  const dominantRiskDriver = activeSnapshot.synthesis.dominantRiskDriver ?? null;
-  const growthAlignment = activeSnapshot.synthesis.growthAlignment ?? null;
-
   const insight = buildChatInsight({
     portfolioSummary: {
-      concentration: topHoldings.map((p) => p.symbol).join(" & ") || "N/A",
+      concentration: activeSnapshot.allocation.top.map((p) => p.symbol).join(" & ") || "N/A",
     },
+    allocation: activeSnapshot.allocation,
     riskSummary: {
-      primaryDriver: dominantRiskDriver,
+      primaryDriver: activeSnapshot.synthesis.dominantRiskDriver,
     },
     growthSummary: {
-      alignment: growthAlignment,
+      alignment: activeSnapshot.synthesis.growthAlignment,
     },
   });
 
   return (
     <div style={{ padding: "1rem" }}>
       <h1>Chat</h1>
-      {insight ? (
+      <div
+        style={{
+          border: "1px solid #555",
+          padding: "1rem",
+          borderRadius: "0.5rem",
+          backgroundColor: "#111",
+          color: "#fff",
+          marginBottom: "1rem",
+        }}
+      >
+        <h2>{insight.headline}</h2>
+        <p>{insight.context}</p>
+      </div>
+
+      {insight.holdings.map((h) => (
         <div
+          key={h.symbol}
           style={{
-            border: "1px solid #555",
-            padding: "1rem",
+            border: "1px solid #333",
+            padding: "0.75rem",
             borderRadius: "0.5rem",
-            backgroundColor: "#111",
+            backgroundColor: "#222",
             color: "#fff",
+            marginBottom: "0.5rem",
           }}
         >
-          <h2 style={{ marginBottom: "0.5rem" }}>{insight.headline}</h2>
-          <p style={{ marginBottom: "0.5rem" }}>{insight.context}</p>
-          <small style={{ opacity: 0.7 }}>{insight.footer}</small>
+          <strong>{h.symbol}</strong>
+          <p>{h.note}</p>
         </div>
-      ) : (
-        <p>Chat available. No insights generated yet.</p>
-      )}
+      ))}
+
+      <small style={{ opacity: 0.7 }}>{insight.footer}</small>
     </div>
   );
 }
+

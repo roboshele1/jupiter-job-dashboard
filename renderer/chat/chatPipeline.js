@@ -1,3 +1,8 @@
+// renderer/chat/chatPipeline.js
+// -----------------------------
+// Phase 17 — LLM schema-safe insight builder
+// Generates full insights per holding
+
 import { buildChatExposure } from "../../engine/llm/chatExposureBuilder.js";
 
 export function buildChatInsight(interpretation) {
@@ -6,6 +11,8 @@ export function buildChatInsight(interpretation) {
   return {
     headline: chatExposure.headline || "No dominant signals detected",
     context: chatExposure.context || "Portfolio data is available, but no dominant risk or growth signals are currently elevated.",
+    holdings: chatExposure.holdings || [], // array of individual holding insights
     footer: "Observer mode only. Descriptive summary based on current portfolio interpretation. No advice or actions implied.",
   };
 }
+
