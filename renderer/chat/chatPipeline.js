@@ -1,44 +1,42 @@
 /**
- * Chat Pipeline — Phase 16
+ * Chat Pipeline — Phase 17
  * -----------------------
  * Purpose:
  * - Single controlled wiring path:
- *   interpretation → exposure builder → LLM sandbox → serializer → UI
- *
- * Constraints:
- * - No logic beyond orchestration
- * - No mutations
- * - No IPC
- * - No side effects
- *
- * This file is the ONLY place Chat data is wired.
+ *   interpretation → exposure builder → sandbox → insight renderer → UI
+ * - Deterministic, read-only
  */
 
 import { buildChatExposure } from "../../engine/llm/chatExposureBuilder.js";
 import { runLLMSandbox } from "../../engine/llm/llmSandboxAdapter.js";
-import { serializeChatExposure } from "../../engine/llm/chatExposureSerializer.js";
+import { mapToInsight } from "./insightRendererAdapter.js";
 
 /**
- * Build Chat-safe output from interpretation snapshot
+ * Build Chat Insight — Phase 17
  * @param {Object} interpretation
- * @returns {Object|null}
+ * @returns {Object|null} insight for UI rendering
  */
-export function buildChatOutput(interpretation) {
-  if (!interpretation) {
-    return null;
-  }
+export function buildChatInsight(interpretation) {
+  if (!interpretation) return null;
 
-  // Phase 16 — authoritative narrative construction
+  // Step 1 — Build authoritative chatExposure
   const chatExposure = buildChatExposure(interpretation);
+  if (!chatExposure) return null;
 
-  if (!chatExposure) {
-    return null;
-  }
-
-  // Phase 15 — sandbox execution (provider-backed, schema-validated)
+  // Step 2 — Run sandbox (Phase 15)
   const sandboxOutput = runLLMSandbox(chatExposure);
 
-  // Phase 11 — controlled serialization (UI-safe shape)
-  return serializeChatExposure(sandboxOutput);
+  // Step 3 — Map sandbox output to UI-safe Insight Object (Phase 17)
+  const insight = mapToInsight(sandboxOutput);
+
+  return insight;
+}
+
+/**
+ * Build Chat Output — Phase 17
+ * Legacy entry point (returns same as buildChatInsight)
+ */
+export function buildChatOutput(interpretation) {
+  return buildChatInsight(interpretation);
 }
 

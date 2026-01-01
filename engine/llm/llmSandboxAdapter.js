@@ -1,28 +1,43 @@
 /**
- * LLM Sandbox Adapter — Phase 15
- * -----------------------------
+ * LLM Sandbox Adapter — Phase 15 (contract-hardened)
+ * --------------------------------------------------
  * Purpose:
- * - Single execution path for LLM behavior
- * - Delegates execution to provider registry
- * - Still sandboxed, still observer-only
+ * - Single execution path for LLM-like behavior
+ * - Still sandboxed, still read-only
+ * - Delegates to provider registry (swap-safe)
  *
- * Guarantees:
- * - Schema validated input/output
- * - Provider swap without drift
+ * Hard Contract:
+ * - Providers MUST expose: invoke(validatedInput) -> schema-valid output
+ * - No provider.run(), no alternate names
+ * - If contract is broken, fail fast with a precise error
  */
 
-import { validateLLMInput } from "./schemas/llmInputSchema";
-import { validateLLMOutput } from "./schemas/llmOutputSchema";
-import { getLLMProvider } from "./providers/providerRegistry";
+import { validateLLMInput } from "./schemas/llmInputSchema.js";
+import { validateLLMOutput } from "./schemas/llmOutputSchema.js";
+import { getActiveLLMProvider } from "./providers/providerRegistry.js";
 
 /**
- * Run LLM sandbox using selected provider
- *
- * @param {Object} chatExposure
- * @param {string} providerName
- * @returns {Object}
+ * @param {any} provider
+ * @returns {{ invoke: Function }}
  */
-export function runLLMSandbox(chatExposure, providerName = "mock") {
+function assertProviderContract(provider) {
+  if (!provider || typeof provider !== "object") {
+    throw new Error("LLM Provider Contract Violation: provider is missing");
+  }
+
+  if (typeof provider.invoke !== "function") {
+    const keys = Object.keys(provider);
+    throw new Error(
+      `LLM Provider Contract Violation: provider must define invoke(validatedInput). Found keys: ${keys.join(
+        ", "
+      )}`
+    );
+  }
+
+  return provider;
+}
+
+export function runLLMSandbox(chatExposure) {
   // Phase 8 — Input validation
   const validatedInput = validateLLMInput({
     system: {
@@ -32,11 +47,11 @@ export function runLLMSandbox(chatExposure, providerName = "mock") {
     payload: chatExposure,
   });
 
-  // Phase 15 — Resolve provider (mock by default)
-  const provider = getLLMProvider(providerName);
+  // Phase 15 — Provider delegation (swap-safe)
+  const provider = assertProviderContract(getActiveLLMProvider());
 
-  // Provider execution (still sandboxed)
-  const rawOutput = provider.run(validatedInput);
+  // Single contract call (NO provider.run)
+  const rawOutput = provider.invoke(validatedInput);
 
   // Phase 8 — Output validation
   return validateLLMOutput(rawOutput);

@@ -1,68 +1,78 @@
+// renderer/pages/Chat.jsx
+// -----------------------
+// Chat — Phase 17
+// Deterministic, read-only, Bloomberg-style insight rendering
+
 import React from "react";
-import { buildSnapshot } from "../services/snapshotAdapter";
-import { interpretDashboard } from "../chat/interpretationEngine";
+import { buildChatInsight } from "../chat/chatPipeline.js"; // full Phase 17 pipeline
+import { usePortfolioSnapshotStore } from "../state/portfolioSnapshotStore.js";
+
+// Authoritative fallback snapshot (hardcoded here, safe)
+const FALLBACK_SNAPSHOT = {
+  allocation: {
+    top: [
+      { symbol: "NVDA" },
+      { symbol: "ASML" },
+      { symbol: "AVGO" },
+      { symbol: "MSTR" },
+      { symbol: "HOOD" },
+      { symbol: "BMNR" },
+      { symbol: "APLD" },
+      { symbol: "BTC" },
+      { symbol: "ETH" },
+    ],
+  },
+  synthesis: {
+    dominantRiskDriver: null,
+    growthAlignment: null,
+  },
+};
 
 export default function Chat() {
-  // Deterministic, read-only snapshot rows
-  const snapshotRows = buildSnapshot();
+  // Access the normalized portfolio snapshot
+  const snapshot = usePortfolioSnapshotStore();
 
-  // Interpret snapshot rows (observer-only)
-  const interpretation = interpretDashboard({
-    topHoldings: snapshotRows,
+  // Use fallback if snapshot is empty
+  const activeSnapshot =
+    snapshot?.allocation?.top?.length > 0 ? snapshot : FALLBACK_SNAPSHOT;
+
+  const topHoldings = activeSnapshot.allocation.top ?? [];
+  const dominantRiskDriver = activeSnapshot.synthesis.dominantRiskDriver ?? null;
+  const growthAlignment = activeSnapshot.synthesis.growthAlignment ?? null;
+
+  // Build insight from snapshot
+  const insight = buildChatInsight({
+    portfolioSummary: {
+      concentration: topHoldings.map((p) => p.symbol).join(" & ") || "N/A",
+    },
+    riskSummary: {
+      primaryDriver: dominantRiskDriver,
+    },
+    growthSummary: {
+      alignment: growthAlignment,
+    },
   });
 
   return (
-    <div style={{ padding: "24px" }}>
+    <div style={{ padding: "1rem" }}>
       <h1>Chat</h1>
-      <p style={{ opacity: 0.8 }}>
-        Read-only Dashboard context (Phase 3 · Observer).
-      </p>
-
-      <h2>Snapshot Rows</h2>
-      <pre>{JSON.stringify(snapshotRows ?? [], null, 2)}</pre>
-
-      <h2>Dashboard Interpretation</h2>
-      <pre>{JSON.stringify(interpretation, null, 2)}</pre>
-
-      {/* ---- Portfolio Reasoning (read-only exposure) ---- */}
-      <h2>Portfolio Reasoning</h2>
-      <div
-        style={{
-          marginTop: "12px",
-          padding: "16px",
-          border: "1px solid rgba(255,255,255,0.08)",
-          borderRadius: "8px",
-          maxWidth: "900px",
-          opacity: 0.85,
-        }}
-      >
-        {interpretation.reasoning ? (
-          <>
-            <p>
-              <strong>Concentration:</strong>{" "}
-              {interpretation.reasoning.concentration.summary ??
-                "Unavailable"}
-            </p>
-            <p>
-              <strong>Diversification:</strong>{" "}
-              {interpretation.reasoning.diversification.summary ??
-                "Unavailable"}
-            </p>
-            <p>
-              <strong>Risk Exposure:</strong>{" "}
-              {interpretation.reasoning.riskExposure.summary ??
-                "Unavailable"}
-            </p>
-            <p style={{ opacity: 0.7, marginTop: "8px" }}>
-              Observer mode · Explanatory only · No judgments
-            </p>
-          </>
-        ) : (
-          <p style={{ opacity: 0.7 }}>
-            Reasoning unavailable — snapshot missing.
-          </p>
-        )}
-      </div>
+      {insight ? (
+        <div
+          style={{
+            border: "1px solid #555",
+            padding: "1rem",
+            borderRadius: "0.5rem",
+            backgroundColor: "#111",
+            color: "#fff",
+          }}
+        >
+          <h2 style={{ marginBottom: "0.5rem" }}>{insight.headline}</h2>
+          <p style={{ marginBottom: "0.5rem" }}>{insight.context}</p>
+          <small style={{ opacity: 0.7 }}>{insight.footer}</small>
+        </div>
+      ) : (
+        <p>Chat available. No insights generated yet.</p>
+      )}
     </div>
   );
 }

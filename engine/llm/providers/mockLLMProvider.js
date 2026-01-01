@@ -1,44 +1,45 @@
 /**
- * Mock LLM Provider — Phase 13
+ * Mock LLM Provider — Phase 16
  * ---------------------------
  * Purpose:
- * - Concrete implementation of the LLM provider adapter
- * - Still sandboxed, still deterministic
- * - Zero network, zero model, zero side effects
- *
- * This file proves swap-readiness without behavior drift.
+ * - Pass through authored narrative without modification
+ * - Fully comply with sandbox provider contract
+ * - Zero hallucination, zero inference
  */
 
-import { createLLMProvider } from "./llmProviderAdapter";
+export function createMockLLMProvider() {
+  return {
+    name: "mock-pass-through",
 
-export const mockLLMProvider = createLLMProvider({
-  name: "mock-provider",
-  mode: "observer",
-  phase: 13,
+    /**
+     * REQUIRED CONTRACT METHOD
+     * @param {Object} validatedInput
+     * @returns {Object}
+     */
+    invoke(validatedInput) {
+      const { payload } = validatedInput;
 
-  /**
-   * Execute provider call
-   * @param {Object} validatedInput
-   * @returns {Object}
-   */
-  execute(validatedInput) {
-    return {
-      summary:
-        "Mock provider active. Portfolio context ingested and synthesized under observer constraints.",
-      metadata: {
-        mode: "observer",
-        phase: 13,
-        provider: "mock",
-        advice: false,
-        recommendation: false,
-        prediction: false,
-        instruction: false,
-        command: false,
-        optimization: false,
-      },
-      disclaimer:
-        "Observer-only mock provider. No advice, actions, or predictions.",
-    };
-  },
-});
+      if (!payload || !payload.summary || !payload.disclaimer) {
+        throw new Error(
+          "MockLLMProvider Contract Error: missing authored narrative payload"
+        );
+      }
+
+      return {
+        summary: payload.summary,
+        metadata: {
+          mode: "observer",
+          phase: 16,
+          advice: false,
+          recommendation: false,
+          prediction: false,
+          instruction: false,
+          command: false,
+          optimization: false,
+        },
+        disclaimer: payload.disclaimer,
+      };
+    },
+  };
+}
 
