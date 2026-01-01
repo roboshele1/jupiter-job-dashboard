@@ -9,7 +9,7 @@ import { usePortfolioSnapshotStore } from "../state/portfolioSnapshotStore";
  * - ZERO snapshot mutation
  * - ZERO UI change
  * - Deterministic derivations only
- * - Phase B adds riskProfile object (not rendered)
+ * - Phase B adds riskDrivers + breakOrder (not rendered)
  */
 
 /** CANONICAL COLOR TOKENS */
@@ -107,45 +107,55 @@ export default function RiskCentre() {
   ];
 
   /* =========================
-     PHASE B — STEP 1
-     RISK PROFILE (INTERNAL)
+     PHASE B — MILESTONE 1
+     RISK DRIVERS (INTERNAL)
      ========================= */
 
-  const top1Pct = donutData[0]?.pct ?? 0;
-  const top3Pct = donutData
-    .slice(0, 3)
-    .reduce((s, h) => s + h.pct, 0);
-  const top5Pct = donutData
-    .slice(0, 5)
-    .reduce((s, h) => s + h.pct, 0);
+  const concentrationDriver = Math.min(1, largestPct / 50);
+  const assetClassImbalanceDriver =
+    Math.abs(equityExposure - cryptoExposure) / 100;
+  const tailRiskDriver =
+    sortedHoldings.length > 5
+      ? Math.max(0, 1 - donutData.slice(0, 5).reduce((s, h) => s + h.pct, 0) / 100)
+      : 0;
 
-  const longTailPct = Math.max(0, 100 - top5Pct);
-  const equityVsCryptoGap = Math.abs(
-    equityExposure - cryptoExposure
-  );
-
-  const diversificationScore = Math.max(
-    0,
-    Math.min(100, longTailPct)
-  );
-
-  const riskProfile = {
-    metrics: {
-      top1Pct,
-      top3Pct,
-      top5Pct,
-      longTailPct,
-      equityVsCryptoGap,
-      diversificationScore,
-    },
-    flags: {
-      isSingleNameRisk: top1Pct >= 35,
-      isConcentrationRisk: top3Pct >= 65,
-      isEquityHeavy: equityExposure >= 70,
-      isCryptoHeavy: cryptoExposure >= 40,
-      isUnderDiversified: diversificationScore < 25,
+  const riskDrivers = {
+    primary:
+      concentrationDriver >= assetClassImbalanceDriver &&
+      concentrationDriver >= tailRiskDriver
+        ? "single_name_concentration"
+        : assetClassImbalanceDriver >= tailRiskDriver
+        ? "asset_class_imbalance"
+        : "tail_risk",
+    contributors: {
+      concentration: Number(concentrationDriver.toFixed(2)),
+      assetClassImbalance: Number(assetClassImbalanceDriver.toFixed(2)),
+      tailRisk: Number(tailRiskDriver.toFixed(2)),
     },
   };
+
+  /* =========================
+     PHASE B — MILESTONE 2
+     WHAT BREAKS FIRST (ORDER)
+     ========================= */
+
+  const breakOrder = [
+    {
+      type: "single_asset_shock",
+      label: `30% drawdown on ${largestHolding.symbol}`,
+      impact: -topHoldingShock30,
+    },
+    {
+      type: "crypto_drawdown",
+      label: "40% crypto market drawdown",
+      impact: -cryptoDrawdown40,
+    },
+    {
+      type: "equity_drawdown",
+      label: "20% equity market drawdown",
+      impact: -equityDrawdown20,
+    },
+  ].sort((a, b) => b.impact - a.impact);
 
   /* =========================
      UI — FROZEN CONTRACT
