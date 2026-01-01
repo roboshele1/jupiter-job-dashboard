@@ -1,13 +1,7 @@
-// renderer/pages/Chat.jsx
-// -----------------------
-// Chat — Phase 17
-// Deterministic, read-only, Bloomberg-style insight rendering
-
 import React from "react";
-import { buildChatInsight } from "../chat/chatPipeline.js"; // full Phase 17 pipeline
+import { buildChatInsight } from "../chat/chatPipeline.js";
 import { usePortfolioSnapshotStore } from "../state/portfolioSnapshotStore.js";
 
-// Authoritative fallback snapshot (hardcoded here, safe)
 const FALLBACK_SNAPSHOT = {
   allocation: {
     top: [
@@ -29,10 +23,7 @@ const FALLBACK_SNAPSHOT = {
 };
 
 export default function Chat() {
-  // Access the normalized portfolio snapshot
   const snapshot = usePortfolioSnapshotStore();
-
-  // Use fallback if snapshot is empty
   const activeSnapshot =
     snapshot?.allocation?.top?.length > 0 ? snapshot : FALLBACK_SNAPSHOT;
 
@@ -40,7 +31,6 @@ export default function Chat() {
   const dominantRiskDriver = activeSnapshot.synthesis.dominantRiskDriver ?? null;
   const growthAlignment = activeSnapshot.synthesis.growthAlignment ?? null;
 
-  // Build insight from snapshot
   const insight = buildChatInsight({
     portfolioSummary: {
       concentration: topHoldings.map((p) => p.symbol).join(" & ") || "N/A",
@@ -76,4 +66,3 @@ export default function Chat() {
     </div>
   );
 }
-
