@@ -2,7 +2,7 @@
  * Chat Pipeline — Phase 11
  * -----------------------
  * Purpose:
- * - Single controlled wiring path from interpretation → LLM sandbox → UI
+ * - Single controlled wiring path from interpretation → LLM sandbox → serializer → UI
  * - No logic beyond orchestration
  * - No mutations, no IPC, no side effects
  *
@@ -10,6 +10,7 @@
  */
 
 import { runLLMSandbox } from "../../engine/llm/llmSandboxAdapter";
+import { serializeChatExposure } from "../../engine/llm/chatExposureSerializer";
 
 /**
  * Build Chat-safe output from interpretation snapshot
@@ -21,7 +22,10 @@ export function buildChatOutput(interpretation) {
     return null;
   }
 
-  // Phase 9 sandbox execution (dry-run, validated)
-  return runLLMSandbox(interpretation.chatExposure);
+  // Phase 9 — sandbox execution (dry-run, schema-validated)
+  const sandboxOutput = runLLMSandbox(interpretation.chatExposure);
+
+  // Phase 11 — controlled serialization (UI-safe shape)
+  return serializeChatExposure(sandboxOutput);
 }
 
