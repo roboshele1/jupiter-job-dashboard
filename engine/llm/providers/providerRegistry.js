@@ -1,40 +1,17 @@
 /**
- * LLM Provider Registry — Phase 14
+ * LLM Provider Registry — Canonical
  * --------------------------------
- * Purpose:
- * - Single authoritative selector for LLM providers
- * - Enables swap between mock and real providers without behavior drift
- * - Enforces adapter contract
- *
- * Constraints:
- * - Read-only
- * - Deterministic
- * - No network
- * - No execution side effects
+ * SINGLE authority for provider selection
  */
 
-import { mockLLMProvider } from "./mockLLMProvider";
+import { createMockLLMProvider } from "./mockLLMProvider.js";
 
-/**
- * Registry of available providers
- * NOTE: Only mock is allowed in sandbox phases
- */
-const PROVIDERS = {
-  mock: mockLLMProvider,
-};
+export function getActiveLLMProvider() {
+  const provider = createMockLLMProvider();
 
-/**
- * Resolve LLM provider by name
- *
- * @param {string} name
- * @returns {Object} provider
- */
-export function getLLMProvider(name = "mock") {
-  const provider = PROVIDERS[name];
-
-  if (!provider) {
+  if (typeof provider.invoke !== "function") {
     throw new Error(
-      `LLM Provider Registry Violation: unknown provider "${name}"`
+      "Provider Registry Error: active provider does not implement invoke()"
     );
   }
 
