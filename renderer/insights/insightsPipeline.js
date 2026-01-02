@@ -1,40 +1,41 @@
 /**
- * Insights Pipeline — Phase 1A
- *
- * Responsibility:
- * - Pull latest portfolio snapshot (read-only)
- * - Pass snapshot into Insights Engine
- * - Never mutate, never compute, never IPC
+ * Insights Pipeline — Phase 1B
+ * Read-only snapshot observer
  */
 
-import { getLatestPortfolioSnapshot } from "../state/portfolioSnapshotStore";
 import { generateInsights } from "./insightsEngine";
+import { getPortfolioSnapshot } from "../state/portfolioSnapshotStore";
 
 /**
- * Build observer-safe Insights object
- *
- * @returns {object} insights
+ * Build observer-safe interpretation snapshot
+ * @returns {object}
  */
-export function buildInsights() {
+export function buildInsightsSnapshot() {
   let snapshot = null;
 
   try {
-    snapshot = getLatestPortfolioSnapshot();
+    snapshot = getPortfolioSnapshot();
   } catch (e) {
     snapshot = null;
   }
 
-  const interpretation = snapshot
-    ? {
-        snapshot: {
-          available: true,
-          timestamp: snapshot.timestamp,
-        },
-        portfolio: snapshot.portfolio,
-        signals: snapshot.signals,
-        risks: snapshot.risks,
-      }
-    : null;
+  const interpretation = {
+    snapshot: {
+      available: Boolean(snapshot),
+      timestamp: snapshot?.timestamp ?? null,
+      portfolioValue: snapshot?.portfolioValue ?? null,
+      dailyPL: snapshot?.dailyPL ?? null,
+      dailyPLPct: snapshot?.dailyPLPct ?? null,
+      allocation: snapshot?.allocation ?? null,
+      topHoldings: snapshot?.topHoldings ?? null,
+    },
+    signals: {
+      available: false,
+    },
+    risks: {
+      available: false,
+    },
+  };
 
   return generateInsights(interpretation);
 }
