@@ -1,71 +1,41 @@
 /**
- * Insights Rules — Phase 1A (Observer Intelligence)
- *
- * Rules are:
- * - Deterministic
- * - Read-only
- * - Schema-safe
- * - No assumptions about snapshot completeness
+ * Insights Rules — Phase 1A / 1B
+ * Deterministic, observer-safe, total functions
  */
 
-export function applySnapshotRules(interpretation, insights) {
-  if (!interpretation?.snapshot?.available) {
+function safeArray(value) {
+  return Array.isArray(value) ? value : [];
+}
+
+export function applySnapshotRules(insights, snapshot) {
+  if (!snapshot?.available) {
     insights.limits.push("Snapshot not finalized");
     insights.warnings.push("Snapshot timestamp unavailable");
-    insights.snapshot.available = false;
     return;
   }
 
-  insights.snapshot.available = true;
-}
-
-export function applyPortfolioRules(interpretation, insights) {
-  const portfolio = interpretation?.portfolio;
-
-  if (!portfolio) {
-    insights.signals.missing.push(
-      "portfolioValue",
-      "allocation",
-      "topHoldings"
-    );
-    return;
-  }
-
-  insights.portfolio.totalValue = portfolio.totalValue ?? null;
-  insights.portfolio.allocation = portfolio.allocation ?? null;
-  insights.portfolio.topHoldings = portfolio.topHoldings ?? [];
-
-  if (portfolio.totalValue == null) {
-    insights.signals.missing.push("portfolioValue");
+  if (!snapshot.timestamp) {
+    insights.warnings.push("Snapshot timestamp unavailable");
   }
 }
 
-export function applySignalRules(interpretation, insights) {
-  const signals = interpretation?.signals;
-
-  if (!signals) {
-    insights.signals.missing.push(
-      "dailyPL",
-      "dailyPLPct"
-    );
-    return;
+export function applyPortfolioRules(insights, snapshot) {
+  if (!snapshot?.portfolioValue) {
+    insights.limits.push("Portfolio value unavailable");
   }
-
-  insights.signals.available.push(
-    ...Object.keys(signals)
-  );
 }
 
-export function applyRiskRules(interpretation, insights) {
-  const risks = interpretation?.risks;
-
-  if (!risks || risks.length === 0) {
-    insights.risks.observations.push(
-      "No structural risks detected"
-    );
-    return;
+export function applySignalRules(insights, signals) {
+  if (!signals?.available) {
+    insights.limits.push("Signals withheld");
   }
+}
 
-  insights.risks.observations.push(...risks);
+export function applyRiskRules(insights, risks) {
+  const warnings = safeArray(risks?.warnings);
+  const limits = safeArray(risks?.limits);
+
+  warnings.forEach(w => insights.warnings.push(w));
+  limits.forEach(l => insights.limits.push(l));
 }
 
