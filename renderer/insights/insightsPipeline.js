@@ -1,21 +1,26 @@
 /**
  * Insights Pipeline — Phase 1B
- * Read-only snapshot observer
+ * Read-only PortfolioSnapshot observer
  */
 
 import { generateInsights } from "./insightsEngine";
-import { getPortfolioSnapshot } from "../state/portfolioSnapshotStore";
+import * as PortfolioSnapshotStore from "../state/portfolioSnapshotStore";
 
 /**
  * Build observer-safe interpretation snapshot
- * @returns {object}
+ * Reads ONLY from authoritative Portfolio snapshot
  */
 export function buildInsightsSnapshot() {
   let snapshot = null;
 
   try {
-    snapshot = getPortfolioSnapshot();
-  } catch (e) {
+    // Handle both function or value-based exports safely
+    if (typeof PortfolioSnapshotStore.getSnapshot === "function") {
+      snapshot = PortfolioSnapshotStore.getSnapshot();
+    } else if (PortfolioSnapshotStore.snapshot) {
+      snapshot = PortfolioSnapshotStore.snapshot;
+    }
+  } catch {
     snapshot = null;
   }
 
@@ -29,12 +34,8 @@ export function buildInsightsSnapshot() {
       allocation: snapshot?.allocation ?? null,
       topHoldings: snapshot?.topHoldings ?? null,
     },
-    signals: {
-      available: false,
-    },
-    risks: {
-      available: false,
-    },
+    signals: { available: false },
+    risks: { available: false },
   };
 
   return generateInsights(interpretation);
