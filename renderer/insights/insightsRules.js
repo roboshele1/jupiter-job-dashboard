@@ -1,6 +1,6 @@
 /**
- * Insights Rules — Phase 1A / 1B
- * Deterministic, observer-safe, schema-aligned
+ * Insights Rules — Canonical, Phase 1B
+ * Must match createEmptyInsights EXACTLY
  */
 
 export function applySnapshotRules(insights, snapshot) {
@@ -20,7 +20,7 @@ export function applySnapshotRules(insights, snapshot) {
 }
 
 export function applyPortfolioRules(insights, snapshot) {
-  if (!snapshot || !snapshot.portfolioValue) {
+  if (!snapshot || snapshot.portfolioValue == null) {
     insights.limits.push("Portfolio value unavailable");
     return;
   }
@@ -39,8 +39,10 @@ export function applySignalRules(insights, signals) {
 
 export function applyRiskRules(insights, risks) {
   if (!risks) {
-    insights.risks.limits.push("Risk data unavailable");
+    insights.limits.push("Risk data unavailable");
     return;
   }
+
+  insights.risks.available = true;
 }
 
