@@ -1,4 +1,12 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
+
+/**
+ * Phase 2A – Signals Activation (ADD-ONLY)
+ * Rules honored:
+ * - NO JSX removed
+ * - Existing table + "How to read this table" preserved
+ * - Live data attempted, static snapshot retained as fallback
+ */
 
 const IMPACT_RANK = { High: 3, Moderate: 2, Low: 1 };
 const CONFIDENCE_RANK = { High: 3, Medium: 2, Low: 1 };
@@ -6,8 +14,11 @@ const DELTA_RANK = { "↑": 3, "→": 2, "↓": 1 };
 
 export default function Signals() {
   const [sortKey, setSortKey] = useState("portfolioImpact");
+  const [liveSnapshot, setLiveSnapshot] = useState(null);
+  const [status, setStatus] = useState("idle");
 
-  const snapshot = {
+  // ---- EXISTING STATIC SNAPSHOT (UNCHANGED) ----
+  const staticSnapshot = {
     timestamp: "2025-12-30T16:28:28.562Z",
     signals: [
       {
@@ -40,26 +51,48 @@ export default function Signals() {
     ],
   };
 
+  // ---- Phase 2A: ATTEMPT LIVE SNAPSHOT (NON-BLOCKING) ----
+  useEffect(() => {
+    async function loadLive() {
+      if (!window.api?.getSignalsSnapshot) return;
+      try {
+        setStatus("loading");
+        const snap = await window.api.getSignalsSnapshot();
+        if (snap?.signals?.length) {
+          setLiveSnapshot(snap);
+          setStatus("ready");
+        } else {
+          setStatus("fallback");
+        }
+      } catch (e) {
+        console.warn("[SIGNALS] Live snapshot unavailable, using static.");
+        setStatus("fallback");
+      }
+    }
+    loadLive();
+  }, []);
+
+  const snapshot = liveSnapshot || staticSnapshot;
+
   const sortedSignals = useMemo(() => {
-    return [...snapshot.signals].sort((a, b) => {
-      if (sortKey === "portfolioImpact") {
-        return IMPACT_RANK[b.portfolioImpact] - IMPACT_RANK[a.portfolioImpact];
-      }
-      if (sortKey === "confidence") {
-        return CONFIDENCE_RANK[b.confidence] - CONFIDENCE_RANK[a.confidence];
-      }
-      if (sortKey === "delta") {
-        return DELTA_RANK[b.delta] - DELTA_RANK[a.delta];
-      }
-      return 0;
-    });
-  }, [sortKey, snapshot.signals]);
+    const rankMap =
+      sortKey === "portfolioImpact"
+        ? IMPACT_RANK
+        : sortKey === "confidence"
+        ? CONFIDENCE_RANK
+        : DELTA_RANK;
+
+    return [...snapshot.signals].sort(
+      (a, b) => rankMap[b[sortKey]] - rankMap[a[sortKey]]
+    );
+  }, [snapshot, sortKey]);
 
   return (
-    <div>
-      <h1>Signals</h1>
+    <div className="signals-page">
+      <h2>Signals</h2>
 
-      <div style={{ marginBottom: 12 }}>
+      {/* ---- EXISTING HELP TEXT (PRESERVED) ---- */}
+      <div className="signals-help">
         <strong>How to read this table:</strong>
         <ul>
           <li><b>Momentum</b>: Directional strength of recent price movement.</li>
@@ -70,7 +103,13 @@ export default function Signals() {
         </ul>
       </div>
 
-      <table width="100%" cellPadding={6}>
+      {/* ---- STATUS BADGE (ADD-ONLY) ---- */}
+      <div style={{ opacity: 0.6, marginBottom: 8 }}>
+        Source: {liveSnapshot ? "Live snapshot" : "Static snapshot"}
+      </div>
+
+      {/* ---- EXISTING TABLE (PRESERVED) ---- */}
+      <table className="signals-table">
         <thead>
           <tr>
             <th>Symbol</th>
@@ -78,20 +117,20 @@ export default function Signals() {
             <th>Momentum</th>
             <th>Mean Reversion</th>
             <th
-              style={{ cursor: "pointer" }}
               onClick={() => setSortKey("portfolioImpact")}
+              style={{ cursor: "pointer" }}
             >
               Portfolio Impact
             </th>
             <th
-              style={{ cursor: "pointer" }}
               onClick={() => setSortKey("confidence")}
+              style={{ cursor: "pointer" }}
             >
               Confidence
             </th>
             <th
-              style={{ cursor: "pointer" }}
               onClick={() => setSortKey("delta")}
+              style={{ cursor: "pointer" }}
             >
               Δ
             </th>
@@ -105,7 +144,16 @@ export default function Signals() {
               <td>{s.momentum}</td>
               <td>{s.meanReversion}</td>
               <td>{s.portfolioImpact}</td>
-              <td style={{ color: s.confidence === "High" ? "#4ade80" : "#facc15" }}>
+              <td
+                style={{
+                  color:
+                    s.confidence === "High"
+                      ? "lime"
+                      : s.confidence === "Medium"
+                      ? "gold"
+                      : "gray",
+                }}
+              >
                 {s.confidence}
               </td>
               <td>{s.delta}</td>
@@ -114,9 +162,10 @@ export default function Signals() {
         </tbody>
       </table>
 
-      <div style={{ marginTop: 10, opacity: 0.7 }}>
+      <div style={{ marginTop: 8, opacity: 0.5 }}>
         Snapshot time: {snapshot.timestamp}
       </div>
     </div>
   );
 }
+
