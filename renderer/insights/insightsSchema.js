@@ -1,38 +1,43 @@
 /**
- * insightsSchema
- * --------------
- * Canonical output contract for Insights tab.
- * Phase 4 — Read-only, deterministic, auditable.
+ * Insights Schema — Phase 1A (Observer Intelligence)
+ *
+ * Guarantees:
+ * - All fields are always present
+ * - Safe defaults for degraded / partial modes
+ * - Engine layers never guard for undefined
  */
 
 export function createEmptyInsights() {
   return {
+    meta: {
+      mode: "observer",
+      phase: "1A",
+      status: "unknown",
+      snapshotTimestamp: null,
+      generatedAt: null,
+    },
+
+    limits: [],
+    warnings: [],
+
     snapshot: {
       available: false,
-      timestamp: null
     },
 
     portfolio: {
       totalValue: null,
-      allocationSummary: null,
-      concentrationNote: null
+      allocation: null,
+      topHoldings: [],
     },
 
     signals: {
       available: [],
       missing: [],
-      notes: []
     },
 
     risks: {
       observations: [],
-      dataLimitations: []
     },
-
-    system: {
-      mode: "observer",
-      phase: 4
-    }
   };
 }
 
