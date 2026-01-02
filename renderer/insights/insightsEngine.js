@@ -1,9 +1,14 @@
 /**
- * insightsEngine
- * --------------
- * Phase 4 Insights Engine orchestrator.
- * Combines schema + deterministic rules
- * to produce a read-only Insights object.
+ * Insights Engine — Phase 1A (Observer Intelligence)
+ *
+ * Purpose:
+ * - Synthesize a read-only Insights object from an Interpretation snapshot
+ * - No advice, no actions, no mutation
+ * - Deterministic and safe under missing data
+ *
+ * Contract:
+ * - Input: interpretation (Phase 3 output)
+ * - Output: insights (Phase 4 observer object)
  */
 
 import { createEmptyInsights } from "./insightsSchema";
@@ -11,30 +16,47 @@ import {
   applySnapshotRules,
   applyPortfolioRules,
   applySignalRules,
-  applyRiskRules
+  applyRiskRules,
 } from "./insightsRules";
 
 /**
- * Generate Insights from Phase 3 interpretation.
- * @param {object} interpretation - Output of interpretation engine
+ * Generate Insights from Interpretation
+ * @param {object} interpretation
  * @returns {object} insights
  */
 export function generateInsights(interpretation) {
   const insights = createEmptyInsights();
 
+  // Defensive: interpretation must exist
   if (!interpretation || typeof interpretation !== "object") {
-    insights.risks.dataLimitations.push(
-      "Interpretation unavailable; insights cannot be generated."
+    insights.meta.status = "degraded";
+    insights.limits.push("Interpretation unavailable");
+    insights.warnings.push(
+      "Insights generated in observer-safe degraded mode"
     );
     return insights;
   }
 
+  // Snapshot presence
+  if (!interpretation.snapshot?.available) {
+    insights.meta.status = "partial";
+    insights.limits.push("Snapshot not finalized");
+    insights.warnings.push("Snapshot timestamp unavailable");
+  } else {
+    insights.meta.snapshotTimestamp = interpretation.snapshot.timestamp;
+  }
+
+  // Apply deterministic rule layers (NO SIDE EFFECTS)
   applySnapshotRules(interpretation, insights);
   applyPortfolioRules(interpretation, insights);
   applySignalRules(interpretation, insights);
   applyRiskRules(interpretation, insights);
 
+  // Finalize observer metadata
+  insights.meta.mode = "observer";
+  insights.meta.phase = "1A";
+  insights.meta.generatedAt = new Date().toISOString();
+
   return insights;
 }
-
 
