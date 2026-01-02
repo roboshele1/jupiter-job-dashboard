@@ -1,5 +1,6 @@
 import { registerGrowthEngineIpc } from "./growthEngineIpc.js";
 import { valuePortfolio } from "../../engine/portfolio/portfolioValuation.js";
+import { buildAlertsFromInsights } from "../../engine/alerts/alertsAdapter.js";
 
 /**
  * IPC Registry — Authoritative
@@ -38,6 +39,7 @@ async function computeSnapshot() {
 }
 
 export function registerAllIpc(ipcMain) {
+  // Existing IPC registrations
   registerGrowthEngineIpc(ipcMain);
 
   ipcMain.handle("portfolio:getSnapshot", async () => {
@@ -45,6 +47,17 @@ export function registerAllIpc(ipcMain) {
       await computeSnapshot();
     }
     return cachedSnapshot;
+  });
+
+  // ─────────────────────────────────────────────
+  // Alerts IPC (NEW, downstream, read-only)
+  // ─────────────────────────────────────────────
+  ipcMain.handle("alerts:evaluate", async (_event, insightsSnapshot) => {
+    try {
+      return buildAlertsFromInsights(insightsSnapshot);
+    } catch {
+      return [];
+    }
   });
 }
 
