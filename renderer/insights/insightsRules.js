@@ -1,6 +1,6 @@
 /**
- * Insights Rules — Canonical, Phase 1B
- * Must match createEmptyInsights EXACTLY
+ * Insights Rules — Observer Safe
+ * Phase 1B
  */
 
 export function applySnapshotRules(insights, snapshot) {
@@ -14,14 +14,12 @@ export function applySnapshotRules(insights, snapshot) {
 
   if (!snapshot.timestamp) {
     insights.warnings.push("Snapshot timestamp unavailable");
-  } else {
-    insights.snapshot.timestamp = snapshot.timestamp;
   }
 }
 
-export function applyPortfolioRules(insights, snapshot) {
-  if (!snapshot || snapshot.portfolioValue == null) {
-    insights.limits.push("Portfolio value unavailable");
+export function applyPortfolioRules(insights, portfolio) {
+  if (!portfolio) {
+    insights.limits.push("Portfolio data unavailable");
     return;
   }
 
@@ -30,7 +28,7 @@ export function applyPortfolioRules(insights, snapshot) {
 
 export function applySignalRules(insights, signals) {
   if (!signals) {
-    insights.limits.push("Signals unavailable");
+    insights.limits.push("Signals withheld");
     return;
   }
 
@@ -39,7 +37,7 @@ export function applySignalRules(insights, signals) {
 
 export function applyRiskRules(insights, risks) {
   if (!risks) {
-    insights.limits.push("Risk data unavailable");
+    insights.limits.push("Risk evaluation unavailable");
     return;
   }
 
