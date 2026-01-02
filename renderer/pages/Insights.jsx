@@ -1,35 +1,84 @@
-// renderer/pages/Insights.jsx
-
-import React, { useEffect, useState } from "react";
-import { buildInsightsSnapshot } from "../insights/insightsPipeline.js";
-import SignalsPanel from "../insights/SignalsPanel.jsx";
+import { useEffect, useState } from "react";
 
 export default function Insights() {
-  const [data, setData] = useState(null);
+  const [insights, setInsights] = useState(null);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
-    window.api.getPortfolioValuation().then(snapshot => {
-      buildInsightsSnapshot(snapshot).then(out => {
-        setData(out);
+    let mounted = true;
+
+    window.api
+      .invoke("portfolio:getSnapshot")
+      .then(snapshot => {
+        if (!mounted) return;
+
+        setInsights({
+          snapshotAvailable: !!snapshot,
+          timestamp: snapshot?.timestamp ?? null,
+          totalValue: snapshot?.totalValue ?? null,
+          allocation: snapshot?.allocation ?? null,
+          topHoldingsCount: snapshot?.topHoldings?.length ?? 0
+        });
+      })
+      .catch(err => {
+        if (!mounted) return;
+        setError(err.message || "Failed to load insights snapshot");
       });
-    });
+
+    return () => {
+      mounted = false;
+    };
   }, []);
 
-  if (!data) {
-    return <div style={{ padding: 16 }}>Loading insights…</div>;
+  if (error) {
+    return (
+      <div style={{ padding: 24 }}>
+        <h2>Insights</h2>
+        <p style={{ color: "red" }}>{error}</p>
+      </div>
+    );
   }
 
-  const signalsAvailable = Array.isArray(data.signals) && data.signals.length > 0;
+  if (!insights) {
+    return (
+      <div style={{ padding: 24 }}>
+        <h2>Insights</h2>
+        <p>Loading insights snapshot…</p>
+      </div>
+    );
+  }
 
   return (
-    <div style={{ padding: 16 }}>
-      {!signalsAvailable && (
-        <div style={{ opacity: 0.7, marginBottom: 12 }}>
-          Signals are temporarily withheld until a valid snapshot is available.
-        </div>
-      )}
+    <div style={{ padding: 24 }}>
+      <h2>Insights (V1)</h2>
 
-      <SignalsPanel insights={data} />
+      <ul>
+        <li>
+          <strong>Snapshot available:</strong>{" "}
+          {insights.snapshotAvailable ? "Yes" : "No"}
+        </li>
+
+        <li>
+          <strong>Snapshot timestamp:</strong>{" "}
+          {insights.timestamp
+            ? new Date(insights.timestamp).toLocaleString()
+            : "N/A"}
+        </li>
+
+        <li>
+          <strong>Total portfolio value:</strong>{" "}
+          {insights.totalValue ?? "N/A"}
+        </li>
+
+        <li>
+          <strong>Top holdings count:</strong>{" "}
+          {insights.topHoldingsCount}
+        </li>
+      </ul>
+
+      <p style={{ marginTop: 16, opacity: 0.7 }}>
+        Read-only renderer. No signals, alerts, or notifications rendered yet.
+      </p>
     </div>
   );
 }

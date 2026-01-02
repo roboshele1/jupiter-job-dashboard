@@ -1,6 +1,6 @@
 import { registerGrowthEngineIpc } from "./growthEngineIpc.js";
+import { registerNotificationsIpc } from "./notificationsIpc.js";
 import { valuePortfolio } from "../../engine/portfolio/portfolioValuation.js";
-import { buildAlertsFromInsights } from "../../engine/alerts/alertsAdapter.js";
 
 /**
  * IPC Registry — Authoritative
@@ -12,7 +12,6 @@ import { buildAlertsFromInsights } from "../../engine/alerts/alertsAdapter.js";
 let cachedSnapshot = null;
 
 async function computeSnapshot() {
-  // NOTE: Must stay in sync with main.js holdings authority
   const HOLDINGS = [
     { symbol: "NVDA", qty: 73, assetClass: "equity", totalCostBasis: 12881.13, currency: "CAD" },
     { symbol: "ASML", qty: 10, assetClass: "equity", totalCostBasis: 8649.52, currency: "CAD" },
@@ -32,14 +31,14 @@ async function computeSnapshot() {
     totalValue: valuation.totalValue,
     allocation: valuation.allocation,
     topHoldings: valuation.topHoldings,
-    holdings: valuation.holdings
+    holdings: valuation.holdings,
+    insights: valuation.insights || null
   };
 
   return cachedSnapshot;
 }
 
 export function registerAllIpc(ipcMain) {
-  // Existing IPC registrations
   registerGrowthEngineIpc(ipcMain);
 
   ipcMain.handle("portfolio:getSnapshot", async () => {
@@ -49,15 +48,11 @@ export function registerAllIpc(ipcMain) {
     return cachedSnapshot;
   });
 
-  // ─────────────────────────────────────────────
-  // Alerts IPC (NEW, downstream, read-only)
-  // ─────────────────────────────────────────────
-  ipcMain.handle("alerts:evaluate", async (_event, insightsSnapshot) => {
-    try {
-      return buildAlertsFromInsights(insightsSnapshot);
-    } catch {
-      return [];
+  registerNotificationsIpc(ipcMain, async () => {
+    if (!cachedSnapshot) {
+      await computeSnapshot();
     }
+    return cachedSnapshot.insights;
   });
 }
 
