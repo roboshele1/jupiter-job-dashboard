@@ -1,63 +1,71 @@
 /**
- * insightsRules
- * -------------
- * Deterministic rules for generating Insights
- * from interpreted dashboard truth (Phase 3 output).
+ * Insights Rules — Phase 1A (Observer Intelligence)
+ *
+ * Rules are:
+ * - Deterministic
+ * - Read-only
+ * - Schema-safe
+ * - No assumptions about snapshot completeness
  */
 
 export function applySnapshotRules(interpretation, insights) {
-  if (!interpretation.snapshot?.available) {
+  if (!interpretation?.snapshot?.available) {
+    insights.limits.push("Snapshot not finalized");
+    insights.warnings.push("Snapshot timestamp unavailable");
     insights.snapshot.available = false;
-    insights.risks.dataLimitations.push(
-      "Snapshot timestamp unavailable; freshness cannot be assessed."
-    );
-  } else {
-    insights.snapshot.available = true;
-    insights.snapshot.timestamp = interpretation.snapshot.timestamp;
+    return;
   }
+
+  insights.snapshot.available = true;
 }
 
 export function applyPortfolioRules(interpretation, insights) {
-  if (interpretation.portfolio?.totalValue != null) {
-    insights.portfolio.totalValue = interpretation.portfolio.totalValue;
-  }
+  const portfolio = interpretation?.portfolio;
 
-  if (interpretation.allocation?.summary) {
-    insights.portfolio.allocationSummary =
-      interpretation.allocation.summary;
-  }
-
-  if (interpretation.holdings?.concentrationNote) {
-    insights.portfolio.concentrationNote =
-      interpretation.holdings.concentrationNote;
-
-    insights.risks.observations.push(
-      interpretation.holdings.concentrationNote
+  if (!portfolio) {
+    insights.signals.missing.push(
+      "portfolioValue",
+      "allocation",
+      "topHoldings"
     );
+    return;
+  }
+
+  insights.portfolio.totalValue = portfolio.totalValue ?? null;
+  insights.portfolio.allocation = portfolio.allocation ?? null;
+  insights.portfolio.topHoldings = portfolio.topHoldings ?? [];
+
+  if (portfolio.totalValue == null) {
+    insights.signals.missing.push("portfolioValue");
   }
 }
 
 export function applySignalRules(interpretation, insights) {
-  const missing = interpretation.dataQuality?.missingFields || [];
+  const signals = interpretation?.signals;
 
-  if (missing.length === 0) {
-    insights.signals.available.push("core-portfolio-metrics");
-  } else {
-    missing.forEach(field =>
-      insights.signals.missing.push(field)
+  if (!signals) {
+    insights.signals.missing.push(
+      "dailyPL",
+      "dailyPLPct"
     );
-
-    insights.signals.notes.push(
-      "Some signals unavailable due to missing underlying data."
-    );
+    return;
   }
+
+  insights.signals.available.push(
+    ...Object.keys(signals)
+  );
 }
 
 export function applyRiskRules(interpretation, insights) {
-  if (interpretation.dataQuality?.warnings?.length) {
-    interpretation.dataQuality.warnings.forEach(warning =>
-      insights.risks.dataLimitations.push(warning)
+  const risks = interpretation?.risks;
+
+  if (!risks || risks.length === 0) {
+    insights.risks.observations.push(
+      "No structural risks detected"
     );
+    return;
   }
+
+  insights.risks.observations.push(...risks);
 }
 
