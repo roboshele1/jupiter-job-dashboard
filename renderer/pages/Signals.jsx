@@ -1,11 +1,12 @@
 import React, { useEffect, useMemo, useState } from "react";
 
 /**
- * Phase 2A – Signals Activation (ADD-ONLY)
+ * Phase 2A → 2B – Signals Activation (ADD-ONLY)
  * Rules honored:
  * - NO JSX removed
- * - Existing table + "How to read this table" preserved
- * - Live data attempted, static snapshot retained as fallback
+ * - Existing table + help text preserved
+ * - Static snapshot retained as fallback
+ * - IPC snapshot consumed read-only
  */
 
 const IMPACT_RANK = { High: 3, Moderate: 2, Low: 1 };
@@ -14,12 +15,13 @@ const DELTA_RANK = { "↑": 3, "→": 2, "↓": 1 };
 
 export default function Signals() {
   const [sortKey, setSortKey] = useState("portfolioImpact");
-  const [liveSnapshot, setLiveSnapshot] = useState(null);
+  const [ipcSnapshot, setIpcSnapshot] = useState(null);
   const [status, setStatus] = useState("idle");
 
-  // ---- EXISTING STATIC SNAPSHOT (UNCHANGED) ----
+  // ---- EXISTING STATIC SNAPSHOT (UNCHANGED FALLBACK) ----
   const staticSnapshot = {
     timestamp: "2025-12-30T16:28:28.562Z",
+    notifications: [],
     signals: [
       {
         symbol: "BTC",
@@ -51,28 +53,27 @@ export default function Signals() {
     ],
   };
 
-  // ---- Phase 2A: ATTEMPT LIVE SNAPSHOT (NON-BLOCKING) ----
+  // ---- Phase 2B: IPC SNAPSHOT (READ-ONLY) ----
   useEffect(() => {
-    async function loadLive() {
-      if (!window.api?.getSignalsSnapshot) return;
+    async function loadIpcSnapshot() {
+      if (!window.api?.invoke) return;
       try {
         setStatus("loading");
-        const snap = await window.api.getSignalsSnapshot();
-        if (snap?.signals?.length) {
-          setLiveSnapshot(snap);
+        const snap = await window.api.invoke("signals:getSnapshot");
+        if (snap && Array.isArray(snap.signals)) {
+          setIpcSnapshot(snap);
           setStatus("ready");
         } else {
           setStatus("fallback");
         }
-      } catch (e) {
-        console.warn("[SIGNALS] Live snapshot unavailable, using static.");
+      } catch {
         setStatus("fallback");
       }
     }
-    loadLive();
+    loadIpcSnapshot();
   }, []);
 
-  const snapshot = liveSnapshot || staticSnapshot;
+  const snapshot = ipcSnapshot || staticSnapshot;
 
   const sortedSignals = useMemo(() => {
     const rankMap =
@@ -87,9 +88,16 @@ export default function Signals() {
     );
   }, [snapshot, sortKey]);
 
+  const notificationCount = snapshot.notifications?.length || 0;
+
   return (
     <div className="signals-page">
       <h2>Signals</h2>
+
+      {/* ---- NOTIFICATIONS BANNER (NOW REAL) ---- */}
+      <div style={{ marginBottom: 8, opacity: 0.75 }}>
+        Notifications: {notificationCount || "None"}
+      </div>
 
       {/* ---- EXISTING HELP TEXT (PRESERVED) ---- */}
       <div className="signals-help">
@@ -103,9 +111,9 @@ export default function Signals() {
         </ul>
       </div>
 
-      {/* ---- STATUS BADGE (ADD-ONLY) ---- */}
+      {/* ---- SOURCE BADGE (ADD-ONLY) ---- */}
       <div style={{ opacity: 0.6, marginBottom: 8 }}>
-        Source: {liveSnapshot ? "Live snapshot" : "Static snapshot"}
+        Source: {ipcSnapshot ? "Live IPC snapshot" : "Static snapshot"}
       </div>
 
       {/* ---- EXISTING TABLE (PRESERVED) ---- */}

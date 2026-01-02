@@ -1,5 +1,5 @@
 import { registerGrowthEngineIpc } from "./growthEngineIpc.js";
-import { registerNotificationsIpc } from "./notificationsIpc.js";
+import { registerSignalsIpc } from "./signalsIpc.js";
 import { valuePortfolio } from "../../engine/portfolio/portfolioValuation.js";
 
 /**
@@ -12,6 +12,7 @@ import { valuePortfolio } from "../../engine/portfolio/portfolioValuation.js";
 let cachedSnapshot = null;
 
 async function computeSnapshot() {
+  // NOTE: Must stay in sync with main.js holdings authority
   const HOLDINGS = [
     { symbol: "NVDA", qty: 73, assetClass: "equity", totalCostBasis: 12881.13, currency: "CAD" },
     { symbol: "ASML", qty: 10, assetClass: "equity", totalCostBasis: 8649.52, currency: "CAD" },
@@ -32,7 +33,8 @@ async function computeSnapshot() {
     allocation: valuation.allocation,
     topHoldings: valuation.topHoldings,
     holdings: valuation.holdings,
-    insights: valuation.insights || null
+    deltas: valuation.deltas || {},
+    confidence: valuation.confidence || {}
   };
 
   return cachedSnapshot;
@@ -41,18 +43,16 @@ async function computeSnapshot() {
 export function registerAllIpc(ipcMain) {
   registerGrowthEngineIpc(ipcMain);
 
+  // Portfolio snapshot
   ipcMain.handle("portfolio:getSnapshot", async () => {
-    if (!cachedSnapshot) {
-      await computeSnapshot();
-    }
+    if (!cachedSnapshot) await computeSnapshot();
     return cachedSnapshot;
   });
 
-  registerNotificationsIpc(ipcMain, async () => {
-    if (!cachedSnapshot) {
-      await computeSnapshot();
-    }
-    return cachedSnapshot.insights;
+  // Signals snapshot (engine-sourced)
+  registerSignalsIpc(ipcMain, async () => {
+    if (!cachedSnapshot) await computeSnapshot();
+    return cachedSnapshot;
   });
 }
 
