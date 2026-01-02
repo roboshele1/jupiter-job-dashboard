@@ -1,6 +1,6 @@
 /**
- * Insights Schema — Phase 1A / 1B
- * Canonical, fully-initialized observer object
+ * Insights Schema — Canonical
+ * Phase 1B baseline
  */
 
 export function createEmptyInsights() {
@@ -11,9 +11,11 @@ export function createEmptyInsights() {
       status: "partial",
     },
 
+    // GLOBAL ARRAYS (ONLY ARRAYS THAT RULES MAY PUSH INTO)
     limits: [],
     warnings: [],
 
+    // GUARANTEED OBJECTS (RULES MAY MUTATE FIELDS ONLY)
     snapshot: {
       available: false,
       timestamp: null,
@@ -28,11 +30,8 @@ export function createEmptyInsights() {
     },
 
     risks: {
-      warnings: [],
-      limits: [],
+      available: false,
     },
-
-    sections: [],
   };
 }
 
