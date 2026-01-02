@@ -1,46 +1,46 @@
-/**
- * Insights Rules — Observer Safe
- * Phase 1B
- */
+import { ensureArrays } from "./insightsSchema.js";
 
 export function applySnapshotRules(insights, snapshot) {
-  if (!snapshot) {
-    insights.limits.push("Snapshot not finalized");
+  ensureArrays(insights);
+
+  if (!snapshot || snapshot.timestamp == null) {
     insights.warnings.push("Snapshot timestamp unavailable");
+    insights.limits.push("Snapshot not finalized");
     return;
   }
 
   insights.snapshot.available = true;
+  insights.snapshot.timestamp = snapshot.timestamp;
 
-  if (!snapshot.timestamp) {
-    insights.warnings.push("Snapshot timestamp unavailable");
+  // ✅ FINALIZATION BRIDGE (ROOT FIX)
+  if (snapshot.totalValue != null) {
+    insights.snapshot.totalValue = snapshot.totalValue;
+    insights.portfolio.totalValue = snapshot.totalValue;
   }
 }
 
-export function applyPortfolioRules(insights, portfolio) {
-  if (!portfolio) {
-    insights.limits.push("Portfolio data unavailable");
-    return;
-  }
+export function applyPortfolioRules(insights, portfolio = {}) {
+  ensureArrays(insights);
 
-  insights.portfolio.available = true;
+  if (portfolio.totalValue != null) {
+    insights.portfolio.available = true;
+    insights.portfolio.totalValue = portfolio.totalValue;
+  }
 }
 
-export function applySignalRules(insights, signals) {
-  if (!signals) {
-    insights.limits.push("Signals withheld");
-    return;
+export function applySignalRules(insights, signals = []) {
+  ensureArrays(insights);
+  if (signals.length > 0) {
+    insights.signals.available = true;
+    insights.signals.items = signals;
   }
-
-  insights.signals.available = true;
 }
 
-export function applyRiskRules(insights, risks) {
-  if (!risks) {
-    insights.limits.push("Risk evaluation unavailable");
-    return;
+export function applyRiskRules(insights, risks = []) {
+  ensureArrays(insights);
+  if (risks.length > 0) {
+    insights.risks.available = true;
+    insights.risks.items = risks;
   }
-
-  insights.risks.available = true;
 }
 

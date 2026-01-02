@@ -1,43 +1,38 @@
-/**
- * Insights Pipeline — Phase 1B
- * Read-only PortfolioSnapshot observer
- */
+// renderer/insights/insightsPipeline.js
 
-import { generateInsights } from "./insightsEngine";
-import * as PortfolioSnapshotStore from "../state/portfolioSnapshotStore";
+export async function buildInsightsSnapshot(engineSnapshot) {
+  const now = Date.now();
 
-/**
- * Build observer-safe interpretation snapshot
- * Reads ONLY from authoritative Portfolio snapshot
- */
-export function buildInsightsSnapshot() {
-  let snapshot = null;
+  const liveTotal =
+    engineSnapshot?.totals?.liveValue ??
+    engineSnapshot?.totalValue ??
+    null;
 
-  try {
-    // Handle both function or value-based exports safely
-    if (typeof PortfolioSnapshotStore.getSnapshot === "function") {
-      snapshot = PortfolioSnapshotStore.getSnapshot();
-    } else if (PortfolioSnapshotStore.snapshot) {
-      snapshot = PortfolioSnapshotStore.snapshot;
-    }
-  } catch {
-    snapshot = null;
-  }
+  const hasValue = typeof liveTotal === "number" && !Number.isNaN(liveTotal);
 
-  const interpretation = {
-    snapshot: {
-      available: Boolean(snapshot),
-      timestamp: snapshot?.timestamp ?? null,
-      portfolioValue: snapshot?.portfolioValue ?? null,
-      dailyPL: snapshot?.dailyPL ?? null,
-      dailyPLPct: snapshot?.dailyPLPct ?? null,
-      allocation: snapshot?.allocation ?? null,
-      topHoldings: snapshot?.topHoldings ?? null,
+  return {
+    meta: {
+      mode: "observer",
+      phase: "1C",
+      status: hasValue ? "ready" : "partial",
+      generatedAt: new Date(now).toISOString()
     },
-    signals: { available: false },
-    risks: { available: false },
-  };
 
-  return generateInsights(interpretation);
+    snapshot: {
+      available: hasValue,
+      timestamp: engineSnapshot?._asOf ?? now
+    },
+
+    portfolio: {
+      available: hasValue,
+      totalValue: hasValue ? liveTotal : null,
+      allocation: engineSnapshot?.allocation ?? null,
+      topHoldings: engineSnapshot?.positions ?? []
+    },
+
+    limitations: hasValue ? [] : ["Snapshot not finalized"],
+
+    warnings: hasValue ? [] : ["Snapshot timestamp unavailable"]
+  };
 }
 

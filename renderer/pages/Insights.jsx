@@ -1,57 +1,51 @@
-import React from "react";
-import { buildInsightsSnapshot } from "../insights/insightsPipeline";
+import { useEffect, useState } from "react";
+import { buildInsightsSnapshot } from "../insights/insightsPipeline.js";
 
 export default function Insights() {
-  const insights = buildInsightsSnapshot();
+  const [data, setData] = useState(null);
+
+  useEffect(() => {
+    async function load() {
+      const portfolioSnapshot = await window.jupiter.getPortfolioValuation();
+      const insights = await buildInsightsSnapshot(portfolioSnapshot);
+      setData(insights);
+    }
+    load();
+  }, []);
+
+  if (!data) return null;
+
+  const snapshot = data.snapshot || {};
+  const portfolio = data.portfolio || {};
+
+  const isReady = portfolio.totalValue != null;
 
   return (
-    <div style={{ padding: "24px", maxWidth: "900px" }}>
+    <div>
       <h1>Insights</h1>
-      <p style={{ opacity: 0.7 }}>
-        Observer mode · Read-only · Deterministic
-      </p>
 
-      <section>
-        <h3>Status</h3>
-        <ul>
-          <li><strong>Mode:</strong> {insights.meta.mode}</li>
-          <li><strong>Phase:</strong> {insights.meta.phase}</li>
-          <li><strong>Status:</strong> {insights.meta.status}</li>
-        </ul>
-      </section>
+      <h3>Status</h3>
+      <ul>
+        <li>Mode: {data.meta.mode}</li>
+        <li>Phase: {data.meta.phase}</li>
+        <li>Status: {isReady ? "ready" : "partial"}</li>
+      </ul>
 
-      <section>
-        <h3>Snapshot</h3>
-        {insights.meta.status === "ok" ? (
-          <ul>
-            <li>Portfolio Value available</li>
-            <li>Daily P/L available</li>
-            <li>Allocation available</li>
-          </ul>
-        ) : (
-          <p style={{ opacity: 0.7 }}>
-            Snapshot incomplete or unavailable.
-          </p>
-        )}
-      </section>
-
-      <section>
-        <h3>Limitations</h3>
-        <ul>
-          {insights.limits.map((l, i) => (
-            <li key={i}>{l}</li>
-          ))}
-        </ul>
-      </section>
-
-      <section>
-        <h3>Warnings</h3>
-        <ul>
-          {insights.warnings.map((w, i) => (
-            <li key={i}>{w}</li>
-          ))}
-        </ul>
-      </section>
+      <h3>Snapshot</h3>
+      <ul>
+        <li>
+          Timestamp:{" "}
+          {snapshot.timestamp
+            ? new Date(snapshot.timestamp).toLocaleString()
+            : "—"}
+        </li>
+        <li>
+          Total Value:{" "}
+          {isReady
+            ? `$${portfolio.totalValue.toLocaleString()}`
+            : "—"}
+        </li>
+      </ul>
     </div>
   );
 }
