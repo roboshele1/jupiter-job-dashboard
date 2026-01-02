@@ -1,30 +1,29 @@
 // electron/ipc/signalsIpc.js
-// Signals IPC — read-only, engine-sourced (ADD-ONLY)
+import { buildSignalsSnapshot } from '../../engine/signals/signalsEngine.js';
 
-import { buildAlertsFromInsights } from "../../engine/alerts/alertsAdapter.js";
-import { buildSignalsSnapshot } from "../../engine/signals/signalsEngine.js";
+let pinnedSnapshot = null;
 
-/**
- * Registers read-only IPC for Signals snapshots.
- * - No renderer assumptions
- * - No mutation
- * - Deterministic output
- */
-export function registerSignalsIpc(ipcMain, getInsightsSnapshot) {
-  ipcMain.handle("signals:getSnapshot", async () => {
-    // Pull upstream insights snapshot (authoritative)
-    const insights = await getInsightsSnapshot();
+export function registerSignalsIpc(ipcMain, getPortfolioSnapshot) {
+  ipcMain.handle('signals:getSnapshot', async () => {
+    // 🔒 IPC-LEVEL SESSION PIN
+    if (pinnedSnapshot) {
+      return pinnedSnapshot;
+    }
 
-    // Derive alerts from insights
-    const alerts = buildAlertsFromInsights(insights);
+    const portfolioSnap = await getPortfolioSnapshot();
 
-    // Build signals snapshot from engine
-    const snapshot = buildSignalsSnapshot({
-      insights,
-      alerts
+    pinnedSnapshot = buildSignalsSnapshot({
+      portfolio: portfolioSnap?.portfolio,
+      confidence: portfolioSnap?.confidence
     });
 
-    return snapshot;
+    return pinnedSnapshot;
+  });
+
+  // Manual reset hook (safe, unused by UI)
+  ipcMain.handle('signals:resetSnapshot', async () => {
+    pinnedSnapshot = null;
+    return { ok: true };
   });
 }
 

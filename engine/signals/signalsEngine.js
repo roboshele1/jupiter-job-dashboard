@@ -1,45 +1,88 @@
 // engine/signals/signalsEngine.js
-// Signals Engine — V1
-// Pure, deterministic, read-only
-// Downstream of Insights + Alerts
-// Produces renderer-safe signals[]
+// Deterministic, defensive Signals Engine
+// NEVER throws on missing inputs
 
-function classifyImpact(deltaPct) {
-  if (Math.abs(deltaPct) >= 0.04) return "High";
-  if (Math.abs(deltaPct) >= 0.02) return "Moderate";
+// ----------------- HELPERS -----------------
+
+function classifyImpact(pct = 0) {
+  if (pct <= -0.05) return "High";
+  if (pct <= -0.02) return "Moderate";
   return "Low";
 }
 
-function classifyDelta(deltaMs) {
-  if (deltaMs <= 5 * 60 * 1000) return "↑";
-  if (deltaMs <= 15 * 60 * 1000) return "→";
-  return "↓";
-}
-
-function classifyConfidence(conf) {
-  if (conf >= 0.8) return "High";
-  if (conf >= 0.6) return "Medium";
+function classifyConfidence(v = 0) {
+  if (v >= 0.8) return "High";
+  if (v >= 0.5) return "Medium";
   return "Low";
 }
 
-export function buildSignalsSnapshot({ insights, alerts }) {
-  const { deltas, confidence } = insights;
+function classifyMomentum(deltaPct = 0) {
+  if (deltaPct > 0.03) return "Strong";
+  if (deltaPct < -0.03) return "Weak";
+  return "Neutral";
+}
 
-  const signal = {
+function classifyMeanReversion(deltaPct = 0) {
+  if (deltaPct > 0.05) return "Overextended";
+  if (deltaPct < -0.05) return "Oversold";
+  return "Neutral";
+}
+
+function buildNotifications(insights = {}) {
+  const notes = [];
+  const conf = insights?.confidence?.confidence ?? 0;
+
+  if (conf >= 0.8) {
+    notes.push({ type: "HIGH_CONFIDENCE_SIGNAL", severity: "info" });
+  }
+
+  return notes;
+}
+
+// ----------------- MAIN ENGINE -----------------
+
+export function buildSignalsSnapshot({ insights = {}, portfolio = {} }) {
+  const timestamp = Date.now();
+
+  const deltas = insights?.deltas ?? {};
+  const confidenceVal = insights?.confidence?.confidence ?? 0;
+
+  const signals = [];
+
+  // ---- PORTFOLIO AGGREGATE (ALWAYS PRESENT) ----
+  signals.push({
     symbol: "PORTFOLIO",
     assetClass: "aggregate",
-    portfolioImpact: classifyImpact(deltas.deltaPortfolioImpactPct),
-    confidence: classifyConfidence(confidence.confidence),
-    delta: classifyDelta(deltas.deltaMomentumMs)
-  };
+    momentum: "-",
+    meanReversion: "-",
+    portfolioImpact: classifyImpact(deltas.deltaPortfolioImpactPct ?? 0),
+    confidence: classifyConfidence(confidenceVal),
+    delta: "→"
+  });
+
+  // ---- PER-ASSET SIGNALS (SAFE) ----
+  const positions = Array.isArray(portfolio.positions)
+    ? portfolio.positions
+    : [];
+
+  for (const p of positions) {
+    const deltaPct = p.deltaPct ?? 0;
+
+    signals.push({
+      symbol: p.symbol,
+      assetClass: p.assetClass,
+      momentum: classifyMomentum(deltaPct),
+      meanReversion: classifyMeanReversion(deltaPct),
+      portfolioImpact: classifyImpact(deltaPct),
+      confidence: classifyConfidence(confidenceVal),
+      delta: deltaPct > 0 ? "↑" : deltaPct < 0 ? "↓" : "→"
+    });
+  }
 
   return {
-    timestamp: Date.now(),
-    signals: [signal],
-    notifications: alerts.map(a => ({
-      type: a.type,
-      severity: a.severity
-    }))
+    timestamp,
+    signals,
+    notifications: buildNotifications(insights)
   };
 }
 
