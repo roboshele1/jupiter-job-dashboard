@@ -1,51 +1,69 @@
 import { useEffect, useState } from "react";
-import { buildInsightsSnapshot } from "../insights/insightsPipeline.js";
+import { buildInsightsSnapshot } from "../insights/insightsPipeline";
 
 export default function Insights() {
-  const [data, setData] = useState(null);
+  const [insights, setInsights] = useState(null);
 
   useEffect(() => {
+    let mounted = true;
+
     async function load() {
-      const portfolioSnapshot = await window.jupiter.getPortfolioValuation();
-      const insights = await buildInsightsSnapshot(portfolioSnapshot);
-      setData(insights);
+      try {
+        // Pull authoritative snapshot from Portfolio (single source of truth)
+        const portfolioSnapshot = await window.api.getPortfolioValuation();
+
+        // Pass FULL snapshot to pipeline (contract-safe)
+        const result = await buildInsightsSnapshot(portfolioSnapshot);
+
+        if (mounted) setInsights(result);
+      } catch (err) {
+        console.error("[INSIGHTS] load failed:", err);
+      }
     }
+
     load();
+    return () => {
+      mounted = false;
+    };
   }, []);
 
-  if (!data) return null;
+  if (!insights) {
+    return <div style={{ padding: 24 }}>Loading insights…</div>;
+  }
 
-  const snapshot = data.snapshot || {};
-  const portfolio = data.portfolio || {};
-
-  const isReady = portfolio.totalValue != null;
+  const totalValue =
+    insights.snapshot?.totalValue != null
+      ? `$${Number(insights.snapshot.totalValue).toLocaleString(undefined, {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2
+        })}`
+      : "—";
 
   return (
-    <div>
-      <h1>Insights</h1>
+    <div style={{ padding: 24 }}>
+      <h2>Insights</h2>
 
-      <h3>Status</h3>
-      <ul>
-        <li>Mode: {data.meta.mode}</li>
-        <li>Phase: {data.meta.phase}</li>
-        <li>Status: {isReady ? "ready" : "partial"}</li>
-      </ul>
+      <section style={{ marginTop: 16 }}>
+        <h4>Status</h4>
+        <ul>
+          <li>Mode: {insights.meta.mode}</li>
+          <li>Phase: {insights.meta.phase}</li>
+          <li>Status: {insights.meta.status}</li>
+        </ul>
+      </section>
 
-      <h3>Snapshot</h3>
-      <ul>
-        <li>
-          Timestamp:{" "}
-          {snapshot.timestamp
-            ? new Date(snapshot.timestamp).toLocaleString()
-            : "—"}
-        </li>
-        <li>
-          Total Value:{" "}
-          {isReady
-            ? `$${portfolio.totalValue.toLocaleString()}`
-            : "—"}
-        </li>
-      </ul>
+      <section style={{ marginTop: 16 }}>
+        <h4>Snapshot</h4>
+        <ul>
+          <li>
+            Timestamp:{" "}
+            {insights.snapshot?.timestamp
+              ? new Date(insights.snapshot.timestamp).toLocaleString()
+              : "—"}
+          </li>
+          <li>Total Value: {totalValue}</li>
+        </ul>
+      </section>
     </div>
   );
 }

@@ -1,38 +1,83 @@
-// renderer/insights/insightsPipeline.js
+/**
+ * INSIGHTS PIPELINE — PHASE 1E
+ * Controlled, deterministic renderer mapping layer
+ *
+ * Engine snapshot → schema-safe Insights object
+ */
 
-export async function buildInsightsSnapshot(engineSnapshot) {
+import { deriveInsightsSignals } from "../../engine/insights/insightsSignals.js";
+
+/**
+ * PRIMARY PIPELINE
+ * Deterministic, renderer-safe
+ */
+export async function buildInsightsSnapshotFromSnapshot(snapshot) {
   const now = Date.now();
 
-  const liveTotal =
-    engineSnapshot?.totals?.liveValue ??
-    engineSnapshot?.totalValue ??
-    null;
+  // --- Snapshot validation ---
+  if (!snapshot || !snapshot.totals) {
+    return {
+      meta: {
+        mode: "observer",
+        phase: "1E",
+        status: "partial",
+        generatedAt: new Date(now).toISOString()
+      },
+      snapshot: {
+        available: false,
+        timestamp: now,
+        totalValue: null,
+        dailyPL: null,
+        dailyPLPct: null
+      },
+      signals: {
+        available: false
+      },
+      limitations: ["Snapshot unavailable"],
+      warnings: ["Snapshot input missing or malformed"]
+    };
+  }
 
-  const hasValue = typeof liveTotal === "number" && !Number.isNaN(liveTotal);
+  // --- Signals ---
+  const signals = deriveInsightsSignals(snapshot);
 
   return {
     meta: {
       mode: "observer",
-      phase: "1C",
-      status: hasValue ? "ready" : "partial",
+      phase: "1E",
+      status: signals.available ? "ready" : "partial",
       generatedAt: new Date(now).toISOString()
     },
 
     snapshot: {
-      available: hasValue,
-      timestamp: engineSnapshot?._asOf ?? now
+      available: true,
+      timestamp: now,
+      totalValue: snapshot.totals.snapshotValue,
+      dailyPL: snapshot.totals.delta,
+      dailyPLPct: snapshot.totals.deltaPct
     },
 
-    portfolio: {
-      available: hasValue,
-      totalValue: hasValue ? liveTotal : null,
-      allocation: engineSnapshot?.allocation ?? null,
-      topHoldings: engineSnapshot?.positions ?? []
-    },
+    signals: signals.available
+      ? {
+          available: true,
+          risk: signals.risk,
+          performance: signals.performance
+        }
+      : {
+          available: false
+        },
 
-    limitations: hasValue ? [] : ["Snapshot not finalized"],
-
-    warnings: hasValue ? [] : ["Snapshot timestamp unavailable"]
+    limitations: signals.available ? [] : ["Signals withheld when snapshot inputs are incomplete"],
+    warnings: []
   };
+}
+
+/**
+ * 🔁 BACKWARD-COMPAT EXPORT
+ * REQUIRED by Insights.jsx
+ * DO NOT REMOVE
+ */
+export async function buildInsightsSnapshot(snapshot) {
+  return buildInsightsSnapshotFromSnapshot(snapshot);
 }
 
