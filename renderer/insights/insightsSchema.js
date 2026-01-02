@@ -1,10 +1,6 @@
 /**
- * Insights Schema — Phase 1A (Observer Intelligence)
- *
- * Guarantees:
- * - All fields are always present
- * - Safe defaults for degraded / partial modes
- * - Engine layers never guard for undefined
+ * Insights Schema — Phase 1A / 1B
+ * Canonical, fully-initialized observer object
  */
 
 export function createEmptyInsights() {
@@ -12,9 +8,7 @@ export function createEmptyInsights() {
     meta: {
       mode: "observer",
       phase: "1A",
-      status: "unknown",
-      snapshotTimestamp: null,
-      generatedAt: null,
+      status: "partial",
     },
 
     limits: [],
@@ -22,22 +16,23 @@ export function createEmptyInsights() {
 
     snapshot: {
       available: false,
+      timestamp: null,
     },
 
     portfolio: {
-      totalValue: null,
-      allocation: null,
-      topHoldings: [],
+      available: false,
     },
 
     signals: {
-      available: [],
-      missing: [],
+      available: false,
     },
 
     risks: {
-      observations: [],
+      warnings: [],
+      limits: [],
     },
+
+    sections: [],
   };
 }
 
