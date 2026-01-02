@@ -1,21 +1,20 @@
 import { useEffect, useState } from "react";
 import { buildInsightsSnapshot } from "../insights/insightsPipeline";
+import { mapInsightsForRender } from "../insights/insightsRendererMap";
 
 export default function Insights() {
-  const [insights, setInsights] = useState(null);
+  const [view, setView] = useState(null);
 
   useEffect(() => {
     let mounted = true;
 
     async function load() {
       try {
-        // Pull authoritative snapshot from Portfolio (single source of truth)
-        const portfolioSnapshot = await window.api.getPortfolioValuation();
+        const portfolio = await window.api.getPortfolioValuation();
+        const insights = await buildInsightsSnapshot(portfolio);
 
-        // Pass FULL snapshot to pipeline (contract-safe)
-        const result = await buildInsightsSnapshot(portfolioSnapshot);
-
-        if (mounted) setInsights(result);
+        const mapped = mapInsightsForRender(insights);
+        if (mounted) setView(mapped);
       } catch (err) {
         console.error("[INSIGHTS] load failed:", err);
       }
@@ -27,43 +26,64 @@ export default function Insights() {
     };
   }, []);
 
-  if (!insights) {
+  if (!view) {
     return <div style={{ padding: 24 }}>Loading insights…</div>;
   }
 
   const totalValue =
-    insights.snapshot?.totalValue != null
-      ? `$${Number(insights.snapshot.totalValue).toLocaleString(undefined, {
+    view.totalValue != null
+      ? `$${Number(view.totalValue).toLocaleString(undefined, {
           minimumFractionDigits: 2,
           maximumFractionDigits: 2
         })}`
       : "—";
 
+  const dailyPL =
+    view.dailyPL != null
+      ? `${view.dailyPL >= 0 ? "+" : ""}$${Math.abs(view.dailyPL).toLocaleString()}`
+      : "—";
+
+  const dailyPLColor =
+    view.dailyPL > 0 ? "#2ecc71" : view.dailyPL < 0 ? "#e74c3c" : "#999";
+
   return (
     <div style={{ padding: 24 }}>
-      <h2>Insights</h2>
+      <h1>Insights</h1>
 
-      <section style={{ marginTop: 16 }}>
-        <h4>Status</h4>
-        <ul>
-          <li>Mode: {insights.meta.mode}</li>
-          <li>Phase: {insights.meta.phase}</li>
-          <li>Status: {insights.meta.status}</li>
-        </ul>
-      </section>
+      <h3>Status</h3>
+      <ul>
+        <li>Status: {view.status}</li>
+        <li>Generated: {new Date(view.generatedAt).toLocaleString()}</li>
+      </ul>
 
-      <section style={{ marginTop: 16 }}>
-        <h4>Snapshot</h4>
-        <ul>
-          <li>
-            Timestamp:{" "}
-            {insights.snapshot?.timestamp
-              ? new Date(insights.snapshot.timestamp).toLocaleString()
-              : "—"}
-          </li>
-          <li>Total Value: {totalValue}</li>
-        </ul>
-      </section>
+      <h3>Snapshot</h3>
+      <ul>
+        <li>Total Value: {totalValue}</li>
+      </ul>
+
+      {view.signalsAvailable && (
+        <>
+          <h3>Signals</h3>
+
+          <ul>
+            <li>
+              Largest Holding:{" "}
+              {view.largestHolding ?? "—"}
+            </li>
+
+            <li>
+              Concentration:{" "}
+              {view.concentrationPct != null
+                ? `${view.concentrationPct.toFixed(2)}%`
+                : "—"}
+            </li>
+
+            <li style={{ color: dailyPLColor }}>
+              Daily P/L: {dailyPL}
+            </li>
+          </ul>
+        </>
+      )}
     </div>
   );
 }
