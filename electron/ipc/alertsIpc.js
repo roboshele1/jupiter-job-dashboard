@@ -1,13 +1,21 @@
 // electron/ipc/alertsIpc.js
-// IPC Authority — Alerts Engine V1 (READ ONLY)
-// Contract: Renderer may READ alerts only. No mutation. No recomputation.
+// IPC Authority — Alerts Engine V1
+// ESM-only. Read-only. Deterministic. Engine-owned.
+// Renderer may ONLY consume alerts via IPC.
 
-const { ipcMain } = require("electron");
-const { runAlertsEngineV1 } = require("../../engine/alerts/alertsEngineV1.js");
+import pkg from "electron";
+const { ipcMain } = pkg;
 
-function registerAlertsIpc() {
+export function registerAlertsIpc() {
   ipcMain.handle("alerts:getSnapshot", async () => {
-    const output = runAlertsEngineV1();
+    const { runAlertsEngineV1 } = await import(
+      "../../engine/alerts/alertsEngineV1.js"
+    );
+
+    const output = runAlertsEngineV1({
+      decisionOutput: { alerts: [] },
+      riskEngine: { engine: "RISK_ENGINE_V1", metrics: {} },
+    });
 
     return {
       engine: output.engine,
@@ -19,6 +27,4 @@ function registerAlertsIpc() {
     };
   });
 }
-
-module.exports = { registerAlertsIpc };
 
