@@ -1,21 +1,24 @@
 // electron/ipc/alertsIpc.js
-// Alerts V1 — IPC exposure (read-only)
+// IPC Authority — Alerts Engine V1 (READ ONLY)
+// Contract: Renderer may READ alerts only. No mutation. No recomputation.
 
-import { ipcMain } from 'electron';
-import { buildAlertsFromInsights } from '../../engine/alerts/alertsAdapter.js';
+const { ipcMain } = require("electron");
+const { runAlertsEngineV1 } = require("../../engine/alerts/alertsEngineV1.js");
 
-// Expects the renderer to pass a fully-built Insights snapshot.
-// No fetching, no mutation, no side effects.
-export function registerAlertsIpc() {
-  ipcMain.handle('alerts:evaluate', async (_evt, insightsSnapshot) => {
-    try {
-      return buildAlertsFromInsights(insightsSnapshot);
-    } catch (e) {
-      return {
-        error: true,
-        message: 'alerts_evaluation_failed'
-      };
-    }
+function registerAlertsIpc() {
+  ipcMain.handle("alerts:getSnapshot", async () => {
+    const output = runAlertsEngineV1();
+
+    return {
+      engine: output.engine,
+      count: output.count,
+      alerts: output.alerts,
+      authority: "IPC_ALERTS_ENGINE_V1_LOCK",
+      readonly: true,
+      timestamp: Date.now(),
+    };
   });
 }
+
+module.exports = { registerAlertsIpc };
 
