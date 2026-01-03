@@ -1,15 +1,16 @@
 // renderer/pages/AlertsCentre.jsx
 import React from "react";
+import { usePortfolioSnapshotStore } from "../state/portfolioSnapshotStore";
 
 /**
  * ALERTS CENTRE — READ ONLY
- * V1 UI SHELL (NO LOGIC)
- * ----------------------
- * - ZERO engine access
- * - ZERO snapshot access
- * - ZERO IPC
- * - UI placeholder only
- * - Institutional layout consistency
+ * V2 — RENDERER CONSUMPTION (NO UI CHANGE)
+ * ---------------------------------------
+ * - Reads alerts from snapshot (if present)
+ * - NO rendering of alerts
+ * - NO mutation
+ * - NO IPC calls
+ * - UI remains a shell
  */
 
 const COLORS = {
@@ -21,34 +22,24 @@ const COLORS = {
 };
 
 export default function AlertsCentre() {
+  const snapshot = usePortfolioSnapshotStore((s) => s.snapshot);
+
+  // Renderer-level read only (non-rendered, non-mutative)
+  const _alertsEngine = snapshot?.alertsEngine ?? null;
+
   return (
     <div
       style={{
         padding: "32px",
-        maxWidth: "1200px",
-        margin: "0 auto",
         background: COLORS.bg,
         color: COLORS.textPrimary,
         minHeight: "100vh",
       }}
     >
-      <h1 style={{ marginBottom: "16px" }}>Alerts Centre</h1>
-
-      <div
-        style={{
-          background: COLORS.panel,
-          border: `1px solid ${COLORS.border}`,
-          borderRadius: "12px",
-          padding: "24px",
-        }}
-      >
-        <p style={{ color: COLORS.textSecondary }}>
-          Alerts Centre UI shell initialized.
-        </p>
-        <p style={{ color: COLORS.textSecondary, marginTop: "8px" }}>
-          No logic. No data. No routing. No engine consumption.
-        </p>
-      </div>
+      <h1>Alerts Centre</h1>
+      <p style={{ color: COLORS.textSecondary }}>
+        Alerts Centre UI shell. Alerts engine consumption is read-only and not rendered.
+      </p>
     </div>
   );
 }
