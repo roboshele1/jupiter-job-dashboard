@@ -1,19 +1,19 @@
-// engine/decision/decisionEngine.js
-import { calibrateConfidence } from './calibration/confidenceCalibrator.js';
+import { evaluatePortfolio, evaluateSymbols } from "./decisionRules.js";
 
-export function makeDecision({ symbol, confidence, volatility = 1.0 }) {
-  const calibratedConfidence = calibrateConfidence({
-    rawConfidence: confidence,
-    weight: confidence,
-    volatility
-  });
+export function runDecisionEngine({
+  portfolioSnapshot,
+  signalsSnapshot,
+  riskSnapshot
+}) {
+  const decisions = [
+    ...evaluatePortfolio(portfolioSnapshot, riskSnapshot),
+    ...evaluateSymbols(portfolioSnapshot, signalsSnapshot)
+  ];
 
   return {
-    symbol,
-    action: calibratedConfidence >= 1 ? 'BUY' : 'HOLD',
-    rationale: 'Growth signal detected',
-    confidence: calibratedConfidence,
-    ts: Date.now()
+    engine: "DECISION_ENGINE_V1",
+    asOf: Date.now(),
+    decisions
   };
 }
 
