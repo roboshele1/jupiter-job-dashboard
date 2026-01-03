@@ -1,75 +1,36 @@
 // engine/decision/decisionPolicyGate.js
-// Decision Engine V2 — Policy Gate
-// Pure, deterministic, read-only constraint enforcement
 
-export function applyPolicyGate({ asOf, portfolio, risk, decisions }) {
-  if (!asOf || !Array.isArray(decisions)) {
-    throw new Error("Invalid policy gate input");
+export function applyPolicyGate({ asOf, decisions, risk }) {
+  if (!Array.isArray(decisions)) {
+    throw new Error('Invalid policy gate input');
   }
 
-  const violations = [];
-  const gated = [];
+  const maxConviction =
+    risk && typeof risk.maxConviction === 'number'
+      ? risk.maxConviction
+      : 1;
 
-  const maxSingleAssetPct = risk?.limits?.maxSingleAssetPct ?? 0.30;
-  const blockedSymbols = new Set(risk?.blockedSymbols ?? []);
-  const cooldowns = risk?.cooldowns ?? {};
+  const allowed = [];
+  const modified = [];
+  const blocked = [];
 
   for (const d of decisions) {
-    let status = "ALLOW";
-    const reasons = [];
-
-    // Blocked symbols
-    if (blockedSymbols.has(d.symbol)) {
-      status = "BLOCK";
-      reasons.push("Symbol explicitly blocked by policy");
+    if (typeof d.conviction !== 'number') {
+      blocked.push(d);
+      continue;
     }
 
-    // Concentration limit
-    const weight =
-      portfolio?.weights?.[d.symbol] ??
-      0;
-
-    if (weight > maxSingleAssetPct) {
-      status = "MODIFY";
-      reasons.push(
-        `Concentration ${Math.round(weight * 100)}% exceeds limit`
-      );
-    }
-
-    // Cooldown enforcement
-    const cooldownUntil = cooldowns[d.symbol];
-    if (cooldownUntil && asOf < cooldownUntil) {
-      status = "BLOCK";
-      reasons.push("Symbol in cooldown window");
-    }
-
-    gated.push({
-      ...d,
-      policyStatus: status,
-      policyRationale: reasons,
-    });
-
-    if (status !== "ALLOW") {
-      violations.push({
-        symbol: d.symbol,
-        action: d.action,
-        status,
-        reasons,
+    if (d.conviction > maxConviction) {
+      modified.push({
+        ...d,
+        conviction: maxConviction,
+        rationale: [...(d.rationale || []), 'Conviction capped by risk policy']
       });
+    } else {
+      allowed.push(d);
     }
   }
 
-  return {
-    engine: "DECISION_ENGINE_V2_POLICY",
-    asOf,
-    decisions: gated,
-    violations,
-    summary: {
-      total: decisions.length,
-      allowed: gated.filter(d => d.policyStatus === "ALLOW").length,
-      modified: gated.filter(d => d.policyStatus === "MODIFY").length,
-      blocked: gated.filter(d => d.policyStatus === "BLOCK").length,
-    },
-  };
+  return [...allowed, ...modified];
 }
 
