@@ -56,12 +56,8 @@ export function registerAllIpc(ipcMain) {
   });
 
   /* =========================================================
-     DECISION ENGINE IPC (READ-ONLY, APPENDED)
-     =========================================================
-     - Renderer never imports engine files
-     - Main process owns execution
-     - Deterministic output only
-  */
+     DECISION ENGINE IPC (READ-ONLY)
+     ========================================================= */
 
   ipcMain.handle("decision:run", async (_event, query) => {
     const { runDecisionEngine } = await import(
@@ -69,5 +65,22 @@ export function registerAllIpc(ipcMain) {
     );
 
     return runDecisionEngine(query);
+  });
+
+  /* =========================================================
+     CHAT INTELLIGENCE IPC (READ-ONLY)
+     Phase 6.8 — Intent-driven synthesis
+     =========================================================
+     - Renderer never reasons
+     - Engine-only authority
+     - Deterministic output
+  */
+
+  ipcMain.handle("chat:intelligence", async (_event, query) => {
+    const { runChatIntelligence } = await import(
+      "../../engine/chat/chatIntelligenceEngine.js"
+    );
+
+    return runChatIntelligence(query);
   });
 }
