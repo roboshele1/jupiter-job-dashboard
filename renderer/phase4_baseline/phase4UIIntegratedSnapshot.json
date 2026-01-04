@@ -1,0 +1,38 @@
+{
+  "holdings": [],
+  "signals": [
+    {
+      "symbol": "PORTFOLIO",
+      "assetClass": "aggregate",
+      "momentum": "-",
+      "meanReversion": "-",
+      "portfolioImpact": "Low",
+      "confidence": "Low",
+      "delta": "→"
+    }
+  ],
+  "discovery": {
+    "potentialAssets": [],
+    "themes": []
+  },
+  "growth": {
+    "curve": [
+      {
+        "step": 0,
+        "value": 100
+      }
+    ]
+  },
+  "alerts": [],
+  "riskEngine": {
+    "engine": "RISK_ENGINE_V1",
+    "metrics": {
+      "asOf": 1767483615763,
+      "totalAlerts": 0,
+      "maxConviction": 0,
+      "symbolsAtRisk": []
+    },
+    "source": "DECISION_ENGINE_V2",
+    "readOnly": true
+  }
+}

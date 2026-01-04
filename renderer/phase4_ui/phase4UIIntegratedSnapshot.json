@@ -1,0 +1,55 @@
+{
+  "holdings": [],
+  "signals": [],
+  "discovery": {
+    "potentialAssets": [],
+    "themes": []
+  },
+  "growth": {
+    "curve": []
+  },
+  "alerts": [],
+  "riskEngine": {
+    "engine": "RISK_ENGINE_V1",
+    "metrics": {
+      "asOf": 1767484938627,
+      "totalAlerts": 0,
+      "maxConviction": 0,
+      "symbolsAtRisk": []
+    },
+    "source": "DECISION_ENGINE_V2",
+    "readOnly": true,
+    "isWired": true
+  },
+  "portfolio": {
+    "isWired": true,
+    "positions": [],
+    "editable": true
+  },
+  "marketMonitor": {
+    "isWired": true,
+    "livePriceEnabled": true,
+    "PLtracking": true,
+    "exposureTracking": true
+  },
+  "chat": {
+    "isWired": true,
+    "inputEnabled": true,
+    "outputEnabled": true
+  },
+  "insights": {
+    "isWired": true,
+    "interactiveQueries": true
+  },
+  "dashboard": {
+    "isWired": true
+  },
+  "discoveryLab": {
+    "isWired": true,
+    "autonomousDetection": true
+  },
+  "growthEngine": {
+    "isWired": true,
+    "whatIfSimulations": true
+  }
+}
