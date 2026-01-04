@@ -54,5 +54,20 @@ export function registerAllIpc(ipcMain) {
     if (!cachedSnapshot) await computeSnapshot();
     return cachedSnapshot;
   });
-}
 
+  /* =========================================================
+     DECISION ENGINE IPC (READ-ONLY, APPENDED)
+     =========================================================
+     - Renderer never imports engine files
+     - Main process owns execution
+     - Deterministic output only
+  */
+
+  ipcMain.handle("decision:run", async (_event, query) => {
+    const { runDecisionEngine } = await import(
+      "../../engine/decision/decisionEngine.js"
+    );
+
+    return runDecisionEngine(query);
+  });
+}
