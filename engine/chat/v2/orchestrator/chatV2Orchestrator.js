@@ -1,25 +1,32 @@
 /**
  * CHAT_V2_ORCHESTRATOR
  * ====================
- * Phase 21.2 — Live Market Intelligence → Orchestrator Integration
+ * Phase 26.1 — Live Market Intelligence Wiring
  *
  * PURPOSE
  * -------
- * - Route between general, portfolio, and live market intelligence
- * - Introduce live ticker support (stocks, ETFs, crypto)
- * - Preserve deterministic, simple-English, read-only behavior
+ * - Route Chat V2 queries based on resolved intent
+ * - Support:
+ *   • Portfolio intelligence
+ *   • General market intelligence
+ *   • LIVE market / ticker intelligence (API-backed)
+ * - Preserve strict read-only, deterministic guarantees
+ * - Produce a single UI-ready response
  *
  * EXECUTION ORDER
  * ---------------
- * 1. Intelligence (dynamic routing)
+ * 1. Intelligence (intent-aware routing)
  * 2. Reasoning
- * 3. Enrichment
+ * 3. Enrichment aggregation
  * 4. Synthesis
  *
  * NON-GOALS
  * ---------
- * - No advice, no execution, no prediction
- * - No mutation or external calls beyond deterministic API results
+ * - No execution
+ * - No advice
+ * - No mutation
+ * - No LLM calls
+ * - No IPC logic
  */
 
 import { runChatV2Intelligence } from "../chatV2IntelligenceEngine.js";
@@ -44,29 +51,42 @@ export const CHAT_V2_ORCHESTRATOR_CONTRACT = {
 };
 
 /* =========================================================
-   INTELLIGENCE ROUTING (EXTENDED)
+   INTELLIGENCE ROUTING
 ========================================================= */
 
-function resolveIntelligence({ query, intent, portfolioSnapshot, context, marketData }) {
-  // 1. Live market / ticker queries
+function resolveIntelligence({
+  query,
+  intent,
+  portfolioSnapshot,
+  marketSnapshot,
+  context,
+}) {
+  // -----------------------------
+  // LIVE MARKET / TICKER QUERIES
+  // -----------------------------
+  if (intent === "LIVE_MARKET" && marketSnapshot?.symbol) {
+    return runLiveMarketIntelligence({
+      symbol: marketSnapshot.symbol,
+      marketData: marketSnapshot.data || null,
+    });
+  }
+
+  // -----------------------------
+  // GENERAL MARKET / FINANCE
+  // -----------------------------
   if (
-    intent === "LIVE_MARKET" ||
+    intent === "GENERAL_MARKET" ||
+    intent === "GENERAL_FINANCE" ||
     intent === "TICKER_INFO" ||
     intent === "ETF_INFO" ||
     intent === "CRYPTO_INFO"
   ) {
-    return runLiveMarketIntelligence({
-      symbol: marketData?.symbol || query?.toUpperCase?.() || "UNKNOWN",
-      marketData,
-    });
-  }
-
-  // 2. General finance / market awareness
-  if (intent === "GENERAL_MARKET" || intent === "GENERAL_FINANCE") {
     return runGeneralMarketIntelligence({ query });
   }
 
-  // 3. Default — portfolio-aware logic
+  // -----------------------------
+  // PORTFOLIO-AWARE DEFAULT
+  // -----------------------------
   return runChatV2Intelligence({
     query,
     intent,
@@ -84,32 +104,39 @@ export function runChatV2Orchestrator({
   intent,
   portfolioSnapshot = null,
   marketSnapshot = null,
-  marketData = null,
   context = null,
   meta = {},
 } = {}) {
-  // 1. Intelligence (dynamic route)
+  // -------------------------------------------------
+  // 1. Intelligence (intent-aware)
+  // -------------------------------------------------
   const intelligenceResult = resolveIntelligence({
     query,
     intent,
     portfolioSnapshot,
+    marketSnapshot,
     context,
-    marketData,
   });
 
-  // 2. Reasoning
+  // -------------------------------------------------
+  // 2. Reasoning (read-only explanation)
+  // -------------------------------------------------
   const reasoningResult = runChatV2Reasoning({
     intelligence: intelligenceResult.intelligence,
     intent,
   });
 
-  // 3. Enrichment
+  // -------------------------------------------------
+  // 3. Enrichment (portfolio + market context)
+  // -------------------------------------------------
   const enrichmentResult = runEnrichmentAggregator({
     portfolioSnapshot,
     marketSnapshot,
   });
 
-  // 4. Synthesis (UI envelope)
+  // -------------------------------------------------
+  // 4. Synthesis (UI-ready envelope)
+  // -------------------------------------------------
   return runChatV2Synthesis({
     intelligenceResult,
     reasoningResult,

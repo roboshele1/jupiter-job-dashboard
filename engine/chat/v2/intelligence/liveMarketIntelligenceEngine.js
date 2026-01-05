@@ -1,30 +1,21 @@
 /**
  * LIVE_MARKET_INTELLIGENCE_ENGINE
  * ===============================
- * Phase 21.1 — Chat V2 live market intelligence (API-agnostic)
+ * Phase 25.4 / 26 — Live market facts (read-only)
  *
  * PURPOSE
  * -------
- * - Explain live market and ticker data already provided to Chat
- * - Work with equities, ETFs, crypto, or indexes
- * - Use SIMPLE ENGLISH for non-finance users
+ * - Provide basic, factual market data for a symbol
+ * - Stocks, ETFs, crypto supported
+ * - SIMPLE_ENGLISH output
  *
  * NON-GOALS
  * ---------
- * - No API calls
- * - No data fetching
- * - No execution
+ * - No forecasts
  * - No advice
- * - No predictions
- * - No mutation
- *
- * This engine answers:
- * “What does this live market data mean?”
+ * - No execution
+ * - No recommendations
  */
-
-/* =========================================================
-   CONTRACT
-========================================================= */
 
 export const LIVE_MARKET_INTELLIGENCE_CONTRACT = {
   name: "LIVE_MARKET_INTELLIGENCE",
@@ -36,26 +27,19 @@ export const LIVE_MARKET_INTELLIGENCE_CONTRACT = {
   authority: "ENGINE",
 };
 
-/* =========================================================
-   INPUT SHAPE
-========================================================= */
 /**
  * Expected input:
  * {
- *   symbol?: string,
- *   marketData?: {
+ *   symbol: string,
+ *   marketData: {
  *     price?: number,
- *     changePercent?: number,
- *     volume?: number,
+ *     changePct?: number,
  *     marketCap?: number,
- *     timestamp?: number
+ *     assetType?: string,
+ *     currency?: string
  *   }
  * }
  */
-
-/* =========================================================
-   ENGINE ENTRYPOINT
-========================================================= */
 
 export function runLiveMarketIntelligence({ symbol, marketData } = {}) {
   if (!symbol || !marketData) {
@@ -63,12 +47,14 @@ export function runLiveMarketIntelligence({ symbol, marketData } = {}) {
       contract: LIVE_MARKET_INTELLIGENCE_CONTRACT.name,
       status: "INSUFFICIENT_INPUTS",
       intelligence: {
-        summary: ["No live market data was provided."],
+        summary: [
+          "No live market data was provided."
+        ],
         observations: [],
         risks: [],
         constraints: [
-          "Live market explanation requires symbol and market data.",
-          "No advice or actions are provided.",
+          "Live market intelligence requires a symbol and market data.",
+          "No advice or actions are provided."
         ],
       },
       language: "SIMPLE_ENGLISH",
@@ -76,41 +62,35 @@ export function runLiveMarketIntelligence({ symbol, marketData } = {}) {
     };
   }
 
-  const summary = [];
-  const observations = [];
-  const risks = [];
-
-  summary.push(
-    `${symbol} is currently trading at ${marketData.price ?? "an unknown price"}.`
-  );
-
-  if (typeof marketData.changePercent === "number") {
-    observations.push(
-      `The price has changed by ${marketData.changePercent}% recently.`
-    );
-
-    if (Math.abs(marketData.changePercent) > 5) {
-      risks.push("Large price moves can mean higher short-term risk.");
-    }
-  }
-
-  if (marketData.volume) {
-    observations.push(
-      `There is active trading volume in this asset.`
-    );
-  }
+  const {
+    price,
+    changePct,
+    marketCap,
+    assetType = "unknown",
+    currency = "USD",
+  } = marketData;
 
   return {
     contract: LIVE_MARKET_INTELLIGENCE_CONTRACT.name,
     status: "READY",
     intelligence: {
-      summary,
-      observations,
-      risks,
+      summary: [
+        `${symbol} is a ${assetType.toLowerCase()} trading at ${price} ${currency}.`
+      ],
+      observations: [
+        typeof changePct === "number"
+          ? `Price change today is ${changePct.toFixed(2)}%.`
+          : "Daily price change is unavailable.",
+        marketCap
+          ? `Market value is approximately ${marketCap}.`
+          : "Market value is unavailable.",
+      ],
+      risks: [
+        "Market prices can change quickly."
+      ],
       constraints: [
-        "This explanation is descriptive only.",
-        "No advice or recommendations are given.",
-        "Execution is disabled by contract.",
+        "This data is factual and time-sensitive.",
+        "No predictions or recommendations are provided.",
       ],
     },
     language: "SIMPLE_ENGLISH",
