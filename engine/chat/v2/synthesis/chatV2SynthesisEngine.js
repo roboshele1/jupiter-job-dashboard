@@ -1,26 +1,25 @@
 /**
  * CHAT_V2_SYNTHESIS_ENGINE
  * =======================
- * Phase 20 — Intent-aware headline & response selection (Simple English)
+ * Phase 23 — Confidence & provenance overlay (read-only)
  *
  * PURPOSE
  * -------
- * - Select headlines and bullets based on user intent
- * - Keep language simple and non-technical
- * - Preserve deterministic ordering
- * - Never add new analysis or advice
+ * - Add confidence labels and provenance metadata
+ * - Preserve intent-aware headline and bullet selection
+ * - Keep language simple and deterministic
  *
  * NON-GOALS
  * ---------
  * - No execution
  * - No advice
  * - No mutation
- * - No LLM calls
+ * - No new analysis
  */
 
 export const CHAT_V2_SYNTHESIS_CONTRACT = {
   name: "CHAT_V2_SYNTHESIS",
-  version: "3.0",
+  version: "3.1",
   mode: "READ_ONLY",
   executionAllowed: false,
   adviceAllowed: false,
@@ -44,6 +43,12 @@ function inferStatus(intelStatus, reasoningStatus) {
   return intelStatus === "READY" && reasoningStatus === "READY"
     ? "READY"
     : "INCOMPLETE";
+}
+
+function deriveConfidenceLabel(confidence) {
+  if (confidence >= 0.7) return "HIGH";
+  if (confidence > 0) return "MEDIUM";
+  return "LOW";
 }
 
 /* =========================================================
@@ -101,29 +106,41 @@ export function runChatV2Synthesis({
   enrichmentResult = null,
   meta = {},
 } = {}) {
+  const synthesizedAt = Date.now();
+
   if (!intelligenceResult || !reasoningResult) {
     return {
       contract: CHAT_V2_SYNTHESIS_CONTRACT.name,
       status: "INSUFFICIENT_INPUTS",
       intent: intelligenceResult?.intent || null,
       confidence: 0,
+      confidenceLabel: "LOW",
       response: {
         headline: "Not enough information yet.",
         bullets: ["Some required information is missing."],
         sections: {},
+      },
+      provenance: {
+        sources: ["CHAT_V2_SYNTHESIS"],
+        timestamps: {
+          intelligence: null,
+          reasoning: null,
+          synthesis: synthesizedAt,
+        },
       },
       governance: {
         executionAllowed: false,
         adviceAllowed: false,
         mutationAllowed: false,
       },
-      timestamps: { synthesized: Date.now() },
       meta,
     };
   }
 
   const intent = intelligenceResult.intent || reasoningResult.intent || null;
   const confidence = safeNumber(intelligenceResult.confidence, 0);
+  const confidenceLabel = deriveConfidenceLabel(confidence);
+
   const status = inferStatus(
     intelligenceResult.status,
     reasoningResult.status
@@ -146,6 +163,7 @@ export function runChatV2Synthesis({
     status,
     intent,
     confidence,
+    confidenceLabel,
     response: {
       headline,
       bullets,
@@ -161,15 +179,23 @@ export function runChatV2Synthesis({
         ],
       },
     },
+    provenance: {
+      sources: [
+        intelligenceResult.contract,
+        "CHAT_V2_REASONING",
+        enrichmentResult ? "ENRICHMENT_AGGREGATOR" : null,
+        "CHAT_V2_SYNTHESIS",
+      ].filter(Boolean),
+      timestamps: {
+        intelligence: safeNumber(intelligenceResult.timestamp, null),
+        reasoning: safeNumber(reasoningResult.timestamp, null),
+        synthesis: synthesizedAt,
+      },
+    },
     governance: {
       executionAllowed: false,
       adviceAllowed: false,
       mutationAllowed: false,
-    },
-    timestamps: {
-      intelligence: safeNumber(intelligenceResult.timestamp, null),
-      reasoning: safeNumber(reasoningResult.timestamp, null),
-      synthesized: Date.now(),
     },
     meta,
   };
