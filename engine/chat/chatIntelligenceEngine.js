@@ -3,7 +3,9 @@
  * --------------------------
  * Phase 6.8 — Engine-only multi-engine synthesis
  * Phase 6.9 — Persistent intelligence memory (read-only)
- * Phase 6.9.1 — Intent-scoped portfolio risk lenses
+ * Phase 7.1 — Contextual answer expansion
+ * Phase 7.2 — Contextual market hydration
+ * Phase 7.3 — Counterfactual & stress-path reasoning
  *
  * Deterministic. Stateless reasoning.
  * Memory is append-only and diagnostic-only.
@@ -30,11 +32,7 @@ function recordIntelligenceSnapshot(snapshot) {
 
 function analyzeMemoryDrift() {
   if (INTELLIGENCE_MEMORY.length < 3) {
-    return {
-      samples: INTELLIGENCE_MEMORY.length,
-      unstable: false,
-      observedStates: [],
-    };
+    return { samples: INTELLIGENCE_MEMORY.length, unstable: false, observedStates: [] };
   }
 
   const recent = INTELLIGENCE_MEMORY.slice(-5);
@@ -49,29 +47,88 @@ function analyzeMemoryDrift() {
 }
 
 /* =========================================================
-   PORTFOLIO RISK LENS (NEW)
+   PORTFOLIO RISK LENS
 ========================================================= */
 
 function detectPortfolioLens(query) {
   const q = query.toLowerCase();
 
-  if (q.includes("rate") || q.includes("interest")) {
-    return "RATE_SENSITIVITY";
-  }
-
-  if (q.includes("risk-off") || q.includes("drawdown") || q.includes("crash")) {
-    return "RISK_OFF_EXPOSURE";
-  }
-
-  if (q.includes("leverage") || q.includes("margin")) {
-    return "LEVERAGE_SENSITIVITY";
-  }
-
-  if (q.includes("concentrated") || q.includes("concentration")) {
-    return "CONCENTRATION";
-  }
+  if (q.includes("rate") || q.includes("interest")) return "RATE_SENSITIVITY";
+  if (q.includes("risk-off") || q.includes("drawdown") || q.includes("crash")) return "RISK_OFF_EXPOSURE";
+  if (q.includes("leverage") || q.includes("margin")) return "LEVERAGE_SENSITIVITY";
+  if (q.includes("concentrated") || q.includes("concentration")) return "CONCENTRATION";
 
   return "GENERAL_EXPOSURE";
+}
+
+/* =========================================================
+   PHASE 7.3 — COUNTERFACTUAL / STRESS PATH ENGINE
+========================================================= */
+
+function buildCounterfactualInsights({ lens, market, decision }) {
+  const scenarios = [];
+
+  if (lens === "RATE_SENSITIVITY") {
+    scenarios.push(
+      "If rates rise further, valuation pressure would disproportionately affect higher-duration growth and crypto-linked assets."
+    );
+  }
+
+  if (lens === "RISK_OFF_EXPOSURE") {
+    scenarios.push(
+      "In a rapid risk-off transition, drawdowns would likely be concentrated rather than broad-based."
+    );
+  }
+
+  if (lens === "LEVERAGE_SENSITIVITY" && decision) {
+    scenarios.push(
+      "Introducing leverage under the current posture would amplify both upside participation and downside volatility."
+    );
+  }
+
+  if (lens === "CONCENTRATION") {
+    scenarios.push(
+      "Stress events would be felt most through top-weighted positions rather than smaller allocations."
+    );
+  }
+
+  return scenarios;
+}
+
+/* =========================================================
+   CONTEXTUAL ANSWER EXPANSION
+========================================================= */
+
+function buildContextualInsights({ intent, lens, market, portfolio, decision }) {
+  const insights = [];
+
+  if (intent === "PORTFOLIO" && portfolio) {
+    if (lens === "RATE_SENSITIVITY" && market) {
+      insights.push(
+        "Rate-sensitive growth and crypto exposures would be most affected if restrictive conditions persist."
+      );
+    }
+
+    if (lens === "RISK_OFF_EXPOSURE" && market) {
+      insights.push(
+        "Downside risk would concentrate in higher-beta positions rather than evenly across the portfolio."
+      );
+    }
+
+    if (lens === "CONCENTRATION") {
+      insights.push(
+        "Portfolio risk is driven more by position size than by the number of holdings."
+      );
+    }
+
+    if (lens === "LEVERAGE_SENSITIVITY" && decision) {
+      insights.push(
+        "Leverage would amplify volatility under the current growth-allowed posture."
+      );
+    }
+  }
+
+  return insights;
 }
 
 /* =========================================================
@@ -80,133 +137,69 @@ function detectPortfolioLens(query) {
 
 export async function runChatIntelligence(query = "") {
   const routing = routeChatQuery(query);
+  const lens = detectPortfolioLens(query);
 
   let market = null;
   let portfolio = null;
   let decision = null;
+  let marketHydrated = false;
 
   for (const engine of routing.engines) {
     if (engine === "marketIntelligence") {
       market = getGlobalMarketIntelligence();
     }
+
     if (engine === "portfolioAuthority") {
       portfolio = await getAuthoritativePortfolio();
     }
+
     if (engine === "decisionEngine") {
       decision = await runDecisionEngine({ query });
     }
   }
 
-  const summary = [];
-  const perspectives = [];
+  if (
+    routing.intent === "PORTFOLIO" &&
+    !market &&
+    (lens === "RATE_SENSITIVITY" || lens === "RISK_OFF_EXPOSURE")
+  ) {
+    market = getGlobalMarketIntelligence();
+    marketHydrated = true;
+  }
 
-  /* -----------------------------
-     MARKET PERSPECTIVE
-  ----------------------------- */
+  const summary = [];
+
+  summary.push(
+    ...buildContextualInsights({ intent: routing.intent, lens, market, portfolio, decision })
+  );
+
+  summary.push(
+    ...buildCounterfactualInsights({ lens, market, decision })
+  );
+
   if (market) {
     summary.push(
       `Market regime is ${market.regime.state} with ${(market.regime.confidence * 100).toFixed(0)}% confidence.`
     );
-
-    perspectives.push({
-      source: "market",
-      regime: market.regime.state,
-      confidence: market.regime.confidence,
-      favoredAssets: market.implications.favoredAssets,
-      pressuredAssets: market.implications.pressuredAssets,
-    });
   }
 
-  /* -----------------------------
-     PORTFOLIO PERSPECTIVE
-  ----------------------------- */
   if (portfolio) {
     summary.push(
       `Your portfolio holds ${portfolio.holdings.length} positions with ${portfolio.currency} exposure.`
     );
-
-    perspectives.push({
-      source: "portfolio",
-      topHolding: portfolio.holdings[0]?.symbol || null,
-      assetMix: [...new Set(portfolio.holdings.map(h => h.assetClass))],
-    });
   }
 
-  /* -----------------------------
-     DECISION PERSPECTIVE
-  ----------------------------- */
   if (decision) {
     summary.push(
       `Decision posture is ${decision.assessment.posture} under a ${decision.assessment.regime} regime.`
     );
-
-    perspectives.push({
-      source: "decision",
-      posture: decision.assessment.posture,
-      regime: decision.assessment.regime,
-      confidence: decision.assessment.confidence,
-    });
   }
 
-  /* -----------------------------
-     SYNTHESIS STATE
-  ----------------------------- */
   let synthesisState = "NEUTRAL";
-
   if (market && decision) {
     synthesisState =
-      market.regime.state === decision.assessment.regime
-        ? "ALIGNED"
-        : "DIVERGENT";
+      market.regime.state === decision.assessment.regime ? "ALIGNED" : "DIVERGENT";
   }
-
-  if (synthesisState === "ALIGNED") {
-    summary.push(
-      "Independent engines converge on a consistent interpretation of current conditions."
-    );
-  }
-
-  if (synthesisState === "DIVERGENT") {
-    summary.push(
-      "Engines present multiple valid interpretations under current conditions."
-    );
-  }
-
-  /* =========================================================
-     PORTFOLIO LENS SYNTHESIS (NEW)
-  ========================================================= */
-
-  if (routing.intent === "PORTFOLIO" && portfolio) {
-    const lens = detectPortfolioLens(query);
-
-    if (lens === "RATE_SENSITIVITY") {
-      summary.push(
-        "Rate-sensitive growth and crypto-linked holdings are most exposed to tightening conditions."
-      );
-    }
-
-    if (lens === "RISK_OFF_EXPOSURE") {
-      summary.push(
-        "Higher-beta growth and crypto exposures would absorb the majority of downside in a risk-off regime."
-      );
-    }
-
-    if (lens === "LEVERAGE_SENSITIVITY") {
-      summary.push(
-        "Leverage would amplify volatility given the portfolio’s growth and crypto tilt."
-      );
-    }
-
-    if (lens === "CONCENTRATION") {
-      summary.push(
-        "Concentration risk is driven primarily by top equity and digital asset positions."
-      );
-    }
-  }
-
-  /* =========================================================
-     MEMORY RECORD
-  ========================================================= */
 
   recordIntelligenceSnapshot({
     timestamp: Date.now(),
@@ -216,21 +209,19 @@ export async function runChatIntelligence(query = "") {
     sources: routing.engines,
   });
 
-  const memory = analyzeMemoryDrift();
-
   return {
     contract: "CHAT_INTELLIGENCE_V1",
     intent: routing.intent,
     confidence: routing.confidence,
     synthesisState,
     sources: routing.engines,
-    perspectives,
     summary: summary.slice(0, 5),
     diagnostics: {
       marketLoaded: !!market,
+      marketHydrated,
       portfolioLoaded: !!portfolio,
       decisionLoaded: !!decision,
-      memory,
+      memory: analyzeMemoryDrift(),
     },
     timestamp: Date.now(),
   };
