@@ -1,27 +1,34 @@
 /**
  * CHAT_V2_ORCHESTRATOR
  * ====================
- * Phase 10.5 — Deterministic orchestration layer
+ * Phase 17 — Enrichment → Orchestrator Wiring
  *
  * PURPOSE
  * -------
- * - Orchestrate Chat V2 Intelligence (10.2), Reasoning (10.3), and Synthesis (10.4)
- * - Enforce execution order and governance
- * - Return a single, UI-ready response envelope
+ * - Orchestrate Chat V2 Intelligence, Reasoning, Enrichment, and Synthesis
+ * - Enforce strict execution order
+ * - Preserve read-only, deterministic guarantees
+ * - Produce a single UI-ready response in simple English
+ *
+ * EXECUTION ORDER
+ * ---------------
+ * 1. Intelligence (10.2)
+ * 2. Reasoning (10.3)
+ * 3. Enrichment Aggregation (15)
+ * 4. Synthesis (10.4 + 16)
  *
  * NON-GOALS
  * ---------
- * - No LLM calls
  * - No execution
  * - No advice
- * - No portfolio mutation
- * - No IPC exposure
- *
- * This engine answers: "HOW do the Chat V2 layers work together?"
+ * - No mutation
+ * - No LLM calls
+ * - No IPC logic
  */
 
 import { runChatV2Intelligence } from "../chatV2IntelligenceEngine.js";
 import { runChatV2Reasoning } from "../reasoning/chatV2ReasoningEngine.js";
+import { runEnrichmentAggregator } from "../enrichment/enrichmentAggregator.js";
 import { runChatV2Synthesis } from "../synthesis/chatV2SynthesisEngine.js";
 
 /* =========================================================
@@ -30,37 +37,13 @@ import { runChatV2Synthesis } from "../synthesis/chatV2SynthesisEngine.js";
 
 export const CHAT_V2_ORCHESTRATOR_CONTRACT = {
   name: "CHAT_V2_ORCHESTRATOR",
-  version: "1.0",
+  version: "2.0",
   mode: "READ_ONLY",
   executionAllowed: false,
   adviceAllowed: false,
   mutationAllowed: false,
   authority: "ENGINE",
 };
-
-/* =========================================================
-   INPUT SHAPE
-========================================================= */
-/**
- * Expected input:
- * {
- *   query: string,
- *   intent: string,
- *   portfolioSnapshot?: object | null,
- *   context?: object | null,
- *   meta?: {
- *     requestId?: string
- *   }
- * }
- */
-
-/* =========================================================
-   OUTPUT SHAPE
-========================================================= */
-/**
- * Returned structure:
- * - Exactly the output of Chat V2 Synthesis (10.4)
- */
 
 /* =========================================================
    ENGINE ENTRYPOINT
@@ -70,12 +53,13 @@ export function runChatV2Orchestrator({
   query,
   intent,
   portfolioSnapshot = null,
+  marketSnapshot = null,
   context = null,
   meta = {},
 } = {}) {
-  // -----------------------------
-  // Step 1: Intelligence
-  // -----------------------------
+  // -------------------------------------------------
+  // 1. Intelligence
+  // -------------------------------------------------
   const intelligenceResult = runChatV2Intelligence({
     query,
     intent,
@@ -83,20 +67,29 @@ export function runChatV2Orchestrator({
     context,
   });
 
-  // -----------------------------
-  // Step 2: Reasoning
-  // -----------------------------
+  // -------------------------------------------------
+  // 2. Reasoning
+  // -------------------------------------------------
   const reasoningResult = runChatV2Reasoning({
     intelligence: intelligenceResult.intelligence,
     intent,
   });
 
-  // -----------------------------
-  // Step 3: Synthesis
-  // -----------------------------
+  // -------------------------------------------------
+  // 3. Enrichment (aggregated, ordered, simple English)
+  // -------------------------------------------------
+  const enrichmentResult = runEnrichmentAggregator({
+    portfolioSnapshot,
+    marketSnapshot,
+  });
+
+  // -------------------------------------------------
+  // 4. Synthesis (final UI-ready envelope)
+  // -------------------------------------------------
   return runChatV2Synthesis({
     intelligenceResult,
     reasoningResult,
+    enrichmentResult,
     meta: {
       ...meta,
       query,
