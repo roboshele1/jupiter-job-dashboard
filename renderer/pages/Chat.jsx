@@ -1,7 +1,7 @@
 // renderer/pages/Chat.jsx
 // -----------------------
-// Phase 17 — Full insights rendering + Decision Engine read-only integration
-// Phase 6.8.1 — Chat dialog (input → IPC → output)
+// Phase 12 — Chat V2 UI binding
+// Chat V1 retained, Chat V2 introduced (read-only, governed)
 
 import React, { useState } from "react";
 import { buildChatInsight } from "../chat/chatPipeline.js";
@@ -32,6 +32,10 @@ export default function Chat() {
   const activeSnapshot =
     snapshot?.allocation?.top?.length > 0 ? snapshot : FALLBACK_SNAPSHOT;
 
+  /* =========================================================
+     EXISTING INSIGHT PIPELINE (UNCHANGED)
+     ========================================================= */
+
   const insight = buildChatInsight({
     portfolioSummary: {
       concentration:
@@ -46,9 +50,9 @@ export default function Chat() {
     },
   });
 
-  // =========================================================
-  // Decision Engine (existing)
-  // =========================================================
+  /* =========================================================
+     DECISION ENGINE (UNCHANGED)
+     ========================================================= */
 
   const [decision, setDecision] = useState(null);
   const [decisionLoading, setDecisionLoading] = useState(false);
@@ -67,9 +71,9 @@ export default function Chat() {
     }
   }
 
-  // =========================================================
-  // Chat Intelligence Dialog (NEW)
-  // =========================================================
+  /* =========================================================
+     CHAT V2 (READ-ONLY, GOVERNED)
+     ========================================================= */
 
   const [query, setQuery] = useState("");
   const [chatResult, setChatResult] = useState(null);
@@ -82,10 +86,16 @@ export default function Chat() {
     setChatResult(null);
 
     try {
-      const result = await window.api.invoke("chat:intelligence", query);
+      const result = await window.api.invoke("chat:v2:run", {
+        query,
+        intent: "USER_QUERY",
+        portfolioSnapshot: null, // ❗️INTENTIONAL — avoid IPC clone errors
+        context: null,
+      });
+
       setChatResult(result);
     } catch (err) {
-      console.error("Chat Intelligence error:", err);
+      console.error("Chat V2 error:", err);
     } finally {
       setChatLoading(false);
     }
@@ -95,7 +105,10 @@ export default function Chat() {
     <div style={{ padding: "1rem" }}>
       <h1>Chat</h1>
 
-      {/* Insight Summary */}
+      {/* =====================================================
+         INSIGHT SUMMARY (V1)
+         ===================================================== */}
+
       <div
         style={{
           border: "1px solid #555",
@@ -129,7 +142,10 @@ export default function Chat() {
 
       <small style={{ opacity: 0.7 }}>{insight.footer}</small>
 
-      {/* Decision Engine */}
+      {/* =====================================================
+         DECISION ENGINE
+         ===================================================== */}
+
       <div
         style={{
           marginTop: "2rem",
@@ -156,7 +172,10 @@ export default function Chat() {
         )}
       </div>
 
-      {/* Chat Dialog */}
+      {/* =====================================================
+         CHAT V2 — UI BINDING
+         ===================================================== */}
+
       <div
         style={{
           marginTop: "2rem",
@@ -166,7 +185,7 @@ export default function Chat() {
           backgroundColor: "#0d0d0d",
         }}
       >
-        <h3>Ask Jupiter</h3>
+        <h3>Ask Jupiter (Chat V2)</h3>
 
         <input
           type="text"
@@ -181,19 +200,53 @@ export default function Chat() {
         />
 
         <button onClick={handleChatSubmit} disabled={chatLoading}>
-          {chatLoading ? "Thinking…" : "Run Intelligence"}
+          {chatLoading ? "Thinking…" : "Run Chat V2"}
         </button>
 
         {chatResult && (
           <div style={{ marginTop: "1rem" }}>
-            <p>
-              <strong>Intent:</strong> {chatResult.intent} (
-              {Math.round(chatResult.confidence * 100)}%)
-            </p>
+            {/* HEADLINE */}
+            <h4>{chatResult.response?.headline}</h4>
 
-            {chatResult.summary.map((line, idx) => (
-              <p key={idx}>{line}</p>
+            {/* BULLETS */}
+            {chatResult.response?.bullets?.map((b, i) => (
+              <p key={i}>• {b}</p>
             ))}
+
+            {/* SECTIONS */}
+            <div style={{ marginTop: "1rem" }}>
+              {chatResult.response?.sections?.summary?.length > 0 && (
+                <>
+                  <h5>Summary</h5>
+                  {chatResult.response.sections.summary.map((s, i) => (
+                    <p key={i}>{s}</p>
+                  ))}
+                </>
+              )}
+
+              {chatResult.response?.sections?.risks?.length > 0 && (
+                <>
+                  <h5>Risks</h5>
+                  {chatResult.response.sections.risks.map((r, i) => (
+                    <p key={i}>{r}</p>
+                  ))}
+                </>
+              )}
+
+              {chatResult.response?.sections?.constraints?.length > 0 && (
+                <>
+                  <h5>Constraints</h5>
+                  {chatResult.response.sections.constraints.map((c, i) => (
+                    <p key={i}>{c}</p>
+                  ))}
+                </>
+              )}
+            </div>
+
+            {/* FOOTER */}
+            <small style={{ opacity: 0.6 }}>
+              Contract: {chatResult.contract} · Status: {chatResult.status}
+            </small>
           </div>
         )}
       </div>
