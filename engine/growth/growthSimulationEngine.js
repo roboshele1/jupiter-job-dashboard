@@ -2,11 +2,13 @@
  * GROWTH_SIMULATION_ENGINE_V1
  * --------------------------
  * Phase 8.1 — Growth engine skeleton (no math, no projections)
+ * Phase 9.4 — Contract shape normalization
  *
  * Purpose:
  * - Define a governed simulation envelope
  * - Validate presence of governance contract
  * - Accept “what-if” growth queries
+ * - Emit a stable, deterministic contract
  *
  * This engine:
  * - Does NOT calculate outcomes
@@ -35,6 +37,13 @@ function assertGovernancePresent() {
     );
   }
 }
+
+/* =========================================================
+   CONTRACT METADATA
+========================================================= */
+
+const CONTRACT_NAME = "GROWTH_SIMULATION_V1";
+const CONTRACT_VERSION = "1.0.0";
 
 /* =========================================================
    SIMULATION ENVELOPE (STRUCTURE ONLY)
@@ -66,14 +75,23 @@ export function runGrowthSimulation({
   // Enforce governance
   assertGovernancePresent();
 
+  const timestamp = Date.now();
+
   // Validate intent (structure only)
   if (!targetValue || !targetYear) {
     return {
-      contract: "GROWTH_SIMULATION_V1",
+      contract: CONTRACT_NAME,
+      contractVersion: CONTRACT_VERSION,
       status: "INSUFFICIENT_INPUTS",
+      envelope: null,
+      constraints: {
+        governanceEnforced: true,
+        adviceAllowed: false,
+        executionAllowed: false,
+      },
       message:
         "Growth simulation requires a target value and target year.",
-      timestamp: Date.now(),
+      timestamp,
     };
   }
 
@@ -84,7 +102,8 @@ export function runGrowthSimulation({
   });
 
   return {
-    contract: "GROWTH_SIMULATION_V1",
+    contract: CONTRACT_NAME,
+    contractVersion: CONTRACT_VERSION,
     status: "READY_FOR_MODELING",
     envelope,
     constraints: {
@@ -92,6 +111,6 @@ export function runGrowthSimulation({
       adviceAllowed: false,
       executionAllowed: false,
     },
-    timestamp: Date.now(),
+    timestamp,
   };
 }

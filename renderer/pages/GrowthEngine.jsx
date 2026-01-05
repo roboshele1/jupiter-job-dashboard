@@ -26,7 +26,7 @@ const riskMeta = {
 
 export default function GrowthEngine() {
   // -----------------------------
-  // Inputs
+  // Inputs (local, renderer-only)
   // -----------------------------
   const [startingValue, setStartingValue] = useState(85000);
   const [targetValue, setTargetValue] = useState(250000);
@@ -35,7 +35,27 @@ export default function GrowthEngine() {
   const [aggressiveReturn, setAggressiveReturn] = useState(0.18);
 
   // -----------------------------
-  // Core math
+  // Growth Engine IPC (read-only)
+  // -----------------------------
+  const [growthResult, setGrowthResult] = useState(null);
+  const [growthLoading, setGrowthLoading] = useState(false);
+
+  async function runGrowthEngineIpc() {
+    setGrowthLoading(true);
+    setGrowthResult(null);
+
+    try {
+      const result = await window.api.invoke("growthEngine:run");
+      setGrowthResult(result);
+    } catch (err) {
+      console.error("Growth Engine IPC error:", err);
+    } finally {
+      setGrowthLoading(false);
+    }
+  }
+
+  // -----------------------------
+  // Core math (local intuition)
   // -----------------------------
   const requiredCAGR = useMemo(() => {
     return Math.pow(targetValue / startingValue, 12 / months) - 1;
@@ -50,7 +70,7 @@ export default function GrowthEngine() {
   const risk = riskMeta[classification];
 
   // -----------------------------
-  // Feasibility guidance + auto-fix targets
+  // Feasibility guidance
   // -----------------------------
   const feasibility = useMemo(() => {
     const feasibleMonths =
@@ -71,11 +91,6 @@ export default function GrowthEngine() {
     };
   }, [startingValue, targetValue, months, expectedReturn]);
 
-  // -----------------------------
-  // One-click Make Feasible
-  // Strategy: minimal disruption
-  // Priority: time → target → return
-  // -----------------------------
   function makeFeasible() {
     if (classification === "FEASIBLE") return;
 
@@ -89,29 +104,22 @@ export default function GrowthEngine() {
       return;
     }
 
-    setExpectedReturn(
-      Math.min(0.40, feasibility.feasibleReturn)
-    );
+    setExpectedReturn(Math.min(0.40, feasibility.feasibleReturn));
   }
 
   // -----------------------------
-  // Sensitivity heatmap (impact scores)
+  // Sensitivity heatmap
   // -----------------------------
   const sensitivity = useMemo(() => {
     const deltaMonths =
       Math.abs(
-        (Math.pow(targetValue / startingValue, 12 / (months + 12)) -
-          1) -
+        (Math.pow(targetValue / startingValue, 12 / (months + 12)) - 1) -
           requiredCAGR
       ) || 0;
 
     const deltaTarget =
       Math.abs(
-        (Math.pow(
-          (targetValue * 0.9) / startingValue,
-          12 / months
-        ) -
-          1) -
+        (Math.pow((targetValue * 0.9) / startingValue, 12 / months) - 1) -
           requiredCAGR
       ) || 0;
 
@@ -164,7 +172,9 @@ export default function GrowthEngine() {
   return (
     <div style={{ padding: 24 }}>
       <h1>Growth Engine</h1>
-      <p>Renderer-only growth analysis. No IPC. Local computation.</p>
+      <p>
+        Renderer-only growth analysis. No IPC math. Governed engine via IPC.
+      </p>
 
       {/* Risk badge */}
       <div
@@ -183,25 +193,24 @@ export default function GrowthEngine() {
         {risk.label}
       </div>
 
-      {/* Make feasible */}
-      {classification !== "FEASIBLE" && (
-        <div style={{ marginBottom: 24 }}>
-          <button
-            onClick={makeFeasible}
-            style={{
-              padding: "10px 16px",
-              borderRadius: 10,
-              border: "none",
-              background: "#2563eb",
-              color: "white",
-              fontWeight: 600,
-              cursor: "pointer",
-            }}
-          >
-            Make Feasible
-          </button>
-        </div>
-      )}
+      {/* Run Growth Intelligence */}
+      <div style={{ marginBottom: 24 }}>
+        <button
+          onClick={runGrowthEngineIpc}
+          disabled={growthLoading}
+          style={{
+            padding: "10px 16px",
+            borderRadius: 10,
+            border: "none",
+            background: "#2563eb",
+            color: "white",
+            fontWeight: 600,
+            cursor: "pointer",
+          }}
+        >
+          {growthLoading ? "Running…" : "Run Growth Intelligence"}
+        </button>
+      </div>
 
       {/* Inputs */}
       <section>
@@ -251,9 +260,7 @@ export default function GrowthEngine() {
             max="0.40"
             step="0.005"
             value={expectedReturn}
-            onChange={(e) =>
-              setExpectedReturn(+e.target.value)
-            }
+            onChange={(e) => setExpectedReturn(+e.target.value)}
           />
         </label>
 
@@ -265,14 +272,12 @@ export default function GrowthEngine() {
             max="0.30"
             step="0.01"
             value={aggressiveReturn}
-            onChange={(e) =>
-              setAggressiveReturn(+e.target.value)
-            }
+            onChange={(e) => setAggressiveReturn(+e.target.value)}
           />
         </label>
       </section>
 
-      {/* Sensitivity heatmap */}
+      {/* Sensitivity */}
       <section style={{ marginTop: 32 }}>
         <h3>What matters most</h3>
         {sensitivity.map((s) => (
@@ -303,7 +308,7 @@ export default function GrowthEngine() {
         ))}
       </section>
 
-      {/* Chart */}
+      {/* Growth Curve */}
       <section style={{ marginTop: 32 }}>
         <h3>Growth Curve</h3>
 
@@ -350,7 +355,32 @@ export default function GrowthEngine() {
           <span style={{ color: "#3b82f6" }}>■ Expected</span>
         </div>
       </section>
+
+      {/* READ-ONLY GROWTH IPC OUTPUT */}
+      {growthResult && (
+        <section style={{ marginTop: 40 }}>
+          <h3>Growth Intelligence (Read-only)</h3>
+
+          <div
+            style={{
+              marginTop: 12,
+              padding: 16,
+              borderRadius: 12,
+              background: "rgba(255,255,255,0.03)",
+              maxWidth: 900,
+            }}
+          >
+            <div><strong>Contract:</strong> {growthResult.contract}</div>
+            <div><strong>Status:</strong> {growthResult.status}</div>
+            {typeof growthResult.timestamp === "number" && (
+              <div>
+                <strong>Timestamp:</strong>{" "}
+                {new Date(growthResult.timestamp).toLocaleString()}
+              </div>
+            )}
+          </div>
+        </section>
+      )}
     </div>
   );
 }
-

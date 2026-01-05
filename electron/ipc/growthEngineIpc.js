@@ -2,6 +2,17 @@ import { ipcMain } from "electron";
 import { valuePortfolio } from "../../engine/portfolio/portfolioValuation.js";
 import { runGrowthEngine } from "../../engine/growthEngine.js";
 
+/**
+ * GROWTH ENGINE IPC — GOVERNED SURFACE
+ * -----------------------------------
+ * Phase 9.4 — Contract normalization
+ *
+ * - No UI logic
+ * - No mutation
+ * - No projections authored here
+ * - Engine remains authoritative
+ */
+
 const HOLDINGS = [
   { symbol: "NVDA", qty: 73, assetClass: "equity", totalCostBasis: 12881.13, currency: "CAD" },
   { symbol: "ASML", qty: 10, assetClass: "equity", totalCostBasis: 8649.52, currency: "CAD" },
@@ -18,10 +29,23 @@ export function registerGrowthEngineIpc() {
   ipcMain.handle("growthEngine:run", async () => {
     const valuation = await valuePortfolio(HOLDINGS);
 
-    return await runGrowthEngine({
+    const engineResult = await runGrowthEngine({
       holdings: HOLDINGS,
       startingValue: Math.round(valuation.totals.liveValue),
       authority: "PORTFOLIO_VALUATION_V1",
     });
+
+    /**
+     * GOVERNED CONTRACT ENVELOPE
+     * --------------------------
+     * Normalized for renderer consumption
+     */
+    return {
+      contract: "GROWTH_ENGINE_V1",
+      status: "READY",
+      authority: "PORTFOLIO_VALUATION_V1",
+      timestamp: Date.now(),
+      growthProfile: engineResult.growthProfile,
+    };
   });
 }
