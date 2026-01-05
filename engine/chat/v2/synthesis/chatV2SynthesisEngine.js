@@ -1,14 +1,14 @@
 /**
  * CHAT_V2_SYNTHESIS_ENGINE
  * =======================
- * Phase 19 — Headline & response prioritization (Simple English)
+ * Phase 20 — Intent-aware headline & response selection (Simple English)
  *
  * PURPOSE
  * -------
- * - Decide what the user sees first
- * - Prioritize clarity and simplicity
- * - Present answers in plain English for non-finance users
- * - Keep deterministic ordering and no new reasoning
+ * - Select headlines and bullets based on user intent
+ * - Keep language simple and non-technical
+ * - Preserve deterministic ordering
+ * - Never add new analysis or advice
  *
  * NON-GOALS
  * ---------
@@ -20,7 +20,7 @@
 
 export const CHAT_V2_SYNTHESIS_CONTRACT = {
   name: "CHAT_V2_SYNTHESIS",
-  version: "2.1",
+  version: "3.0",
   mode: "READ_ONLY",
   executionAllowed: false,
   adviceAllowed: false,
@@ -41,27 +41,53 @@ function safeNumber(v, fallback = 0) {
 }
 
 function inferStatus(intelStatus, reasoningStatus) {
-  if (intelStatus === "READY" && reasoningStatus === "READY") return "READY";
-  return "INCOMPLETE";
+  return intelStatus === "READY" && reasoningStatus === "READY"
+    ? "READY"
+    : "INCOMPLETE";
 }
 
-function pickHeadline({ enrichmentResult, intelligenceResult }) {
-  if (enrichmentResult?.context?.portfolioOverview?.title) {
-    return enrichmentResult.context.portfolioOverview.title;
+/* =========================================================
+   INTENT-AWARE HEADLINE SELECTION
+========================================================= */
+
+function selectHeadline({ intent, enrichmentResult, intelligenceResult }) {
+  if (intent === "GENERAL_MARKET") {
+    return (
+      intelligenceResult?.intelligence?.summary?.[0] ||
+      "Here is a simple explanation."
+    );
   }
-  if (intelligenceResult?.intelligence?.summary?.[0]) {
-    return intelligenceResult.intelligence.summary[0];
+
+  if (intent === "PORTFOLIO_OVERVIEW") {
+    return (
+      enrichmentResult?.context?.portfolioOverview?.title ||
+      "Here is a simple view of your portfolio."
+    );
   }
-  return "Here’s a simple overview based on your question.";
+
+  return (
+    intelligenceResult?.intelligence?.summary?.[0] ||
+    "Here is a simple overview."
+  );
 }
 
-function buildBullets({ enrichmentResult, intelligenceResult }) {
+function selectBullets({ intent, enrichmentResult, intelligenceResult }) {
   const bullets = [];
-  if (enrichmentResult?.context?.portfolioOverview?.description) {
-    bullets.push(enrichmentResult.context.portfolioOverview.description);
+
+  if (intent === "PORTFOLIO_OVERVIEW") {
+    if (enrichmentResult?.context?.portfolioOverview?.description) {
+      bullets.push(enrichmentResult.context.portfolioOverview.description);
+    }
   }
-  const summaries = safeArray(intelligenceResult?.intelligence?.summary);
-  summaries.forEach(s => bullets.push(s));
+
+  safeArray(intelligenceResult?.intelligence?.summary).forEach(s =>
+    bullets.push(s)
+  );
+
+  safeArray(intelligenceResult?.intelligence?.observations).forEach(o =>
+    bullets.push(o)
+  );
+
   return bullets.slice(0, 3);
 }
 
@@ -83,10 +109,14 @@ export function runChatV2Synthesis({
       confidence: 0,
       response: {
         headline: "Not enough information yet.",
-        bullets: ["Missing intelligence or reasoning data."],
+        bullets: ["Some required information is missing."],
         sections: {},
       },
-      governance: CHAT_V2_SYNTHESIS_CONTRACT,
+      governance: {
+        executionAllowed: false,
+        adviceAllowed: false,
+        mutationAllowed: false,
+      },
       timestamps: { synthesized: Date.now() },
       meta,
     };
@@ -94,10 +124,22 @@ export function runChatV2Synthesis({
 
   const intent = intelligenceResult.intent || reasoningResult.intent || null;
   const confidence = safeNumber(intelligenceResult.confidence, 0);
-  const status = inferStatus(intelligenceResult.status, reasoningResult.status);
+  const status = inferStatus(
+    intelligenceResult.status,
+    reasoningResult.status
+  );
 
-  const headline = pickHeadline({ enrichmentResult, intelligenceResult });
-  const bullets = buildBullets({ enrichmentResult, intelligenceResult });
+  const headline = selectHeadline({
+    intent,
+    enrichmentResult,
+    intelligenceResult,
+  });
+
+  const bullets = selectBullets({
+    intent,
+    enrichmentResult,
+    intelligenceResult,
+  });
 
   return {
     contract: CHAT_V2_SYNTHESIS_CONTRACT.name,
