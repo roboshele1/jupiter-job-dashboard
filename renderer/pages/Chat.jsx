@@ -1,11 +1,16 @@
 // renderer/pages/Chat.jsx
 // -----------------------
-// Phase 12 — Chat V2 UI binding
-// Chat V1 retained, Chat V2 introduced (read-only, governed)
+// Phase 30 — Chat V2 IPC-aligned UI
+// Read-only, governed, deterministic
+// Legacy insight + decision flows preserved
 
 import React, { useState } from "react";
 import { buildChatInsight } from "../chat/chatPipeline.js";
 import { usePortfolioSnapshotStore } from "../state/portfolioSnapshotStore.js";
+
+/* =========================================================
+   FALLBACK SNAPSHOT (SAFE)
+   ========================================================= */
 
 const FALLBACK_SNAPSHOT = {
   allocation: {
@@ -18,13 +23,13 @@ const FALLBACK_SNAPSHOT = {
       { symbol: "BMNR" },
       { symbol: "APLD" },
       { symbol: "BTC" },
-      { symbol: "ETH" },
-    ],
+      { symbol: "ETH" }
+    ]
   },
   synthesis: {
     dominantRiskDriver: null,
-    growthAlignment: null,
-  },
+    growthAlignment: null
+  }
 };
 
 export default function Chat() {
@@ -33,21 +38,21 @@ export default function Chat() {
     snapshot?.allocation?.top?.length > 0 ? snapshot : FALLBACK_SNAPSHOT;
 
   /* =========================================================
-     EXISTING INSIGHT PIPELINE (UNCHANGED)
+     LEGACY INSIGHT PIPELINE (UNCHANGED)
      ========================================================= */
 
   const insight = buildChatInsight({
     portfolioSummary: {
       concentration:
-        activeSnapshot.allocation.top.map((p) => p.symbol).join(" & ") || "N/A",
+        activeSnapshot.allocation.top.map((p) => p.symbol).join(" & ") || "N/A"
     },
     allocation: activeSnapshot.allocation,
     riskSummary: {
-      primaryDriver: activeSnapshot.synthesis.dominantRiskDriver,
+      primaryDriver: activeSnapshot.synthesis.dominantRiskDriver
     },
     growthSummary: {
-      alignment: activeSnapshot.synthesis.growthAlignment,
-    },
+      alignment: activeSnapshot.synthesis.growthAlignment
+    }
   });
 
   /* =========================================================
@@ -61,7 +66,7 @@ export default function Chat() {
     setDecisionLoading(true);
     try {
       const result = await window.api.invoke("decision:run", {
-        query: "current regime",
+        query: "current regime"
       });
       setDecision(result);
     } catch (err) {
@@ -72,7 +77,7 @@ export default function Chat() {
   }
 
   /* =========================================================
-     CHAT V2 (READ-ONLY, GOVERNED)
+     CHAT V2 — AUTHORITATIVE IPC (PHASE 30)
      ========================================================= */
 
   const [query, setQuery] = useState("");
@@ -80,7 +85,18 @@ export default function Chat() {
   const [chatLoading, setChatLoading] = useState(false);
 
   async function handleChatSubmit() {
-    if (!query.trim()) return;
+    if (!query.trim()) {
+      setChatResult({
+        contract: "CHAT_V2_CONTROL_LAYER",
+        status: "READY",
+        response: {
+          headline: "No valid question was provided.",
+          bullets: ["No valid question was provided."],
+          sections: {}
+        }
+      });
+      return;
+    }
 
     setChatLoading(true);
     setChatResult(null);
@@ -88,14 +104,23 @@ export default function Chat() {
     try {
       const result = await window.api.invoke("chat:v2:run", {
         query,
-        intent: "USER_QUERY",
-        portfolioSnapshot: null, // ❗️INTENTIONAL — avoid IPC clone errors
-        context: null,
+        userPreferences: {},
+        memoryContext: null,
+        context: null
       });
 
       setChatResult(result);
     } catch (err) {
       console.error("Chat V2 error:", err);
+      setChatResult({
+        contract: "CHAT_V2_ERROR",
+        status: "ERROR",
+        response: {
+          headline: "Chat intelligence failed.",
+          bullets: ["An internal IPC error occurred."],
+          sections: {}
+        }
+      });
     } finally {
       setChatLoading(false);
     }
@@ -116,7 +141,7 @@ export default function Chat() {
           borderRadius: "0.5rem",
           backgroundColor: "#111",
           color: "#fff",
-          marginBottom: "1rem",
+          marginBottom: "1rem"
         }}
       >
         <h2>{insight.headline}</h2>
@@ -132,7 +157,7 @@ export default function Chat() {
             borderRadius: "0.5rem",
             backgroundColor: "#222",
             color: "#fff",
-            marginBottom: "0.5rem",
+            marginBottom: "0.5rem"
           }}
         >
           <strong>{h.symbol}</strong>
@@ -151,7 +176,7 @@ export default function Chat() {
           marginTop: "2rem",
           padding: "1rem",
           border: "1px solid #444",
-          borderRadius: "0.5rem",
+          borderRadius: "0.5rem"
         }}
       >
         <button onClick={handleDecisionQuery} disabled={decisionLoading}>
@@ -173,7 +198,7 @@ export default function Chat() {
       </div>
 
       {/* =====================================================
-         CHAT V2 — UI BINDING
+         CHAT V2 UI
          ===================================================== */}
 
       <div
@@ -182,10 +207,10 @@ export default function Chat() {
           padding: "1rem",
           border: "1px solid #555",
           borderRadius: "0.5rem",
-          backgroundColor: "#0d0d0d",
+          backgroundColor: "#0d0d0d"
         }}
       >
-        <h3>Ask Jupiter (Chat V2)</h3>
+        <h3>Ask Jupiter</h3>
 
         <input
           type="text"
@@ -195,55 +220,22 @@ export default function Chat() {
           style={{
             width: "100%",
             padding: "0.5rem",
-            marginBottom: "0.5rem",
+            marginBottom: "0.5rem"
           }}
         />
 
         <button onClick={handleChatSubmit} disabled={chatLoading}>
-          {chatLoading ? "Thinking…" : "Run Chat V2"}
+          {chatLoading ? "Thinking…" : "Run Intelligence"}
         </button>
 
         {chatResult && (
           <div style={{ marginTop: "1rem" }}>
-            {/* HEADLINE */}
             <h4>{chatResult.response?.headline}</h4>
 
-            {/* BULLETS */}
             {chatResult.response?.bullets?.map((b, i) => (
               <p key={i}>• {b}</p>
             ))}
 
-            {/* SECTIONS */}
-            <div style={{ marginTop: "1rem" }}>
-              {chatResult.response?.sections?.summary?.length > 0 && (
-                <>
-                  <h5>Summary</h5>
-                  {chatResult.response.sections.summary.map((s, i) => (
-                    <p key={i}>{s}</p>
-                  ))}
-                </>
-              )}
-
-              {chatResult.response?.sections?.risks?.length > 0 && (
-                <>
-                  <h5>Risks</h5>
-                  {chatResult.response.sections.risks.map((r, i) => (
-                    <p key={i}>{r}</p>
-                  ))}
-                </>
-              )}
-
-              {chatResult.response?.sections?.constraints?.length > 0 && (
-                <>
-                  <h5>Constraints</h5>
-                  {chatResult.response.sections.constraints.map((c, i) => (
-                    <p key={i}>{c}</p>
-                  ))}
-                </>
-              )}
-            </div>
-
-            {/* FOOTER */}
             <small style={{ opacity: 0.6 }}>
               Contract: {chatResult.contract} · Status: {chatResult.status}
             </small>

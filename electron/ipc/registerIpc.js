@@ -1,3 +1,4 @@
+// electron/ipc/registerIpc.js
 import { registerGrowthEngineIpc } from "./growthEngineIpc.js";
 import { registerSignalsIpc } from "./signalsIpc.js";
 import { valuePortfolio } from "../../engine/portfolio/portfolioValuation.js";
@@ -12,7 +13,6 @@ import { valuePortfolio } from "../../engine/portfolio/portfolioValuation.js";
 let cachedSnapshot = null;
 
 async function computeSnapshot() {
-  // NOTE: Must stay in sync with main.js holdings authority
   const HOLDINGS = [
     { symbol: "NVDA", qty: 73, assetClass: "equity", totalCostBasis: 12881.13, currency: "CAD" },
     { symbol: "ASML", qty: 10, assetClass: "equity", totalCostBasis: 8649.52, currency: "CAD" },
@@ -43,44 +43,47 @@ async function computeSnapshot() {
 export function registerAllIpc(ipcMain) {
   registerGrowthEngineIpc(ipcMain);
 
-  // Portfolio snapshot
-  ipcMain.handle("portfolio:getSnapshot", async () => {
-    if (!cachedSnapshot) await computeSnapshot();
-    return cachedSnapshot;
-  });
-
-  // Signals snapshot (engine-sourced)
   registerSignalsIpc(ipcMain, async () => {
     if (!cachedSnapshot) await computeSnapshot();
     return cachedSnapshot;
   });
 
   /* =========================================================
-     DECISION ENGINE IPC (READ-ONLY)
+     PORTFOLIO SNAPSHOT (READ-ONLY)
      ========================================================= */
-
-  ipcMain.handle("decision:run", async (_event, query) => {
-    const { runDecisionEngine } = await import(
-      "../../engine/decision/decisionEngine.js"
-    );
-
-    return runDecisionEngine(query);
+  ipcMain.handle("portfolio:getSnapshot", async () => {
+    if (!cachedSnapshot) await computeSnapshot();
+    return cachedSnapshot;
   });
 
   /* =========================================================
-     CHAT INTELLIGENCE IPC (READ-ONLY)
-     Phase 6.8 — Intent-driven synthesis
-     =========================================================
-     - Renderer never reasons
-     - Engine-only authority
-     - Deterministic output
-  */
+     DECISION ENGINE (READ-ONLY)
+     ========================================================= */
+  ipcMain.handle("decision:run", async (_event, payload) => {
+    const { runDecisionEngine } = await import(
+      "../../engine/decision/decisionEngine.js"
+    );
+    return runDecisionEngine(payload);
+  });
 
-  ipcMain.handle("chat:intelligence", async (_event, query) => {
-    const { runChatIntelligence } = await import(
-      "../../engine/chat/chatIntelligenceEngine.js"
+  /* =========================================================
+     CHAT V2 — AUTHORITATIVE IPC (CANONICAL)
+     ========================================================= */
+  ipcMain.handle("chat:v2:run", async (_event, payload = {}) => {
+    const { runChatV2Orchestrator } = await import(
+      "../../engine/chat/v2/orchestrator/chatV2Orchestrator.js"
     );
 
-    return runChatIntelligence(query);
+    // Hard guarantee: never pass null portfolioSnapshot to downstream layers
+    if (!cachedSnapshot) await computeSnapshot();
+
+    return runChatV2Orchestrator({
+      query: payload.query,
+      portfolioSnapshot: cachedSnapshot,
+      marketSnapshot: payload.marketSnapshot || null,
+      userPreferences: payload.userPreferences || {},
+      memoryContext: payload.memoryContext || null,
+      context: payload.context || null
+    });
   });
 }

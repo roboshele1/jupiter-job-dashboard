@@ -1,5 +1,5 @@
 // preload.js — JUPITER (env bridge + IPC bridge)
-// Deterministic IPC surface for renderer (NO renderer assumptions)
+// Deterministic IPC surface for renderer
 
 const { contextBridge, ipcRenderer } = require("electron");
 
@@ -13,33 +13,20 @@ const SAFE_ENV = {
     null
 };
 
-// ---- IPC CORE ----
-const ipc = {
-  invoke: (channel, payload) => ipcRenderer.invoke(channel, payload),
-  send: (channel, ...args) => ipcRenderer.send(channel, ...args),
-  on: (channel, handler) => {
-    const wrapped = (_event, ...args) => handler(...args);
-    ipcRenderer.on(channel, wrapped);
-    return () => ipcRenderer.removeListener(channel, wrapped);
-  }
-};
-
-// ---- BACKWARD-COMPAT + EXPLICIT HELPERS ----
-// These are REQUIRED because renderer code calls them directly.
+// ---- API ----
 const api = {
   // Portfolio
-  getPortfolioValuation: () =>
-    ipcRenderer.invoke("portfolio:getValuation"),
-
-  refreshPortfolioValuation: () =>
-    ipcRenderer.invoke("portfolio:refreshValuation"),
+  getPortfolioValuation: () => ipcRenderer.invoke("portfolio:getValuation"),
+  refreshPortfolioValuation: () => ipcRenderer.invoke("portfolio:refreshValuation"),
 
   // Growth Engine
-  growthEngineRun: (payload) =>
-    ipcRenderer.invoke("growthEngine:run", payload),
+  growthEngineRun: (payload) => ipcRenderer.invoke("growthEngine:run", payload),
 
-  // Generic escape hatch (kept for safety)
-  invoke: ipc.invoke
+  // ✅ Canonical Chat V2 helper (preferred)
+  runChatIntelligence: (payload) => ipcRenderer.invoke("chat:v2:run", payload),
+
+  // Generic escape hatch
+  invoke: (channel, payload) => ipcRenderer.invoke(channel, payload)
 };
 
 // ---- EXPOSE ----
@@ -49,4 +36,3 @@ contextBridge.exposeInMainWorld("jupiter", api);
 // Legacy aliases (do NOT remove)
 contextBridge.exposeInMainWorld("api", api);
 contextBridge.exposeInMainWorld("electronAPI", api);
-

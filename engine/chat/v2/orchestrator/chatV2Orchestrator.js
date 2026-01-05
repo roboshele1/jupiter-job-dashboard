@@ -61,6 +61,17 @@ export function runChatV2Orchestrator({
   userPreferences = {},
   meta = {},
 } = {}) {
+  /* =======================================================
+     INVARIANT NORMALIZATION (CRITICAL)
+     -------------------------------------------------------
+     Electron IPC may pass null.
+     Downstream layers require array semantics.
+  ======================================================= */
+
+  const safeMemoryContext = Array.isArray(memoryContext)
+    ? memoryContext
+    : [];
+
   // 1. Intelligence
   const intelligenceResult = runChatV2Intelligence({
     query,
@@ -91,7 +102,7 @@ export function runChatV2Orchestrator({
   // 5. Personalization (read-only shaping)
   const personalized = applyChatV2Personalization({
     response: synthesized.response,
-    memoryContext,
+    memoryContext: safeMemoryContext,
     confidence: synthesized.confidence,
     userPreferences,
   });
@@ -99,7 +110,7 @@ export function runChatV2Orchestrator({
   // 6. Control Layer (final authority)
   return applyChatV2Control({
     response: personalized.response,
-    memoryContext,
+    memoryContext: safeMemoryContext,
     userPreferences,
     confidence: synthesized.confidence,
     provenance: synthesized.provenance || null,

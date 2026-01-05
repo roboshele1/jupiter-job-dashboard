@@ -1,4 +1,4 @@
-import { ipcMain } from "electron";
+// electron/ipc/growthEngineIpc.js
 import { valuePortfolio } from "../../engine/portfolio/portfolioValuation.js";
 import { runGrowthEngine } from "../../engine/growthEngine.js";
 
@@ -11,6 +11,10 @@ import { runGrowthEngine } from "../../engine/growthEngine.js";
  * - No mutation
  * - No projections authored here
  * - Engine remains authoritative
+ *
+ * NOTE:
+ * ipcMain is injected by the IPC registry.
+ * This avoids ESM/CommonJS interop violations.
  */
 
 const HOLDINGS = [
@@ -25,7 +29,7 @@ const HOLDINGS = [
   { symbol: "ETH", qty: 0.25, assetClass: "crypto", totalCostBasis: 597.9, currency: "CAD" }
 ];
 
-export function registerGrowthEngineIpc() {
+export function registerGrowthEngineIpc(ipcMain) {
   ipcMain.handle("growthEngine:run", async () => {
     const valuation = await valuePortfolio(HOLDINGS);
 
