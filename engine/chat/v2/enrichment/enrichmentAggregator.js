@@ -1,7 +1,7 @@
 /**
  * ENRICHMENT_AGGREGATOR
  * =====================
- * Phase 15 → 17 — Enrichment aggregation & ordering
+ * Phase 15 → 18 — Enrichment aggregation & ordering
  *
  * PURPOSE
  * -------
@@ -14,6 +14,7 @@
 import { runPortfolioContextEnrichment } from "./portfolioContextEnrichment.js";
 import { runRiskContextEnrichment } from "./riskContextEnrichment.js";
 import { runMarketRegimeContextEnrichment } from "./marketRegimeContextEnrichment.js";
+import { runExternalKnowledgeContextEnrichment } from "./externalKnowledgeContextEnrichment.js";
 
 /* =========================================================
    CONTRACT
@@ -21,7 +22,7 @@ import { runMarketRegimeContextEnrichment } from "./marketRegimeContextEnrichmen
 
 export const ENRICHMENT_AGGREGATOR_CONTRACT = {
   name: "ENRICHMENT_AGGREGATOR",
-  version: "1.0",
+  version: "1.1",
   mode: "READ_ONLY",
   language: "SIMPLE_ENGLISH",
   executionAllowed: false,
@@ -37,10 +38,14 @@ export const ENRICHMENT_AGGREGATOR_CONTRACT = {
 export function runEnrichmentAggregator({
   portfolioSnapshot = null,
   marketSnapshot = null,
+  query = null,
 } = {}) {
   const portfolio = runPortfolioContextEnrichment({ portfolioSnapshot });
   const risk = runRiskContextEnrichment({ portfolioSnapshot });
   const market = runMarketRegimeContextEnrichment({ marketSnapshot });
+
+  // NEW — external knowledge (general finance, concepts, definitions)
+  const external = runExternalKnowledgeContextEnrichment({ query });
 
   return {
     contract: ENRICHMENT_AGGREGATOR_CONTRACT.name,
@@ -64,6 +69,9 @@ export function runEnrichmentAggregator({
           "This section explains the current market environment in simple terms.",
         details: market.regimeContext,
       },
+
+      // APPENDED — does not interfere with existing sections
+      externalKnowledge: external?.context || null,
     },
     language: "SIMPLE_ENGLISH",
     timestamp: Date.now(),

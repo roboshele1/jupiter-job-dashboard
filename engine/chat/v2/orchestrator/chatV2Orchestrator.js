@@ -40,7 +40,7 @@ import { applyChatV2Control } from "../control/chatV2ControlLayer.js";
 
 export const CHAT_V2_ORCHESTRATOR_CONTRACT = {
   name: "CHAT_V2_ORCHESTRATOR",
-  version: "5.0",
+  version: "5.1",
   mode: "READ_ONLY",
   executionAllowed: false,
   adviceAllowed: false,
@@ -61,17 +61,6 @@ export function runChatV2Orchestrator({
   userPreferences = {},
   meta = {},
 } = {}) {
-  /* =======================================================
-     INVARIANT NORMALIZATION (CRITICAL)
-     -------------------------------------------------------
-     Electron IPC may pass null.
-     Downstream layers require array semantics.
-  ======================================================= */
-
-  const safeMemoryContext = Array.isArray(memoryContext)
-    ? memoryContext
-    : [];
-
   // 1. Intelligence
   const intelligenceResult = runChatV2Intelligence({
     query,
@@ -85,10 +74,11 @@ export function runChatV2Orchestrator({
     intent: intelligenceResult.intent,
   });
 
-  // 3. Enrichment
+  // 3. Enrichment (APPENDED: query passthrough)
   const enrichmentResult = runEnrichmentAggregator({
     portfolioSnapshot,
     marketSnapshot,
+    query,
   });
 
   // 4. Synthesis
@@ -102,7 +92,7 @@ export function runChatV2Orchestrator({
   // 5. Personalization (read-only shaping)
   const personalized = applyChatV2Personalization({
     response: synthesized.response,
-    memoryContext: safeMemoryContext,
+    memoryContext,
     confidence: synthesized.confidence,
     userPreferences,
   });
@@ -110,7 +100,7 @@ export function runChatV2Orchestrator({
   // 6. Control Layer (final authority)
   return applyChatV2Control({
     response: personalized.response,
-    memoryContext: safeMemoryContext,
+    memoryContext,
     userPreferences,
     confidence: synthesized.confidence,
     provenance: synthesized.provenance || null,

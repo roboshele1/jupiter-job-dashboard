@@ -1,40 +1,52 @@
 /**
  * CHAT_V2_PERSONALIZATION_PRESETS
- * ==============================
- * Defines deterministic personalization presets
+ * ===============================
+ * Phase 29 — Personalization presets (read-only)
+ *
+ * PURPOSE
+ * -------
+ * - Derive tone + verbosity preferences
+ * - MUST be null-safe and deterministic
+ * - No advice, no mutation, no execution
  */
+
+export const CHAT_V2_PERSONALIZATION_PRESETS_CONTRACT = {
+  name: "CHAT_V2_PERSONALIZATION_PRESETS",
+  version: "1.1",
+  mode: "READ_ONLY",
+  authority: "ENGINE",
+};
+
+/* =========================================================
+   PRESET DERIVATION (NULL-SAFE)
+========================================================= */
 
 export function getPersonalizationPreset({
   memoryContext = [],
   userPreferences = {},
-  confidence = 0,
-}) {
-  const prefersSimple = memoryContext.some(
-    m => m.type === "USER_PREFERENCE" && m.summary.toLowerCase().includes("simple")
+} = {}) {
+  // --- HARD NULL GUARD (CRITICAL) ---
+  const safeMemory = Array.isArray(memoryContext) ? memoryContext : [];
+
+  const prefersSimple = safeMemory.some(
+    (m) => m?.signal === "PREFERS_SIMPLE_LANGUAGE"
   );
 
-  if (userPreferences.tone === "simple" || prefersSimple) {
-    return {
-      name: "SIMPLE",
-      maxBullets: 3,
-      maxSections: 3,
-      explanationDepth: "LOW",
-    };
-  }
-
-  if (confidence < 0.4) {
-    return {
-      name: "LOW_CONFIDENCE",
-      maxBullets: 4,
-      maxSections: 4,
-      explanationDepth: "HIGH",
-    };
-  }
+  const prefersDetail = safeMemory.some(
+    (m) => m?.signal === "PREFERS_DETAILED_EXPLANATION"
+  );
 
   return {
-    name: "DEFAULT",
-    maxBullets: 3,
-    maxSections: 3,
-    explanationDepth: "MEDIUM",
+    contract: CHAT_V2_PERSONALIZATION_PRESETS_CONTRACT.name,
+    status: "READY",
+    preset: {
+      tone: userPreferences.tone || "NEUTRAL",
+      verbosity: prefersDetail
+        ? "DETAILED"
+        : prefersSimple
+        ? "SIMPLE"
+        : "STANDARD",
+      confidenceStyle: "CALM_EXPLANATORY",
+    },
   };
 }
