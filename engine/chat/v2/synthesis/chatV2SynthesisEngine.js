@@ -1,25 +1,26 @@
 /**
  * CHAT_V2_SYNTHESIS_ENGINE
  * =======================
- * Phase 16 — Synthesis layer with enrichment wiring
+ * Phase 19 — Headline & response prioritization (Simple English)
  *
  * PURPOSE
  * -------
- * - Merge Intelligence + Reasoning + Enrichment into ONE UI-ready envelope
- * - Preserve deterministic, read-only guarantees
- * - Present output in SIMPLE ENGLISH
+ * - Decide what the user sees first
+ * - Prioritize clarity and simplicity
+ * - Present answers in plain English for non-finance users
+ * - Keep deterministic ordering and no new reasoning
  *
  * NON-GOALS
  * ---------
  * - No execution
  * - No advice
  * - No mutation
- * - No new reasoning
+ * - No LLM calls
  */
 
 export const CHAT_V2_SYNTHESIS_CONTRACT = {
   name: "CHAT_V2_SYNTHESIS",
-  version: "2.0",
+  version: "2.1",
   mode: "READ_ONLY",
   executionAllowed: false,
   adviceAllowed: false,
@@ -44,6 +45,26 @@ function inferStatus(intelStatus, reasoningStatus) {
   return "INCOMPLETE";
 }
 
+function pickHeadline({ enrichmentResult, intelligenceResult }) {
+  if (enrichmentResult?.context?.portfolioOverview?.title) {
+    return enrichmentResult.context.portfolioOverview.title;
+  }
+  if (intelligenceResult?.intelligence?.summary?.[0]) {
+    return intelligenceResult.intelligence.summary[0];
+  }
+  return "Here’s a simple overview based on your question.";
+}
+
+function buildBullets({ enrichmentResult, intelligenceResult }) {
+  const bullets = [];
+  if (enrichmentResult?.context?.portfolioOverview?.description) {
+    bullets.push(enrichmentResult.context.portfolioOverview.description);
+  }
+  const summaries = safeArray(intelligenceResult?.intelligence?.summary);
+  summaries.forEach(s => bullets.push(s));
+  return bullets.slice(0, 3);
+}
+
 /* =========================================================
    ENGINE ENTRYPOINT
 ========================================================= */
@@ -54,90 +75,29 @@ export function runChatV2Synthesis({
   enrichmentResult = null,
   meta = {},
 } = {}) {
-  const hasIntel = !!intelligenceResult;
-  const hasReasoning = !!reasoningResult;
-
-  if (!hasIntel || !hasReasoning) {
+  if (!intelligenceResult || !reasoningResult) {
     return {
       contract: CHAT_V2_SYNTHESIS_CONTRACT.name,
       status: "INSUFFICIENT_INPUTS",
-      intent:
-        intelligenceResult?.intent ||
-        reasoningResult?.intent ||
-        null,
+      intent: intelligenceResult?.intent || null,
       confidence: 0,
       response: {
-        headline: "Not enough information yet",
-        bullets: [
-          "Some required information is missing.",
-          "Try again once all inputs are available.",
-        ],
-        sections: {
-          summary: safeArray(intelligenceResult?.intelligence?.summary),
-          observations: safeArray(intelligenceResult?.intelligence?.observations),
-          risks: safeArray(intelligenceResult?.intelligence?.risks),
-          reasoning: {
-            assumptions: safeArray(reasoningResult?.reasoning?.assumptions),
-            logicalSteps: safeArray(reasoningResult?.reasoning?.logicalSteps),
-            exclusions: safeArray(reasoningResult?.reasoning?.exclusions),
-            confidenceDrivers: safeArray(reasoningResult?.reasoning?.confidenceDrivers),
-          },
-          context: enrichmentResult?.context || {},
-          constraints: [
-            "Execution is disabled.",
-            "Advice is disabled.",
-          ],
-        },
+        headline: "Not enough information yet.",
+        bullets: ["Missing intelligence or reasoning data."],
+        sections: {},
       },
-      governance: {
-        executionAllowed: false,
-        adviceAllowed: false,
-        mutationAllowed: false,
-      },
-      timestamps: {
-        intelligence: safeNumber(intelligenceResult?.timestamp, null),
-        reasoning: safeNumber(reasoningResult?.timestamp, null),
-        synthesized: Date.now(),
-      },
+      governance: CHAT_V2_SYNTHESIS_CONTRACT,
+      timestamps: { synthesized: Date.now() },
       meta,
     };
   }
 
   const intent = intelligenceResult.intent || reasoningResult.intent || null;
   const confidence = safeNumber(intelligenceResult.confidence, 0);
+  const status = inferStatus(intelligenceResult.status, reasoningResult.status);
 
-  const status = inferStatus(
-    intelligenceResult.status,
-    reasoningResult.status
-  );
-
-  const summary = safeArray(intelligenceResult.intelligence?.summary);
-  const observations = safeArray(intelligenceResult.intelligence?.observations);
-  const risks = safeArray(intelligenceResult.intelligence?.risks);
-
-  const reasoning = {
-    assumptions: safeArray(reasoningResult.reasoning?.assumptions),
-    logicalSteps: safeArray(reasoningResult.reasoning?.logicalSteps),
-    exclusions: safeArray(reasoningResult.reasoning?.exclusions),
-    confidenceDrivers: safeArray(reasoningResult.reasoning?.confidenceDrivers),
-  };
-
-  // SIMPLE ENGLISH headline preference:
-  const headline =
-    enrichmentResult?.context?.portfolioOverview?.title ||
-    summary[0] ||
-    "Here is a simple overview";
-
-  // SIMPLE ENGLISH bullets (no jargon)
-  const bullets = []
-    .concat(
-      enrichmentResult?.context?.portfolioOverview?.description
-        ? [enrichmentResult.context.portfolioOverview.description]
-        : []
-    )
-    .concat(summary.slice(0, 1))
-    .concat(observations.slice(0, 1))
-    .slice(0, 3);
+  const headline = pickHeadline({ enrichmentResult, intelligenceResult });
+  const bullets = buildBullets({ enrichmentResult, intelligenceResult });
 
   return {
     contract: CHAT_V2_SYNTHESIS_CONTRACT.name,
@@ -148,15 +108,14 @@ export function runChatV2Synthesis({
       headline,
       bullets,
       sections: {
-        summary,
-        observations,
-        risks,
-        reasoning,
+        summary: safeArray(intelligenceResult.intelligence?.summary),
+        observations: safeArray(intelligenceResult.intelligence?.observations),
+        risks: safeArray(intelligenceResult.intelligence?.risks),
+        reasoning: reasoningResult.reasoning || {},
         context: enrichmentResult?.context || {},
         constraints: [
-          "Execution is disabled.",
-          "Advice is disabled.",
-          "All output is descriptive only.",
+          "This explanation is general and educational only.",
+          "No advice or actions are provided.",
         ],
       },
     },
