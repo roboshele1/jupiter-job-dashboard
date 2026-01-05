@@ -1,26 +1,25 @@
 /**
  * CHAT_V2_INTELLIGENCE_ENGINE
  * ==========================
- * Phase 10.2 — Intelligence scaffold (contract-first)
+ * Phase 18.2 — Intelligence routing layer
  *
  * PURPOSE
  * -------
- * - Define the authoritative shape of Chat V2 intelligence
- * - Enforce governance boundaries
- * - Accept structured inputs only
- * - Return deterministic, non-executing intelligence output
+ * - Route Chat V2 queries to the correct intelligence engine
+ * - Support portfolio-aware AND general finance questions
+ * - Preserve deterministic, read-only guarantees
+ * - Ensure all outputs use SIMPLE_ENGLISH
  *
- * NON-GOALS (EXPLICIT)
- * -------------------
- * - No LLM calls
+ * NON-GOALS
+ * ---------
  * - No execution
  * - No advice
- * - No portfolio mutation
- * - No IPC wiring
- *
- * This file establishes WHAT Chat V2 intelligence IS,
- * not HOW it is computed.
+ * - No recommendations
+ * - No mutation
+ * - No LLM calls
  */
+
+import { runGeneralMarketIntelligence } from "./intelligence/generalMarketIntelligenceEngine.js";
 
 /* =========================================================
    CONTRACT METADATA
@@ -28,7 +27,7 @@
 
 export const CHAT_V2_INTELLIGENCE_CONTRACT = {
   name: "CHAT_V2_INTELLIGENCE",
-  version: "2.0",
+  version: "3.0",
   mode: "READ_ONLY",
   executionAllowed: false,
   adviceAllowed: false,
@@ -37,42 +36,34 @@ export const CHAT_V2_INTELLIGENCE_CONTRACT = {
 };
 
 /* =========================================================
-   INPUT SHAPE
+   ROUTING HELPERS
 ========================================================= */
-/**
- * Expected input (validated upstream):
- *
- * {
- *   query: string,
- *   intent: string,
- *   portfolioSnapshot: object | null,
- *   context: object | null
- * }
- */
+
+function isPortfolioQuery(intent) {
+  return [
+    "PORTFOLIO_OVERVIEW",
+    "RISK_ASSESSMENT",
+    "HOLDINGS_SUMMARY",
+    "ALLOCATION_OVERVIEW",
+  ].includes(intent);
+}
+
+function isGeneralMarketQuery(query) {
+  if (!query) return false;
+  const q = query.toLowerCase();
+  return (
+    q.includes("stock") ||
+    q.includes("etf") ||
+    q.includes("crypto") ||
+    q.includes("bitcoin") ||
+    q.includes("interest rate") ||
+    q.includes("market") ||
+    q.includes("inflation")
+  );
+}
 
 /* =========================================================
-   OUTPUT SHAPE
-========================================================= */
-/**
- * Returned structure:
- *
- * {
- *   contract: string,
- *   status: string,
- *   intent: string,
- *   confidence: number,
- *   intelligence: {
- *     summary: string[],
- *     observations: string[],
- *     risks: string[],
- *     constraints: string[]
- *   },
- *   timestamp: number
- * }
- */
-
-/* =========================================================
-   ENGINE ENTRYPOINT (NO EXECUTION)
+   ENGINE ENTRYPOINT
 ========================================================= */
 
 export function runChatV2Intelligence({
@@ -81,7 +72,9 @@ export function runChatV2Intelligence({
   portfolioSnapshot = null,
   context = null,
 } = {}) {
-  // Guardrails — structure only
+  // -----------------------------
+  // Guardrails
+  // -----------------------------
   if (!query || !intent) {
     return {
       contract: CHAT_V2_INTELLIGENCE_CONTRACT.name,
@@ -89,41 +82,77 @@ export function runChatV2Intelligence({
       intent: intent || null,
       confidence: 0,
       intelligence: {
-        summary: [],
+        summary: ["No valid question was provided."],
         observations: [],
         risks: [],
         constraints: [
-          "Query and intent are required for intelligence synthesis.",
+          "Query and intent are required.",
+          "No advice or actions are provided.",
         ],
       },
+      language: "SIMPLE_ENGLISH",
       timestamp: Date.now(),
     };
   }
 
-  // Deterministic placeholder intelligence
+  // -----------------------------
+  // Route: Portfolio-aware queries
+  // -----------------------------
+  if (isPortfolioQuery(intent) && portfolioSnapshot) {
+    return {
+      contract: CHAT_V2_INTELLIGENCE_CONTRACT.name,
+      status: "READY",
+      intent,
+      confidence: 0,
+      intelligence: {
+        summary: [
+          "This question relates to your portfolio.",
+        ],
+        observations: [
+          "Your portfolio data was received and reviewed in read-only mode.",
+        ],
+        risks: [
+          "No risk evaluation is performed at this stage.",
+        ],
+        constraints: [
+          "Execution disabled by contract.",
+          "Advice disabled by contract.",
+        ],
+      },
+      language: "SIMPLE_ENGLISH",
+      timestamp: Date.now(),
+    };
+  }
+
+  // -----------------------------
+  // Route: General market queries
+  // -----------------------------
+  if (isGeneralMarketQuery(query)) {
+    return runGeneralMarketIntelligence({ query });
+  }
+
+  // -----------------------------
+  // Fallback: General finance
+  // -----------------------------
   return {
     contract: CHAT_V2_INTELLIGENCE_CONTRACT.name,
     status: "READY",
     intent,
-    confidence: 0.0,
+    confidence: 0,
     intelligence: {
       summary: [
-        "Chat V2 intelligence scaffold active.",
-        "No execution or recommendations performed.",
+        "This is a general finance-related question.",
       ],
       observations: [
-        "Portfolio state acknowledged but not acted upon.",
-        "Context accepted in read-only mode.",
+        "The question is not tied to a specific portfolio.",
       ],
-      risks: [
-        "No risk analysis performed at this stage.",
-      ],
+      risks: [],
       constraints: [
-        "Execution disabled by contract.",
-        "Advice disabled by contract.",
-        "LLM access not enabled.",
+        "This response is educational only.",
+        "No advice or actions are provided.",
       ],
     },
+    language: "SIMPLE_ENGLISH",
     timestamp: Date.now(),
   };
 }
