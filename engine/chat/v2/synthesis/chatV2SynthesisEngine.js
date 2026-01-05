@@ -1,31 +1,25 @@
 /**
  * CHAT_V2_SYNTHESIS_ENGINE
  * =======================
- * Phase 10.4 — Synthesis layer (contract-first, engine-only)
+ * Phase 16 — Synthesis layer with enrichment wiring
  *
  * PURPOSE
  * -------
- * - Merge Chat V2 Intelligence (10.2) + Reasoning (10.3) into ONE UI-ready envelope
- * - Preserve read-only, deterministic, non-executing guarantees
- * - Provide a single “assistant response object” without doing any new analysis
+ * - Merge Intelligence + Reasoning + Enrichment into ONE UI-ready envelope
+ * - Preserve deterministic, read-only guarantees
+ * - Present output in SIMPLE ENGLISH
  *
  * NON-GOALS
  * ---------
- * - No LLM calls
  * - No execution
  * - No advice
- * - No portfolio mutation
- * - No IPC exposure
- * - No additional reasoning (only merge/shape)
+ * - No mutation
+ * - No new reasoning
  */
-
-/* =========================================================
-   CONTRACT
-========================================================= */
 
 export const CHAT_V2_SYNTHESIS_CONTRACT = {
   name: "CHAT_V2_SYNTHESIS",
-  version: "1.0",
+  version: "2.0",
   mode: "READ_ONLY",
   executionAllowed: false,
   adviceAllowed: false,
@@ -34,89 +28,7 @@ export const CHAT_V2_SYNTHESIS_CONTRACT = {
 };
 
 /* =========================================================
-   INPUT SHAPE
-========================================================= */
-/**
- * Expected input:
- * {
- *   intelligenceResult: {
- *     contract: string,
- *     status: string,
- *     intent: string,
- *     confidence: number,
- *     intelligence: {
- *       summary: string[],
- *       observations: string[],
- *       risks: string[],
- *       constraints: string[]
- *     },
- *     timestamp: number
- *   },
- *   reasoningResult: {
- *     contract: string,
- *     status: string,
- *     intent: string,
- *     reasoning: {
- *       assumptions: string[],
- *       logicalSteps: string[],
- *       exclusions: string[],
- *       confidenceDrivers: string[]
- *     },
- *     timestamp: number
- *   },
- *   meta?: {
- *     query?: string,
- *     requestId?: string,
- *     provenance?: object
- *   }
- * }
- */
-
-/* =========================================================
-   OUTPUT SHAPE (UI-READY)
-========================================================= */
-/**
- * Returned structure:
- * {
- *   contract: string,
- *   status: string,
- *   intent: string | null,
- *   confidence: number,
- *   response: {
- *     headline: string,
- *     bullets: string[],
- *     sections: {
- *       summary: string[],
- *       observations: string[],
- *       risks: string[],
- *       reasoning: {
- *         assumptions: string[],
- *         logicalSteps: string[],
- *         exclusions: string[],
- *         confidenceDrivers: string[]
- *       },
- *       constraints: string[]
- *     }
- *   },
- *   governance: {
- *     executionAllowed: false,
- *     adviceAllowed: false,
- *     mutationAllowed: false
- *   },
- *   timestamps: {
- *     intelligence: number | null,
- *     reasoning: number | null,
- *     synthesized: number
- *   },
- *   meta: {
- *     query?: string,
- *     requestId?: string
- *   }
- * }
- */
-
-/* =========================================================
-   HELPERS (NO LOGIC — SHAPE ONLY)
+   HELPERS
 ========================================================= */
 
 function safeArray(v) {
@@ -128,9 +40,6 @@ function safeNumber(v, fallback = 0) {
 }
 
 function inferStatus(intelStatus, reasoningStatus) {
-  // Deterministic merge rule (no analysis):
-  // - READY only if BOTH are READY
-  // - otherwise INCOMPLETE
   if (intelStatus === "READY" && reasoningStatus === "READY") return "READY";
   return "INCOMPLETE";
 }
@@ -142,6 +51,7 @@ function inferStatus(intelStatus, reasoningStatus) {
 export function runChatV2Synthesis({
   intelligenceResult,
   reasoningResult,
+  enrichmentResult = null,
   meta = {},
 } = {}) {
   const hasIntel = !!intelligenceResult;
@@ -151,13 +61,16 @@ export function runChatV2Synthesis({
     return {
       contract: CHAT_V2_SYNTHESIS_CONTRACT.name,
       status: "INSUFFICIENT_INPUTS",
-      intent: (intelligenceResult && intelligenceResult.intent) || (reasoningResult && reasoningResult.intent) || null,
+      intent:
+        intelligenceResult?.intent ||
+        reasoningResult?.intent ||
+        null,
       confidence: 0,
       response: {
-        headline: "Chat V2 synthesis unavailable",
+        headline: "Not enough information yet",
         bullets: [
-          "Missing intelligence and/or reasoning payload.",
-          "Synthesis requires both layers to produce a UI-ready envelope.",
+          "Some required information is missing.",
+          "Try again once all inputs are available.",
         ],
         sections: {
           summary: safeArray(intelligenceResult?.intelligence?.summary),
@@ -169,11 +82,10 @@ export function runChatV2Synthesis({
             exclusions: safeArray(reasoningResult?.reasoning?.exclusions),
             confidenceDrivers: safeArray(reasoningResult?.reasoning?.confidenceDrivers),
           },
+          context: enrichmentResult?.context || {},
           constraints: [
-            ...safeArray(intelligenceResult?.intelligence?.constraints),
-            "Synthesis requires both intelligence + reasoning.",
-            "Execution disabled by contract.",
-            "Advice disabled by contract.",
+            "Execution is disabled.",
+            "Advice is disabled.",
           ],
         },
       },
@@ -187,24 +99,21 @@ export function runChatV2Synthesis({
         reasoning: safeNumber(reasoningResult?.timestamp, null),
         synthesized: Date.now(),
       },
-      meta: {
-        ...(meta?.query ? { query: meta.query } : {}),
-        ...(meta?.requestId ? { requestId: meta.requestId } : {}),
-      },
+      meta,
     };
   }
 
   const intent = intelligenceResult.intent || reasoningResult.intent || null;
   const confidence = safeNumber(intelligenceResult.confidence, 0);
 
-  const intelStatus = intelligenceResult.status || "UNKNOWN";
-  const reasoningStatus = reasoningResult.status || "UNKNOWN";
-  const status = inferStatus(intelStatus, reasoningStatus);
+  const status = inferStatus(
+    intelligenceResult.status,
+    reasoningResult.status
+  );
 
   const summary = safeArray(intelligenceResult.intelligence?.summary);
   const observations = safeArray(intelligenceResult.intelligence?.observations);
   const risks = safeArray(intelligenceResult.intelligence?.risks);
-  const constraints = safeArray(intelligenceResult.intelligence?.constraints);
 
   const reasoning = {
     assumptions: safeArray(reasoningResult.reasoning?.assumptions),
@@ -213,14 +122,22 @@ export function runChatV2Synthesis({
     confidenceDrivers: safeArray(reasoningResult.reasoning?.confidenceDrivers),
   };
 
-  // UI headline is deterministic: use first summary line if present, else static fallback.
-  const headline = summary[0] || "Chat V2 synthesis ready";
+  // SIMPLE ENGLISH headline preference:
+  const headline =
+    enrichmentResult?.context?.portfolioOverview?.title ||
+    summary[0] ||
+    "Here is a simple overview";
 
-  // UI bullets: deterministic, capped, no analysis — just select from existing arrays.
+  // SIMPLE ENGLISH bullets (no jargon)
   const bullets = []
-    .concat(summary.slice(0, 2))
-    .concat(observations.slice(0, 2))
-    .slice(0, 4);
+    .concat(
+      enrichmentResult?.context?.portfolioOverview?.description
+        ? [enrichmentResult.context.portfolioOverview.description]
+        : []
+    )
+    .concat(summary.slice(0, 1))
+    .concat(observations.slice(0, 1))
+    .slice(0, 3);
 
   return {
     contract: CHAT_V2_SYNTHESIS_CONTRACT.name,
@@ -235,11 +152,11 @@ export function runChatV2Synthesis({
         observations,
         risks,
         reasoning,
+        context: enrichmentResult?.context || {},
         constraints: [
-          ...constraints,
-          "Execution disabled by contract.",
-          "Advice disabled by contract.",
-          "Mutation disabled by contract.",
+          "Execution is disabled.",
+          "Advice is disabled.",
+          "All output is descriptive only.",
         ],
       },
     },
@@ -253,9 +170,6 @@ export function runChatV2Synthesis({
       reasoning: safeNumber(reasoningResult.timestamp, null),
       synthesized: Date.now(),
     },
-    meta: {
-      ...(meta?.query ? { query: meta.query } : {}),
-      ...(meta?.requestId ? { requestId: meta.requestId } : {}),
-    },
+    meta,
   };
 }
