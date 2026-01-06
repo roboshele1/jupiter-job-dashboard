@@ -35,7 +35,7 @@ export default function GrowthEngine() {
   const [aggressiveReturn, setAggressiveReturn] = useState(0.18);
 
   // -----------------------------
-  // G6 — Interactive Candidate Controls (APPEND-ONLY)
+  // G6 — Interactive Candidate Controls
   // -----------------------------
   const [candidateSymbol, setCandidateSymbol] = useState("MSTR");
   const [candidateAmount, setCandidateAmount] = useState(20_000);
@@ -82,6 +82,36 @@ export default function GrowthEngine() {
   }, [requiredCAGR, aggressiveReturn, expectedReturn]);
 
   const risk = riskMeta[classification];
+
+  // -----------------------------
+  // G6.2 — Dynamic Math Explanation (APPEND-ONLY)
+  // -----------------------------
+  const mathExplanation = useMemo(() => {
+    return {
+      summary: `To grow from ${startingValue.toLocaleString()} to ${targetValue.toLocaleString()} over ${months} months, the portfolio must compound at ${(requiredCAGR * 100).toFixed(2)}% annually.`,
+      variables: [
+        `Starting value: ${startingValue.toLocaleString()}`,
+        `Target value: ${targetValue.toLocaleString()}`,
+        `Time horizon: ${months} months`,
+        `Expected return assumption: ${(expectedReturn * 100).toFixed(2)}%`,
+        `Aggressive return threshold: ${(aggressiveReturn * 100).toFixed(2)}%`,
+      ],
+      interpretation:
+        classification === "FEASIBLE"
+          ? "The required return falls within long-term market expectations."
+          : classification === "OUT_OF_BOUNDS"
+          ? "The required return exceeds standard expectations and implies elevated risk."
+          : "The required return is historically extreme and would require leverage, concentration, or exceptional conditions.",
+    };
+  }, [
+    startingValue,
+    targetValue,
+    months,
+    expectedReturn,
+    aggressiveReturn,
+    requiredCAGR,
+    classification,
+  ]);
 
   // -----------------------------
   // Sensitivity heatmap
@@ -175,72 +205,43 @@ export default function GrowthEngine() {
         {growthLoading ? "Running…" : "Run Growth Intelligence"}
       </button>
 
-      {/* =============================
-          INPUTS — RESTORED (VERBATIM)
-      ============================== */}
+      {/* INPUTS */}
       <section style={{ marginTop: 32 }}>
         <h3>Inputs</h3>
 
         <label>
           Starting Value
-          <input
-            type="number"
-            value={startingValue}
-            onChange={(e) => setStartingValue(+e.target.value)}
-          />
+          <input type="number" value={startingValue} onChange={(e) => setStartingValue(+e.target.value)} />
         </label>
 
         <label>
           Target Value
-          <input
-            type="number"
-            value={targetValue}
-            onChange={(e) => setTargetValue(+e.target.value)}
-          />
+          <input type="number" value={targetValue} onChange={(e) => setTargetValue(+e.target.value)} />
         </label>
 
         <label>
           Months
-          <input
-            type="number"
-            value={months}
-            onChange={(e) => setMonths(+e.target.value)}
-          />
+          <input type="number" value={months} onChange={(e) => setMonths(+e.target.value)} />
         </label>
 
         <label>
           Expected Return (%)
-          <input
-            type="number"
-            step="0.1"
-            value={(expectedReturn * 100).toFixed(2)}
-            onChange={(e) => setExpectedReturn(+e.target.value / 100)}
-          />
+          <input type="number" step="0.1" value={(expectedReturn * 100).toFixed(2)} onChange={(e) => setExpectedReturn(+e.target.value / 100)} />
         </label>
 
         <label>
           Aggressive Return (%)
-          <input
-            type="number"
-            step="0.1"
-            value={(aggressiveReturn * 100).toFixed(2)}
-            onChange={(e) => setAggressiveReturn(+e.target.value / 100)}
-          />
+          <input type="number" step="0.1" value={(aggressiveReturn * 100).toFixed(2)} onChange={(e) => setAggressiveReturn(+e.target.value / 100)} />
         </label>
       </section>
 
-      {/* =============================
-          G6 — Candidate Injection (INTERACTIVE)
-      ============================== */}
+      {/* G6 — Candidate Injection */}
       <section style={{ marginTop: 40 }}>
         <h3>Candidate Injection (Interactive)</h3>
 
         <label>
           Symbol
-          <select
-            value={candidateSymbol}
-            onChange={(e) => setCandidateSymbol(e.target.value)}
-          >
+          <select value={candidateSymbol} onChange={(e) => setCandidateSymbol(e.target.value)}>
             <option value="MSTR">MSTR</option>
             <option value="NVDA">NVDA</option>
             <option value="ASML">ASML</option>
@@ -250,50 +251,28 @@ export default function GrowthEngine() {
 
         <label>
           Amount
-          <input
-            type="number"
-            value={candidateAmount}
-            onChange={(e) => setCandidateAmount(+e.target.value)}
-          />
+          <input type="number" value={candidateAmount} onChange={(e) => setCandidateAmount(+e.target.value)} />
         </label>
 
         <label>
           Assumed CAGR (%)
-          <input
-            type="number"
-            step="0.1"
-            value={(candidateCagr * 100).toFixed(2)}
-            onChange={(e) => setCandidateCagr(+e.target.value / 100)}
-          />
+          <input type="number" step="0.1" value={(candidateCagr * 100).toFixed(2)} onChange={(e) => setCandidateCagr(+e.target.value / 100)} />
         </label>
       </section>
 
-      {/* =============================
-          WHAT MATTERS MOST
-      ============================== */}
+      {/* WHAT MATTERS MOST */}
       <section style={{ marginTop: 40 }}>
         <h3>What matters most</h3>
         {sensitivity.map((s) => (
           <div key={s.key} style={{ marginBottom: 8 }}>
             <div style={{ fontSize: 12 }}>{s.key}</div>
-            <div
-              style={{
-                height: 10,
-                borderRadius: 6,
-                background: "rgba(255,255,255,0.08)",
-              }}
-            >
+            <div style={{ height: 10, borderRadius: 6, background: "rgba(255,255,255,0.08)" }}>
               <div
                 style={{
                   width: `${Math.round(s.value * 100)}%`,
                   height: "100%",
                   borderRadius: 6,
-                  background:
-                    s.key === "Time"
-                      ? "#3b82f6"
-                      : s.key === "Target"
-                      ? "#f59e0b"
-                      : "#dc2626",
+                  background: s.key === "Time" ? "#3b82f6" : s.key === "Target" ? "#f59e0b" : "#dc2626",
                 }}
               />
             </div>
@@ -301,22 +280,17 @@ export default function GrowthEngine() {
         ))}
       </section>
 
-      {/* =============================
-          GROWTH CURVE — VISUAL ONLY
-      ============================== */}
+      {/* GROWTH CURVE */}
       <section style={{ marginTop: 40 }}>
         <h3>Growth Curve</h3>
         <svg width="100%" height="240">
           {chartData.map((p, i) => {
             if (i === 0) return null;
             const prev = chartData[i - 1];
-
             const x1 = ((i - 1) / months) * 100 + "%";
             const x2 = (i / months) * 100 + "%";
-
             const yReq1 = 220 - (prev.required / maxValue) * 200;
             const yReq2 = 220 - (p.required / maxValue) * 200;
-
             const yExp1 = 220 - (prev.expected / maxValue) * 200;
             const yExp2 = 220 - (p.expected / maxValue) * 200;
 
@@ -330,13 +304,22 @@ export default function GrowthEngine() {
         </svg>
       </section>
 
-      {/* =============================
-          G5 — Candidate Asset Impact (READ-ONLY)
-      ============================== */}
+      {/* G6.2 — Math Explanation */}
+      <section style={{ marginTop: 48 }}>
+        <h3>How this was calculated</h3>
+        <p>{mathExplanation.summary}</p>
+        <ul>
+          {mathExplanation.variables.map((v) => (
+            <li key={v}>{v}</li>
+          ))}
+        </ul>
+        <p><strong>Interpretation:</strong> {mathExplanation.interpretation}</p>
+      </section>
+
+      {/* G5 — Candidate Asset Impact */}
       {growthResult?.growthProfile?.candidateInjection?.outputs && (
         <section style={{ marginTop: 48 }}>
           <h3>Candidate Asset Impact (Read-only)</h3>
-
           <table style={{ width: "100%", maxWidth: 900 }}>
             <thead>
               <tr>
@@ -348,28 +331,17 @@ export default function GrowthEngine() {
               </tr>
             </thead>
             <tbody>
-              {growthResult.growthProfile.candidateInjection.outputs.contributions.map(
-                (r) => (
-                  <tr key={r.symbol}>
-                    <td>{r.symbol}</td>
-                    <td>{r.amount.toLocaleString()}</td>
-                    <td>{(r.assumedCAGR * 100).toFixed(2)}%</td>
-                    <td>{(r.weight * 100).toFixed(2)}%</td>
-                    <td>{(r.contribution * 100).toFixed(2)}%</td>
-                  </tr>
-                )
-              )}
+              {growthResult.growthProfile.candidateInjection.outputs.contributions.map((r) => (
+                <tr key={r.symbol}>
+                  <td>{r.symbol}</td>
+                  <td>{r.amount.toLocaleString()}</td>
+                  <td>{(r.assumedCAGR * 100).toFixed(2)}%</td>
+                  <td>{(r.weight * 100).toFixed(2)}%</td>
+                  <td>{(r.contribution * 100).toFixed(2)}%</td>
+                </tr>
+              ))}
             </tbody>
           </table>
-
-          <div style={{ marginTop: 8 }}>
-            Δ CAGR:{" "}
-            {(
-              growthResult.growthProfile.candidateInjection.outputs.deltaCAGR *
-              100
-            ).toFixed(2)}
-            %
-          </div>
         </section>
       )}
     </div>
