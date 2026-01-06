@@ -202,7 +202,7 @@ export default function GrowthEngine() {
         </button>
       </div>
 
-      {/* Inputs — NO CAPS */}
+      {/* Inputs */}
       <section>
         <h3>Inputs</h3>
 
@@ -290,7 +290,6 @@ export default function GrowthEngine() {
 
       <section style={{ marginTop: 32 }}>
         <h3>Growth Curve</h3>
-
         <svg width="100%" height="240">
           {chartData.map((p, i) => {
             if (i === 0) return null;
@@ -307,54 +306,70 @@ export default function GrowthEngine() {
 
             return (
               <g key={i}>
-                <line
-                  x1={x1}
-                  y1={yReq1}
-                  x2={x2}
-                  y2={yReq2}
-                  stroke="#dc2626"
-                  strokeWidth="2"
-                />
-                <line
-                  x1={x1}
-                  y1={yExp1}
-                  x2={x2}
-                  y2={yExp2}
-                  stroke="#3b82f6"
-                  strokeWidth="2"
-                />
+                <line x1={x1} y1={yReq1} x2={x2} y2={yReq2} stroke="#dc2626" strokeWidth="2" />
+                <line x1={x1} y1={yExp1} x2={x2} y2={yExp2} stroke="#3b82f6" strokeWidth="2" />
               </g>
             );
           })}
         </svg>
-
-        <div style={{ marginTop: 8, fontSize: 12 }}>
-          <span style={{ color: "#dc2626" }}>■ Required</span>
-          &nbsp;&nbsp;
-          <span style={{ color: "#3b82f6" }}>■ Expected</span>
-        </div>
       </section>
 
       {growthResult && (
         <section style={{ marginTop: 40 }}>
           <h3>Growth Intelligence (Read-only)</h3>
-          <div
-            style={{
-              marginTop: 12,
-              padding: 16,
-              borderRadius: 12,
-              background: "rgba(255,255,255,0.03)",
-              maxWidth: 900,
-            }}
-          >
+          <div style={{
+            marginTop: 12,
+            padding: 16,
+            borderRadius: 12,
+            background: "rgba(255,255,255,0.03)",
+            maxWidth: 900,
+          }}>
             <div><strong>Contract:</strong> {growthResult.contract}</div>
             <div><strong>Status:</strong> {growthResult.status}</div>
-            {typeof growthResult.timestamp === "number" && (
-              <div>
-                <strong>Timestamp:</strong>{" "}
-                {new Date(growthResult.timestamp).toLocaleString()}
-              </div>
-            )}
+            <div><strong>Timestamp:</strong> {new Date(growthResult.timestamp).toLocaleString()}</div>
+          </div>
+        </section>
+      )}
+
+      {/* =============================
+          G5 — Candidate Asset Impact
+          READ-ONLY | APPEND-ONLY
+      ============================== */}
+      {growthResult?.growthProfile?.candidateInjection?.outputs && (
+        <section style={{ marginTop: 48 }}>
+          <h3>Candidate Asset Impact (Read-only)</h3>
+
+          <table style={{
+            width: "100%",
+            maxWidth: 900,
+            borderCollapse: "collapse",
+            marginTop: 12,
+            fontSize: 14,
+          }}>
+            <thead>
+              <tr style={{ textAlign: "left", borderBottom: "1px solid rgba(255,255,255,0.15)" }}>
+                <th>Symbol</th>
+                <th>Amount</th>
+                <th>Assumed CAGR</th>
+                <th>Weight</th>
+                <th>Contribution</th>
+              </tr>
+            </thead>
+            <tbody>
+              {growthResult.growthProfile.candidateInjection.outputs.contributions.map((row) => (
+                <tr key={row.symbol} style={{ borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
+                  <td>{row.symbol}</td>
+                  <td>{row.amount.toLocaleString()}</td>
+                  <td>{(row.assumedCAGR * 100).toFixed(2)}%</td>
+                  <td>{(row.weight * 100).toFixed(2)}%</td>
+                  <td>{(row.contribution * 100).toFixed(2)}%</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+
+          <div style={{ marginTop: 12, fontSize: 13, opacity: 0.75 }}>
+            Δ CAGR: {(growthResult.growthProfile.candidateInjection.outputs.deltaCAGR * 100).toFixed(2)}%
           </div>
         </section>
       )}

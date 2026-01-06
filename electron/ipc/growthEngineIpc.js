@@ -3,18 +3,10 @@ import { valuePortfolio } from "../../engine/portfolio/portfolioValuation.js";
 import { runGrowthEngine } from "../../engine/growthEngine.js";
 
 /**
- * GROWTH ENGINE IPC — GOVERNED SURFACE
+ * GROWTH ENGINE IPC — DETERMINISTIC G5
  * -----------------------------------
- * Phase 9.4 — Contract normalization
- *
- * - No UI logic
- * - No mutation
- * - No projections authored here
- * - Engine remains authoritative
- *
- * NOTE:
- * ipcMain is injected by the IPC registry.
- * This avoids ESM/CommonJS interop violations.
+ * Pass-through candidateAllocation + default assetAllocations
+ * Ensures Candidate Injection always runs deterministically.
  */
 
 const HOLDINGS = [
@@ -30,20 +22,27 @@ const HOLDINGS = [
 ];
 
 export function registerGrowthEngineIpc(ipcMain) {
-  ipcMain.handle("growthEngine:run", async () => {
+  ipcMain.handle("growthEngine:run", async (_event, payload = {}) => {
     const valuation = await valuePortfolio(HOLDINGS);
+
+    // Build a deterministic baseline allocation
+    const baseAllocations = [
+      { symbol: "NVDA", amount: 60000, assumedCAGR: 0.25 },
+      { symbol: "ASML", amount: 40000, assumedCAGR: 0.18 },
+    ];
 
     const engineResult = await runGrowthEngine({
       holdings: HOLDINGS,
       startingValue: Math.round(valuation.totals.liveValue),
       authority: "PORTFOLIO_VALUATION_V1",
+      assetAllocations: baseAllocations,
+      candidateAllocation: payload.candidateAllocation || {
+        symbol: "MSTR",
+        amount: 20000,
+        assumedCAGR: 0.30,
+      },
     });
 
-    /**
-     * GOVERNED CONTRACT ENVELOPE
-     * --------------------------
-     * Normalized for renderer consumption
-     */
     return {
       contract: "GROWTH_ENGINE_V1",
       status: "READY",

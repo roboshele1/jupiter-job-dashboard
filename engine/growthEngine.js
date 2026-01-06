@@ -6,13 +6,14 @@
  * Phases:
  * - G2.1 / G2.2 Goal CAGR + Feasibility
  * - G3.1 Asset-weighted CAGR
- * - G4.1 Deterministic What-If
- * - G4.2 Stress Scenarios (math-only)
+ * - G4.2 Stress Scenarios
+ * - G5.2 Candidate Asset Injection
  */
 
 import { runGoalCagrSolver } from "./growth/goalCagrSolver.js";
 import { runAssetWeightedCagrEngine } from "./growth/assetWeightedCagrEngine.js";
 import { runScenarioStressEngine } from "./growth/scenarioStressEngine.js";
+import { runCandidateInjectionEngine } from "./growth/candidate/candidateInjectionEngine.js";
 
 export async function runGrowthEngine({
   startingValue = 0,
@@ -25,6 +26,7 @@ export async function runGrowthEngine({
   aggressiveReturn = 0.18,
   assetAllocations = null,
   stressConfig = null,
+  candidateAllocation = null,
 } = {}) {
   /* ----------------------------------
      G2 — Goal-Based CAGR
@@ -61,14 +63,16 @@ export async function runGrowthEngine({
       : null;
 
   /* ----------------------------------
-     Legacy projection (unchanged)
+     G5.2 — Candidate Injection
   ---------------------------------- */
-  const impliedCAGR = 0.12;
-
-  const projections = Array.from({ length: 5 }).map((_, i) => ({
-    year: i + 1,
-    value: Math.round(startingValue * Math.pow(1 + impliedCAGR, i + 1)),
-  }));
+  const candidateInjection =
+    assetCagrAnalysis?.outputs &&
+    candidateAllocation
+      ? runCandidateInjectionEngine({
+          baseAllocations: assetAllocations,
+          candidateAllocation,
+        })
+      : null;
 
   return {
     growthProfile: {
@@ -80,18 +84,16 @@ export async function runGrowthEngine({
       goalAnalysis,
       assetWeightedCAGR: assetCagrAnalysis,
       stressScenarios: stressAnalysis,
-
-      impliedCAGR,
-      projections,
+      candidateInjection,
 
       sensitivityNotes: [
-        "Stress scenarios apply deterministic math shocks.",
-        "No randomness or execution paths exist.",
-        "Portfolio remains the sole authority for capital inputs.",
+        "All growth math is deterministic.",
+        "Candidate injection is comparison-only.",
+        "Portfolio remains the sole authority.",
       ],
 
       narrative:
-        "Growth Engine outputs are deterministic, stress-aware, and portfolio-governed.",
+        "Growth Engine outputs are deterministic, stress-aware, and discovery-compatible.",
     },
   };
 }
