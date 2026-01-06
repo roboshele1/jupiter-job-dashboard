@@ -3,11 +3,11 @@ import { valuePortfolio } from "../../engine/portfolio/portfolioValuation.js";
 import { runGrowthEngine } from "../../engine/growthEngine.js";
 
 /**
- * GROWTH ENGINE IPC — G7.2 SOURCE LABELING
- * ---------------------------------------
+ * GROWTH ENGINE IPC — G7.3 DETERMINISTIC REPRODUCIBILITY
+ * ----------------------------------------------------
  * - Read-only enforcement (G7.1)
  * - Explicit source labeling (G7.2)
- * - Deterministic, projection-only execution
+ * - Deterministic timestamp derivation (G7.3)
  */
 
 /* =============================
@@ -59,6 +59,18 @@ function validatePayload(payload) {
 }
 
 /* =============================
+   DETERMINISTIC TIMESTAMP
+============================= */
+function deriveDeterministicTimestamp(valuation) {
+  if (valuation?.meta?.asOf) {
+    return valuation.meta.asOf;
+  }
+
+  // Fallback: fixed engine epoch (never changes)
+  return 1700000000000; // ENGINE_EPOCH_V1
+}
+
+/* =============================
    IPC REGISTRATION
 ============================= */
 export function registerGrowthEngineIpc(ipcMain) {
@@ -88,7 +100,7 @@ export function registerGrowthEngineIpc(ipcMain) {
       contract: "GROWTH_ENGINE_V1",
       status: "READY",
       authority: "PORTFOLIO_VALUATION_V1",
-      timestamp: Date.now(),
+      timestamp: deriveDeterministicTimestamp(valuation),
 
       sources: Object.freeze({
         holdings: "PORTFOLIO_DERIVED",
@@ -98,6 +110,7 @@ export function registerGrowthEngineIpc(ipcMain) {
           ? "USER_ASSUMPTION"
           : "ENGINE_DEFAULT",
         growthProfile: "ENGINE_COMPUTED",
+        timestamp: "DETERMINISTIC_DERIVED",
       }),
 
       growthProfile: engineResult.growthProfile,
