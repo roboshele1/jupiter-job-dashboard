@@ -26,10 +26,10 @@ const riskMeta = {
 
 export default function GrowthEngine() {
   // -----------------------------
-  // Inputs (local, renderer-only)
+  // Inputs (renderer-only, UNCONSTRAINED)
   // -----------------------------
-  const [startingValue, setStartingValue] = useState(85000);
-  const [targetValue, setTargetValue] = useState(250000);
+  const [startingValue, setStartingValue] = useState(85_000);
+  const [targetValue, setTargetValue] = useState(250_000);
   const [months, setMonths] = useState(60);
   const [expectedReturn, setExpectedReturn] = useState(0.10);
   const [aggressiveReturn, setAggressiveReturn] = useState(0.18);
@@ -58,6 +58,7 @@ export default function GrowthEngine() {
   // Core math (local intuition)
   // -----------------------------
   const requiredCAGR = useMemo(() => {
+    if (startingValue <= 0 || targetValue <= 0 || months <= 0) return 0;
     return Math.pow(targetValue / startingValue, 12 / months) - 1;
   }, [startingValue, targetValue, months]);
 
@@ -70,16 +71,23 @@ export default function GrowthEngine() {
   const risk = riskMeta[classification];
 
   // -----------------------------
-  // Feasibility guidance
+  // Feasibility math (informational only)
   // -----------------------------
   const feasibility = useMemo(() => {
+    if (startingValue <= 0 || targetValue <= 0) {
+      return {
+        feasibleMonths: null,
+        feasibleTarget: null,
+        feasibleReturn: null,
+      };
+    }
+
     const feasibleMonths =
       (12 * Math.log(targetValue / startingValue)) /
       Math.log(1 + expectedReturn);
 
     const feasibleTarget =
-      startingValue *
-      Math.pow(1 + expectedReturn, months / 12);
+      startingValue * Math.pow(1 + expectedReturn, months / 12);
 
     const feasibleReturn =
       Math.pow(targetValue / startingValue, 12 / months) - 1;
@@ -90,22 +98,6 @@ export default function GrowthEngine() {
       feasibleReturn,
     };
   }, [startingValue, targetValue, months, expectedReturn]);
-
-  function makeFeasible() {
-    if (classification === "FEASIBLE") return;
-
-    if (feasibility.feasibleMonths > months) {
-      setMonths(Math.min(240, feasibility.feasibleMonths));
-      return;
-    }
-
-    if (feasibility.feasibleTarget < targetValue) {
-      setTargetValue(Math.max(10000, feasibility.feasibleTarget));
-      return;
-    }
-
-    setExpectedReturn(Math.min(0.40, feasibility.feasibleReturn));
-  }
 
   // -----------------------------
   // Sensitivity heatmap
@@ -176,7 +168,6 @@ export default function GrowthEngine() {
         Renderer-only growth analysis. No IPC math. Governed engine via IPC.
       </p>
 
-      {/* Risk badge */}
       <div
         title={risk.tooltip}
         style={{
@@ -193,7 +184,6 @@ export default function GrowthEngine() {
         {risk.label}
       </div>
 
-      {/* Run Growth Intelligence */}
       <div style={{ marginBottom: 24 }}>
         <button
           onClick={runGrowthEngineIpc}
@@ -212,72 +202,62 @@ export default function GrowthEngine() {
         </button>
       </div>
 
-      {/* Inputs */}
+      {/* Inputs — NO CAPS */}
       <section>
         <h3>Inputs</h3>
 
         <label>
-          Starting Value: ${startingValue.toLocaleString()}
+          Starting Value
           <input
-            type="range"
-            min="10000"
-            max="200000"
-            step="5000"
+            type="number"
             value={startingValue}
             onChange={(e) => setStartingValue(+e.target.value)}
           />
         </label>
 
         <label>
-          Target Value: ${targetValue.toLocaleString()}
+          Target Value
           <input
-            type="range"
-            min="50000"
-            max="500000"
-            step="10000"
+            type="number"
             value={targetValue}
             onChange={(e) => setTargetValue(+e.target.value)}
           />
         </label>
 
         <label>
-          Months: {months}
+          Months
           <input
-            type="range"
-            min="12"
-            max="240"
-            step="6"
+            type="number"
             value={months}
             onChange={(e) => setMonths(+e.target.value)}
           />
         </label>
 
         <label>
-          Expected Return: {(expectedReturn * 100).toFixed(1)}%
+          Expected Return (%)
           <input
-            type="range"
-            min="0.04"
-            max="0.40"
-            step="0.005"
-            value={expectedReturn}
-            onChange={(e) => setExpectedReturn(+e.target.value)}
+            type="number"
+            step="0.1"
+            value={(expectedReturn * 100).toFixed(2)}
+            onChange={(e) =>
+              setExpectedReturn(+e.target.value / 100)
+            }
           />
         </label>
 
         <label>
-          Aggressive Return: {(aggressiveReturn * 100).toFixed(1)}%
+          Aggressive Return (%)
           <input
-            type="range"
-            min="0.10"
-            max="0.30"
-            step="0.01"
-            value={aggressiveReturn}
-            onChange={(e) => setAggressiveReturn(+e.target.value)}
+            type="number"
+            step="0.1"
+            value={(aggressiveReturn * 100).toFixed(2)}
+            onChange={(e) =>
+              setAggressiveReturn(+e.target.value / 100)
+            }
           />
         </label>
       </section>
 
-      {/* Sensitivity */}
       <section style={{ marginTop: 32 }}>
         <h3>What matters most</h3>
         {sensitivity.map((s) => (
@@ -308,7 +288,6 @@ export default function GrowthEngine() {
         ))}
       </section>
 
-      {/* Growth Curve */}
       <section style={{ marginTop: 32 }}>
         <h3>Growth Curve</h3>
 
@@ -356,11 +335,9 @@ export default function GrowthEngine() {
         </div>
       </section>
 
-      {/* READ-ONLY GROWTH IPC OUTPUT */}
       {growthResult && (
         <section style={{ marginTop: 40 }}>
           <h3>Growth Intelligence (Read-only)</h3>
-
           <div
             style={{
               marginTop: 12,
