@@ -1,89 +1,78 @@
 /**
- * DISCOVERY LAB — D1.4 COMPOSITE CONVICTION
- * ----------------------------------------
+ * DISCOVERY LAB — COMPOSITE CONVICTION ENGINE (D1.4 + D4.2)
+ * -------------------------------------------------------
  * Purpose:
- * Combine Fundamental, Tactical, and Risk context into a single
- * deterministic conviction score used downstream for BUY / HOLD / SELL logic.
+ * - Combine fundamental, tactical, and risk signals
+ * - Produce a normalized conviction score (0–1)
+ * - Attach deterministic factor attribution (D4.1)
  *
- * Design rules:
- * - Read-only
- * - Deterministic (same inputs → same output)
- * - No portfolio awareness
- * - No execution or advice
- * - Fully explainable
+ * Rules:
+ * - No randomness
+ * - No portfolio mutation
+ * - Attribution explains outcome, does NOT influence math
  */
+
+const { normalizeAttribution } = require(
+  "../attribution/attributionSchema.js"
+);
 
 function clamp(v, min = 0, max = 1) {
   return Math.max(min, Math.min(max, v));
 }
 
-/**
- * computeCompositeConviction
- *
- * Inputs:
- * - fundamentalScore: number (0–10)
- * - tacticalScore: number (0–1)
- * - riskPenalty: number (0–1)  // higher = more risk
- *
- * Output:
- * {
- *   score: number (0–10),
- *   normalized: number (0–1),
- *   attribution: { fundamental, tactical, risk },
- *   summary: string
- * }
- */
-function computeCompositeConviction({
-  fundamentalScore,
-  tacticalScore,
-  riskPenalty = 0,
-}) {
-  if (typeof fundamentalScore !== "number") {
-    throw new Error("INVALID_INPUT: fundamentalScore must be numeric");
+function computeCompositeConviction(input) {
+  const {
+    fundamentalScore, // 0–10
+    tacticalScore,    // 0–1
+    riskPenalty,      // 0–1 (higher = worse)
+  } = input;
+
+  if (
+    typeof fundamentalScore !== "number" ||
+    typeof tacticalScore !== "number" ||
+    typeof riskPenalty !== "number"
+  ) {
+    throw new Error("INVALID_INPUT: composite conviction inputs");
   }
 
-  const f = clamp(fundamentalScore / 10); // normalize to 0–1
+  // Normalize fundamentals to 0–1
+  const f = clamp(fundamentalScore / 10);
   const t = clamp(tacticalScore);
-  const r = clamp(riskPenalty);
+  const r = clamp(1 - riskPenalty);
 
-  // Locked weights (institutional bias toward fundamentals)
+  // Canonical weights (LOCKED)
   const WEIGHTS = Object.freeze({
-    fundamental: 0.6,
-    tactical: 0.25,
+    growth: 0.40,
+    quality: 0.20,
+    momentum: 0.25,
     risk: 0.15,
   });
 
   const raw =
-    f * WEIGHTS.fundamental +
-    t * WEIGHTS.tactical -
+    f * (WEIGHTS.growth + WEIGHTS.quality) +
+    t * WEIGHTS.momentum +
     r * WEIGHTS.risk;
 
   const normalized = clamp(raw);
-  const score = Math.round(normalized * 10 * 100) / 100;
 
-  const attribution = Object.freeze({
-    fundamental: Math.round(WEIGHTS.fundamental * 100),
-    tactical: Math.round(WEIGHTS.tactical * 100),
-    risk: Math.round(WEIGHTS.risk * 100),
+  // Attribution math (D4.1)
+  const attribution = normalizeAttribution({
+    growth: f * WEIGHTS.growth,
+    quality: f * WEIGHTS.quality,
+    momentum: t * WEIGHTS.momentum,
+    risk: r * WEIGHTS.risk,
   });
 
-  let summary;
-  if (score >= 8) {
-    summary =
-      "Overall conviction is high, driven primarily by strong underlying business quality and supportive market conditions.";
-  } else if (score >= 5) {
-    summary =
-      "Overall conviction is moderate, with strengths present but balanced by mixed market conditions or risks.";
-  } else {
-    summary =
-      "Overall conviction is weak, with risks or lack of strength outweighing positives at this time.";
-  }
-
   return Object.freeze({
-    score,
-    normalized,
+    score: Math.round(normalized * 10),
+    normalized: Math.round(normalized * 100) / 100,
     attribution,
-    summary,
+    summary:
+      normalized >= 0.8
+        ? "Overall conviction is high, driven primarily by business strength and supportive conditions."
+        : normalized >= 0.6
+        ? "Overall conviction is mixed, with positives balanced by risks or uncertainty."
+        : "Overall conviction is weak due to limited strengths or elevated risk.",
   });
 }
 
