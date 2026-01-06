@@ -3,11 +3,10 @@ import { valuePortfolio } from "../../engine/portfolio/portfolioValuation.js";
 import { runGrowthEngine } from "../../engine/growthEngine.js";
 
 /**
- * GROWTH ENGINE IPC — G7.1 READ-ONLY ENFORCEMENT
- * ---------------------------------------------
- * - Explicit input allow-list
- * - Runtime schema validation
- * - Hard rejection of mutation attempts
+ * GROWTH ENGINE IPC — G7.2 SOURCE LABELING
+ * ---------------------------------------
+ * - Read-only enforcement (G7.1)
+ * - Explicit source labeling (G7.2)
  * - Deterministic, projection-only execution
  */
 
@@ -33,9 +32,7 @@ function validatePayload(payload) {
   if (!payload || typeof payload !== "object") return {};
 
   const allowedKeys = ["candidateAllocation"];
-  const payloadKeys = Object.keys(payload);
-
-  for (const key of payloadKeys) {
+  for (const key of Object.keys(payload)) {
     if (!allowedKeys.includes(key)) {
       throw new Error(`READ_ONLY_VIOLATION: Disallowed payload key "${key}"`);
     }
@@ -70,7 +67,6 @@ export function registerGrowthEngineIpc(ipcMain) {
 
     const valuation = await valuePortfolio(HOLDINGS);
 
-    // Deterministic baseline (engine-owned, not renderer-controlled)
     const baseAllocations = Object.freeze([
       { symbol: "NVDA", amount: 60000, assumedCAGR: 0.25 },
       { symbol: "ASML", amount: 40000, assumedCAGR: 0.18 },
@@ -93,6 +89,17 @@ export function registerGrowthEngineIpc(ipcMain) {
       status: "READY",
       authority: "PORTFOLIO_VALUATION_V1",
       timestamp: Date.now(),
+
+      sources: Object.freeze({
+        holdings: "PORTFOLIO_DERIVED",
+        startingValue: "PORTFOLIO_DERIVED",
+        baseAllocations: "ENGINE_ASSUMPTION",
+        candidateAllocation: safePayload.candidateAllocation
+          ? "USER_ASSUMPTION"
+          : "ENGINE_DEFAULT",
+        growthProfile: "ENGINE_COMPUTED",
+      }),
+
       growthProfile: engineResult.growthProfile,
     });
   });
