@@ -35,6 +35,13 @@ export default function GrowthEngine() {
   const [aggressiveReturn, setAggressiveReturn] = useState(0.18);
 
   // -----------------------------
+  // G6 — Interactive Candidate Controls (APPEND-ONLY)
+  // -----------------------------
+  const [candidateSymbol, setCandidateSymbol] = useState("MSTR");
+  const [candidateAmount, setCandidateAmount] = useState(20_000);
+  const [candidateCagr, setCandidateCagr] = useState(0.30);
+
+  // -----------------------------
   // Growth Engine IPC (read-only)
   // -----------------------------
   const [growthResult, setGrowthResult] = useState(null);
@@ -45,7 +52,13 @@ export default function GrowthEngine() {
     setGrowthResult(null);
 
     try {
-      const result = await window.api.invoke("growthEngine:run");
+      const result = await window.api.invoke("growthEngine:run", {
+        candidateAllocation: {
+          symbol: candidateSymbol,
+          amount: candidateAmount,
+          assumedCAGR: candidateCagr,
+        },
+      });
       setGrowthResult(result);
     } catch (err) {
       console.error("Growth Engine IPC error:", err);
@@ -69,35 +82,6 @@ export default function GrowthEngine() {
   }, [requiredCAGR, aggressiveReturn, expectedReturn]);
 
   const risk = riskMeta[classification];
-
-  // -----------------------------
-  // Feasibility math (informational only)
-  // -----------------------------
-  const feasibility = useMemo(() => {
-    if (startingValue <= 0 || targetValue <= 0) {
-      return {
-        feasibleMonths: null,
-        feasibleTarget: null,
-        feasibleReturn: null,
-      };
-    }
-
-    const feasibleMonths =
-      (12 * Math.log(targetValue / startingValue)) /
-      Math.log(1 + expectedReturn);
-
-    const feasibleTarget =
-      startingValue * Math.pow(1 + expectedReturn, months / 12);
-
-    const feasibleReturn =
-      Math.pow(targetValue / startingValue, 12 / months) - 1;
-
-    return {
-      feasibleMonths: Math.ceil(feasibleMonths),
-      feasibleTarget: Math.round(feasibleTarget),
-      feasibleReturn,
-    };
-  }, [startingValue, targetValue, months, expectedReturn]);
 
   // -----------------------------
   // Sensitivity heatmap
@@ -125,21 +109,14 @@ export default function GrowthEngine() {
       { key: "Target", value: deltaTarget / max },
       { key: "Return", value: deltaReturn / max },
     ];
-  }, [
-    requiredCAGR,
-    months,
-    targetValue,
-    startingValue,
-    expectedReturn,
-  ]);
+  }, [requiredCAGR, months, targetValue, startingValue, expectedReturn]);
 
   // -----------------------------
-  // Chart data
+  // Chart data (UNCHANGED MATH)
   // -----------------------------
   const chartData = useMemo(() => {
     const points = [];
-    const monthlyRequired =
-      Math.pow(1 + requiredCAGR, 1 / 12) - 1;
+    const monthlyRequired = Math.pow(1 + requiredCAGR, 1 / 12) - 1;
     const monthlyExpected = expectedReturn / 12;
 
     let required = startingValue;
@@ -164,9 +141,7 @@ export default function GrowthEngine() {
   return (
     <div style={{ padding: 24 }}>
       <h1>Growth Engine</h1>
-      <p>
-        Renderer-only growth analysis. No IPC math. Governed engine via IPC.
-      </p>
+      <p>Renderer-only growth analysis. No IPC math. Governed engine via IPC.</p>
 
       <div
         title={risk.tooltip}
@@ -184,26 +159,26 @@ export default function GrowthEngine() {
         {risk.label}
       </div>
 
-      <div style={{ marginBottom: 24 }}>
-        <button
-          onClick={runGrowthEngineIpc}
-          disabled={growthLoading}
-          style={{
-            padding: "10px 16px",
-            borderRadius: 10,
-            border: "none",
-            background: "#2563eb",
-            color: "white",
-            fontWeight: 600,
-            cursor: "pointer",
-          }}
-        >
-          {growthLoading ? "Running…" : "Run Growth Intelligence"}
-        </button>
-      </div>
+      <button
+        onClick={runGrowthEngineIpc}
+        disabled={growthLoading}
+        style={{
+          padding: "10px 16px",
+          borderRadius: 10,
+          border: "none",
+          background: "#2563eb",
+          color: "white",
+          fontWeight: 600,
+          cursor: "pointer",
+        }}
+      >
+        {growthLoading ? "Running…" : "Run Growth Intelligence"}
+      </button>
 
-      {/* Inputs */}
-      <section>
+      {/* =============================
+          INPUTS — RESTORED (VERBATIM)
+      ============================== */}
+      <section style={{ marginTop: 32 }}>
         <h3>Inputs</h3>
 
         <label>
@@ -239,9 +214,7 @@ export default function GrowthEngine() {
             type="number"
             step="0.1"
             value={(expectedReturn * 100).toFixed(2)}
-            onChange={(e) =>
-              setExpectedReturn(+e.target.value / 100)
-            }
+            onChange={(e) => setExpectedReturn(+e.target.value / 100)}
           />
         </label>
 
@@ -251,14 +224,54 @@ export default function GrowthEngine() {
             type="number"
             step="0.1"
             value={(aggressiveReturn * 100).toFixed(2)}
-            onChange={(e) =>
-              setAggressiveReturn(+e.target.value / 100)
-            }
+            onChange={(e) => setAggressiveReturn(+e.target.value / 100)}
           />
         </label>
       </section>
 
-      <section style={{ marginTop: 32 }}>
+      {/* =============================
+          G6 — Candidate Injection (INTERACTIVE)
+      ============================== */}
+      <section style={{ marginTop: 40 }}>
+        <h3>Candidate Injection (Interactive)</h3>
+
+        <label>
+          Symbol
+          <select
+            value={candidateSymbol}
+            onChange={(e) => setCandidateSymbol(e.target.value)}
+          >
+            <option value="MSTR">MSTR</option>
+            <option value="NVDA">NVDA</option>
+            <option value="ASML">ASML</option>
+            <option value="AVGO">AVGO</option>
+          </select>
+        </label>
+
+        <label>
+          Amount
+          <input
+            type="number"
+            value={candidateAmount}
+            onChange={(e) => setCandidateAmount(+e.target.value)}
+          />
+        </label>
+
+        <label>
+          Assumed CAGR (%)
+          <input
+            type="number"
+            step="0.1"
+            value={(candidateCagr * 100).toFixed(2)}
+            onChange={(e) => setCandidateCagr(+e.target.value / 100)}
+          />
+        </label>
+      </section>
+
+      {/* =============================
+          WHAT MATTERS MOST
+      ============================== */}
+      <section style={{ marginTop: 40 }}>
         <h3>What matters most</h3>
         {sensitivity.map((s) => (
           <div key={s.key} style={{ marginBottom: 8 }}>
@@ -288,7 +301,10 @@ export default function GrowthEngine() {
         ))}
       </section>
 
-      <section style={{ marginTop: 32 }}>
+      {/* =============================
+          GROWTH CURVE — VISUAL ONLY
+      ============================== */}
+      <section style={{ marginTop: 40 }}>
         <h3>Growth Curve</h3>
         <svg width="100%" height="240">
           {chartData.map((p, i) => {
@@ -314,40 +330,16 @@ export default function GrowthEngine() {
         </svg>
       </section>
 
-      {growthResult && (
-        <section style={{ marginTop: 40 }}>
-          <h3>Growth Intelligence (Read-only)</h3>
-          <div style={{
-            marginTop: 12,
-            padding: 16,
-            borderRadius: 12,
-            background: "rgba(255,255,255,0.03)",
-            maxWidth: 900,
-          }}>
-            <div><strong>Contract:</strong> {growthResult.contract}</div>
-            <div><strong>Status:</strong> {growthResult.status}</div>
-            <div><strong>Timestamp:</strong> {new Date(growthResult.timestamp).toLocaleString()}</div>
-          </div>
-        </section>
-      )}
-
       {/* =============================
-          G5 — Candidate Asset Impact
-          READ-ONLY | APPEND-ONLY
+          G5 — Candidate Asset Impact (READ-ONLY)
       ============================== */}
       {growthResult?.growthProfile?.candidateInjection?.outputs && (
         <section style={{ marginTop: 48 }}>
           <h3>Candidate Asset Impact (Read-only)</h3>
 
-          <table style={{
-            width: "100%",
-            maxWidth: 900,
-            borderCollapse: "collapse",
-            marginTop: 12,
-            fontSize: 14,
-          }}>
+          <table style={{ width: "100%", maxWidth: 900 }}>
             <thead>
-              <tr style={{ textAlign: "left", borderBottom: "1px solid rgba(255,255,255,0.15)" }}>
+              <tr>
                 <th>Symbol</th>
                 <th>Amount</th>
                 <th>Assumed CAGR</th>
@@ -356,20 +348,27 @@ export default function GrowthEngine() {
               </tr>
             </thead>
             <tbody>
-              {growthResult.growthProfile.candidateInjection.outputs.contributions.map((row) => (
-                <tr key={row.symbol} style={{ borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
-                  <td>{row.symbol}</td>
-                  <td>{row.amount.toLocaleString()}</td>
-                  <td>{(row.assumedCAGR * 100).toFixed(2)}%</td>
-                  <td>{(row.weight * 100).toFixed(2)}%</td>
-                  <td>{(row.contribution * 100).toFixed(2)}%</td>
-                </tr>
-              ))}
+              {growthResult.growthProfile.candidateInjection.outputs.contributions.map(
+                (r) => (
+                  <tr key={r.symbol}>
+                    <td>{r.symbol}</td>
+                    <td>{r.amount.toLocaleString()}</td>
+                    <td>{(r.assumedCAGR * 100).toFixed(2)}%</td>
+                    <td>{(r.weight * 100).toFixed(2)}%</td>
+                    <td>{(r.contribution * 100).toFixed(2)}%</td>
+                  </tr>
+                )
+              )}
             </tbody>
           </table>
 
-          <div style={{ marginTop: 12, fontSize: 13, opacity: 0.75 }}>
-            Δ CAGR: {(growthResult.growthProfile.candidateInjection.outputs.deltaCAGR * 100).toFixed(2)}%
+          <div style={{ marginTop: 8 }}>
+            Δ CAGR:{" "}
+            {(
+              growthResult.growthProfile.candidateInjection.outputs.deltaCAGR *
+              100
+            ).toFixed(2)}
+            %
           </div>
         </section>
       )}
