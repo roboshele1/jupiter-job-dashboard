@@ -24,6 +24,7 @@ const deltaStyle = (value) => ({
 
 export default function DiscoveryLab() {
   const [rows, setRows] = useState([]);
+  const [themes, setThemes] = useState([]);
   const [expanded, setExpanded] = useState({});
   const [loading, setLoading] = useState(true);
 
@@ -33,8 +34,14 @@ export default function DiscoveryLab() {
     async function loadDiscovery() {
       try {
         const result = await window.jupiter.invoke("discovery:run");
-        if (mounted && Array.isArray(result?.canonical)) {
+        if (!mounted) return;
+
+        if (Array.isArray(result?.canonical)) {
           setRows(result.canonical);
+        }
+
+        if (Array.isArray(result?.emergingThemes?.themes)) {
+          setThemes(result.emergingThemes.themes);
         }
       } catch (err) {
         console.error("Discovery load failed:", err);
@@ -60,7 +67,59 @@ export default function DiscoveryLab() {
         Read-only market discovery surface (Phase D10).
       </p>
 
-      <h3 style={{ marginTop: "2rem" }}>Ranked Market Discovery</h3>
+      {/* ============================
+          EMERGING THEMES (D10.6)
+      ============================ */}
+      <h3 style={{ marginTop: "2.5rem" }}>Emerging Themes</h3>
+
+      {themes.length === 0 ? (
+        <p style={{ opacity: 0.6, marginTop: "0.5rem" }}>
+          No emerging structural themes detected.
+        </p>
+      ) : (
+        <div style={{ marginTop: "1rem" }}>
+          {themes.map((t) => (
+            <div
+              key={t.themeId}
+              style={{
+                background: "#0f172a",
+                padding: "1rem",
+                borderRadius: "8px",
+                marginBottom: "0.75rem",
+              }}
+            >
+              <strong>{t.label}</strong>
+
+              <p style={{ marginTop: "0.4rem", opacity: 0.85 }}>
+                {t.explanation}
+              </p>
+
+              <div style={{ marginTop: "0.5rem", fontSize: "0.85rem" }}>
+                <div>
+                  <strong>Drivers:</strong> {t.drivers.join(", ")}
+                </div>
+                <div>
+                  <strong>Regime:</strong> {t.regimes.join(", ")}
+                </div>
+                <div>
+                  <strong>Symbols:</strong> {t.symbols.join(", ")}
+                </div>
+                <div>
+                  <strong>Confidence:</strong>{" "}
+                  <span style={badgeStyle(t.confidence)}>
+                    {t.confidence}
+                  </span>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* ============================
+          RANKED MARKET DISCOVERY
+      ============================ */}
+      <h3 style={{ marginTop: "3rem" }}>Ranked Market Discovery</h3>
 
       <table width="100%" cellPadding="10">
         <thead>
@@ -79,8 +138,6 @@ export default function DiscoveryLab() {
             const isOpen = expanded[r.rank];
             const explanation = r.explanation || {};
             const factors = explanation.factorAttribution || {};
-            const deltas = r.regimeDeltaSummary;
-            const validation = explanation.historicalValidation;
 
             const convictionLevel =
               r.conviction?.level ||
@@ -119,7 +176,6 @@ export default function DiscoveryLab() {
                   <tr>
                     <td colSpan={6} style={{ background: "#0f172a" }}>
                       <div style={{ padding: "1.25rem" }}>
-                        {/* CONFIDENCE */}
                         {explanation.convictionContext && (
                           <>
                             <strong>Confidence</strong>
@@ -129,7 +185,6 @@ export default function DiscoveryLab() {
                           </>
                         )}
 
-                        {/* BUSINESS FUNDAMENTALS */}
                         {explanation.fundamentalContext && (
                           <>
                             <div style={{ marginTop: "1.25rem" }}>
@@ -145,7 +200,6 @@ export default function DiscoveryLab() {
                           </>
                         )}
 
-                        {/* MARKET BEHAVIOR */}
                         {explanation.tacticalContext && (
                           <>
                             <div style={{ marginTop: "1.25rem" }}>
@@ -161,7 +215,6 @@ export default function DiscoveryLab() {
                           </>
                         )}
 
-                        {/* REGIME CONTEXT */}
                         {explanation.regimeContext && (
                           <>
                             <div style={{ marginTop: "1.25rem" }}>
@@ -177,7 +230,6 @@ export default function DiscoveryLab() {
                           </>
                         )}
 
-                        {/* FACTOR ATTRIBUTION */}
                         {Object.keys(factors).length > 0 && (
                           <>
                             <div style={{ marginTop: "1.25rem" }}>
@@ -207,83 +259,6 @@ export default function DiscoveryLab() {
                                 ))}
                               </tbody>
                             </table>
-                          </>
-                        )}
-
-                        {/* REGIME SENSITIVITY */}
-                        {deltas && (
-                          <>
-                            <div style={{ marginTop: "1.25rem" }}>
-                              <strong>Regime Sensitivity</strong>
-                            </div>
-
-                            <table
-                              style={{ marginTop: "0.5rem" }}
-                              width="100%"
-                              cellPadding="6"
-                            >
-                              <thead>
-                                <tr style={{ opacity: 0.7 }}>
-                                  <th align="left">Alternate Regime</th>
-                                  <th align="right">Conviction Δ</th>
-                                  <th align="left">Explanation</th>
-                                </tr>
-                              </thead>
-                              <tbody>
-                                {deltas.deltas.map((d) => (
-                                  <tr key={d.regime}>
-                                    <td>{d.regime}</td>
-                                    <td
-                                      align="right"
-                                      style={deltaStyle(d.convictionDelta)}
-                                    >
-                                      {d.convictionDelta > 0 ? "+" : ""}
-                                      {d.convictionDelta.toFixed(2)}
-                                    </td>
-                                    <td style={{ opacity: 0.85 }}>
-                                      {d.explanation}
-                                    </td>
-                                  </tr>
-                                ))}
-                              </tbody>
-                            </table>
-                          </>
-                        )}
-
-                        {/* HISTORICAL VALIDATION */}
-                        {validation && (
-                          <>
-                            <div style={{ marginTop: "1.25rem" }}>
-                              <strong>Historical Validation</strong>
-                            </div>
-                            <p
-                              style={{
-                                marginTop: "0.4rem",
-                                fontSize: "0.85rem",
-                                opacity: 0.8,
-                              }}
-                            >
-                              {validation.summary}
-                            </p>
-                          </>
-                        )}
-
-                        {/* SYNTHESIS */}
-                        {explanation.plainEnglishSummary && (
-                          <>
-                            <div style={{ marginTop: "1.5rem" }}>
-                              <strong>Overall Assessment</strong>
-                            </div>
-                            <p
-                              style={{
-                                marginTop: "0.5rem",
-                                fontSize: "0.9rem",
-                                opacity: 0.85,
-                                lineHeight: "1.4rem",
-                              }}
-                            >
-                              {explanation.plainEnglishSummary}
-                            </p>
                           </>
                         )}
                       </div>
