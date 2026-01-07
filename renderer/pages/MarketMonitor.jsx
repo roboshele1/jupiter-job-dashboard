@@ -19,7 +19,6 @@ export default function MarketMonitor() {
 
         // SINGLE SOURCE OF TRUTH — same as Portfolio tab
         const data = await window.jupiter.getPortfolioValuation();
-
         if (!alive) return;
 
         setSnapshot(data);
@@ -41,14 +40,22 @@ export default function MarketMonitor() {
   }, []);
 
   return (
-    <div>
+    <div style={{ padding: 24 }}>
       <h1>Market Monitor</h1>
 
-      <div>
+      <div style={{ opacity: 0.85, marginBottom: 12 }}>
         Snapshot as of: {snapshotAt ? snapshotAt.toLocaleString() : "—"}<br />
         Auto-refresh: every 10 seconds<br />
         Poll ticks: {tickCount}
       </div>
+
+      {snapshot?.priceSnapshotMeta && (
+        <div style={{ marginBottom: 12, fontSize: 13, opacity: 0.8 }}>
+          Price Source: <b>{snapshot.priceSnapshotMeta.source}</b><br />
+          Price Fetched At:{" "}
+          {new Date(snapshot.priceSnapshotMeta.fetchedAt).toLocaleString()}
+        </div>
+      )}
 
       {error && <div style={{ color: "red" }}>{error}</div>}
       {!snapshot && !error && <div>Loading portfolio snapshot…</div>}

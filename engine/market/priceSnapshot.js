@@ -1,50 +1,38 @@
 /**
- * D8.2 — Canonical Price Snapshot
- * --------------------------------
- * Purpose:
- * Provide a single, authoritative, read-only market price snapshot
- * for Jupiter engines (Portfolio, Discovery, Risk, Market Monitor).
+ * PRICE_SNAPSHOT_V1
+ * -----------------
+ * Deterministic, read-only market price snapshot.
+ * Uses Polygon previous-close pricing unless live tier allows otherwise.
  *
  * Guarantees:
+ * - Engine-only
  * - Deterministic per invocation
- * - Read-only
- * - No UI access
- * - No scoring, no inference
- * - Delegates raw fetching to liveMarketDataAdapter
- *
- * This file DOES NOT:
- * - Decide live vs delayed pricing
- * - Infer signals
- * - Cache across runs
+ * - Explicit source + timestamp
  */
 
-const { getLiveQuotes } = require("./liveMarketDataAdapter.js");
+import { getLiveQuotes } from "./liveMarketDataAdapter.js";
 
-async function getPriceSnapshot(symbols = []) {
+export async function getPriceSnapshot(symbols = []) {
   if (!Array.isArray(symbols) || symbols.length === 0) {
     throw new Error("PRICE_SNAPSHOT: symbols array required");
   }
 
-  const snapshot = await getLiveQuotes(symbols);
+  const live = await getLiveQuotes(symbols);
 
-  const normalized = {};
-  snapshot.quotes.forEach(q => {
-    normalized[q.symbol] = Object.freeze({
+  const prices = {};
+  for (const q of live.quotes) {
+    prices[q.symbol] = {
       price: q.price,
-      source: snapshot.source,
-      fetchedAt: snapshot.fetchedAt,
-    });
-  });
+      source: q.source,
+      fetchedAt: q.fetchedAt,
+    };
+  }
 
   return Object.freeze({
     contract: "PRICE_SNAPSHOT_V1",
-    source: snapshot.source,
-    fetchedAt: snapshot.fetchedAt,
-    prices: Object.freeze(normalized),
+    source: live.source,
+    fetchedAt: live.fetchedAt,
+    prices: Object.freeze(prices),
   });
 }
-
-module.exports = Object.freeze({
-  getPriceSnapshot,
-});
 

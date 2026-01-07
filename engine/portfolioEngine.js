@@ -1,27 +1,34 @@
-// portfolioEngine.js
-// V1 institutional portfolio engine (read-only)
+// engine/portfolioEngine.js
+// D8.1 — Canonical Portfolio Engine (Live Price Spine)
+// ----------------------------------------------------
+// Source of truth for portfolio valuation.
+// Delegates pricing to valuePortfolio (Polygon / Coinbase).
+// Read-only. Deterministic per invocation.
 
-export function buildPortfolioSnapshot(holdings = []) {
+import { valuePortfolio } from "./portfolio/portfolioValuation.js";
+
+// NOTE:
+// Holdings are currently defined upstream (IPC layer).
+// This engine only values — it does not mutate or source holdings.
+
+export async function getPortfolioSnapshot(holdings = []) {
   if (!Array.isArray(holdings)) holdings = [];
 
-  const enriched = holdings.map(h => ({
-    ...h,
-    quantity: Number(h.quantity) || 0,
-    price: Number(h.price) || 0,
-    value: (Number(h.quantity) || 0) * (Number(h.price) || 0)
-  }));
-
-  const totalValue = enriched.reduce((sum, h) => sum + h.value, 0);
-
-  const topHoldings = [...enriched]
-    .sort((a, b) => b.value - a.value)
-    .slice(0, 5);
+  const valuation = await valuePortfolio(holdings);
 
   return {
-    holdings: enriched,
-    totalValue,
-    topHoldings,
-    timestamp: new Date().toISOString()
+    contract: valuation.contract,
+    currency: valuation.currency,
+    timestamp: Date.now(),
+
+    totalValue: valuation.totals.liveValue,
+    totalCost: valuation.totals.snapshotValue,
+    delta: valuation.totals.delta,
+    deltaPct: valuation.totals.deltaPct,
+
+    positions: valuation.positions,
+
+    priceSnapshotMeta: valuation.priceSnapshotMeta || null,
   };
 }
 

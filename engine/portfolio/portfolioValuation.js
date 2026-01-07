@@ -1,13 +1,31 @@
-import { getLivePrices } from "../market/getLivePrices.js";
+// engine/portfolio/portfolioValuation.js
+// D8.5 — Unified Price Resolver wiring (AUTHORITATIVE)
+// Portfolio valuation MUST route through Unified Price Resolver only
+
+import { resolvePrices } from "../market/priceResolver.js";
 
 export async function valuePortfolio(holdings = []) {
-  const symbols = holdings.map(h => h.symbol);
-  const livePrices = await getLivePrices(symbols);
+  if (!Array.isArray(holdings)) holdings = [];
+
+  // Normalize positions for resolver
+  const resolverInput = holdings.map(h => ({
+    symbol: h.symbol,
+    type: h.assetClass === "crypto" ? "crypto" : "equity"
+  }));
+
+  // 🔒 AUTHORITATIVE PRICE SOURCE
+  const resolved = await resolvePrices(resolverInput);
 
   const positions = holdings.map(h => {
-    const livePrice = livePrices[h.symbol]?.price ?? 0;
-    const snapshotValue = h.totalCostBasis;
-    const liveValue = h.qty * livePrice;
+    const r = resolved.prices?.[h.symbol] ?? {
+      price: 0,
+      source: "unknown",
+      currency: h.currency ?? "CAD"
+    };
+
+    const livePrice = Number(r.price) || 0;
+    const snapshotValue = Number(h.totalCostBasis) || 0;
+    const liveValue = (Number(h.qty) || 0) * livePrice;
     const delta = liveValue - snapshotValue;
     const deltaPct = snapshotValue > 0 ? (delta / snapshotValue) * 100 : 0;
 
@@ -20,8 +38,8 @@ export async function valuePortfolio(holdings = []) {
       liveValue,
       delta,
       deltaPct,
-      currency: h.currency,
-      priceSource: livePrices[h.symbol]?.source ?? "unknown",
+      currency: r.currency,
+      priceSource: r.source,
       timestamp: Date.now()
     };
   });
@@ -45,7 +63,12 @@ export async function valuePortfolio(holdings = []) {
     contract: "PORTFOLIO_VALUATION_DETERMINISTIC_V1",
     currency: "CAD",
     totals,
-    positions
+    positions,
+    priceSnapshotMeta: {
+      contract: resolved.contract,
+      source: resolved.source,
+      fetchedAt: resolved.fetchedAt
+    }
   };
 }
 

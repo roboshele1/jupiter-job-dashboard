@@ -1,30 +1,25 @@
 /**
- * D8.0.2 — Entitlement-Aware Live Market Data Adapter
- * --------------------------------------------------
- * Purpose:
- * Single authoritative market pricing ingress with tier-aware fallback.
- *
- * Behavior:
- * - Attempts LAST_TRADE (if entitled)
- * - Falls back to PREVIOUS_CLOSE when unavailable
+ * LIVE_MARKET_DATA_ADAPTER_V1
+ * ---------------------------
+ * Authoritative live / near-live market price ingress.
  *
  * Guarantees:
  * - Read-only
  * - Deterministic snapshot per invocation
- * - Explicit priceType labeling
  * - Engine-only (no renderer access)
+ * - Explicit source + timestamp
  */
 
-const https = require("https");
+import https from "https";
 
 const SOURCE = "polygon";
 
 function fetchJSON(url) {
   return new Promise((resolve, reject) => {
     https
-      .get(url, res => {
+      .get(url, (res) => {
         let data = "";
-        res.on("data", chunk => (data += chunk));
+        res.on("data", (chunk) => (data += chunk));
         res.on("end", () => {
           try {
             resolve(JSON.parse(data));
@@ -37,19 +32,7 @@ function fetchJSON(url) {
   });
 }
 
-async function fetchLastTrade(symbol, apiKey) {
-  const url = `https://api.polygon.io/v2/last/trade/${symbol}?apiKey=${apiKey}`;
-  const data = await fetchJSON(url);
-  return data?.results?.p ?? null;
-}
-
-async function fetchPrevClose(symbol, apiKey) {
-  const url = `https://api.polygon.io/v2/aggs/ticker/${symbol}/prev?apiKey=${apiKey}`;
-  const data = await fetchJSON(url);
-  return data?.results?.[0]?.c ?? null;
-}
-
-async function getLiveQuotes(symbols = []) {
+export async function getLiveQuotes(symbols = []) {
   if (!Array.isArray(symbols) || symbols.length === 0) {
     throw new Error("LIVE_DATA: symbols array required");
   }
@@ -63,28 +46,16 @@ async function getLiveQuotes(symbols = []) {
   const results = [];
 
   for (const symbol of symbols) {
-    let price = null;
-    let priceType = "UNKNOWN";
+    const url = `https://api.polygon.io/v2/aggs/ticker/${symbol}/prev?adjusted=true&apiKey=${apiKey}`;
+    const data = await fetchJSON(url);
 
-    // Attempt last trade (may be null on lower tiers)
-    const lastTradePrice = await fetchLastTrade(symbol, apiKey);
-
-    if (Number.isFinite(lastTradePrice)) {
-      price = lastTradePrice;
-      priceType = "LAST_TRADE";
-    } else {
-      const prevClosePrice = await fetchPrevClose(symbol, apiKey);
-      if (Number.isFinite(prevClosePrice)) {
-        price = prevClosePrice;
-        priceType = "PREV_CLOSE";
-      }
-    }
+    const price = data?.results?.[0]?.c ?? null;
 
     results.push(
       Object.freeze({
         symbol,
         price,
-        priceType,
+        priceType: "PREV_CLOSE",
         source: SOURCE,
         fetchedAt: timestamp,
       })
@@ -97,8 +68,4 @@ async function getLiveQuotes(symbols = []) {
     quotes: Object.freeze(results),
   });
 }
-
-module.exports = Object.freeze({
-  getLiveQuotes,
-});
 
