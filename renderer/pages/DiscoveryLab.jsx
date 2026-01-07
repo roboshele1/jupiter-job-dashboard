@@ -57,7 +57,7 @@ export default function DiscoveryLab() {
     <div style={{ padding: "2rem", maxWidth: 1400 }}>
       <h1>Discovery Lab</h1>
       <p style={{ opacity: 0.8 }}>
-        Read-only market discovery surface (institutional baseline).
+        Read-only market discovery surface (Phase D10).
       </p>
 
       <h3 style={{ marginTop: "2rem" }}>Ranked Market Discovery</h3>
@@ -118,25 +118,25 @@ export default function DiscoveryLab() {
                 {isOpen && (
                   <tr>
                     <td colSpan={6} style={{ background: "#0f172a" }}>
-                      <div style={{ padding: "1rem" }}>
+                      <div style={{ padding: "1.25rem" }}>
                         {/* CONFIDENCE */}
                         {explanation.convictionContext && (
                           <>
                             <strong>Confidence</strong>
-                            <p style={{ marginTop: "0.4rem", opacity: 0.85 }}>
+                            <p style={{ opacity: 0.85, marginTop: "0.4rem" }}>
                               {explanation.convictionContext.summary}
                             </p>
                           </>
                         )}
 
-                        {/* FUNDAMENTALS */}
+                        {/* BUSINESS FUNDAMENTALS */}
                         {explanation.fundamentalContext && (
                           <>
                             <div style={{ marginTop: "1.25rem" }}>
                               <strong>Business Fundamentals</strong>
                             </div>
                             <ul style={{ marginTop: "0.5rem", opacity: 0.85 }}>
-                              {explanation.fundamentalContext.details.map(
+                              {explanation.fundamentalContext.details?.map(
                                 (d, i) => (
                                   <li key={i}>{d}</li>
                                 )
@@ -151,11 +151,8 @@ export default function DiscoveryLab() {
                             <div style={{ marginTop: "1.25rem" }}>
                               <strong>Market Behavior</strong>
                             </div>
-                            <p style={{ marginTop: "0.4rem", opacity: 0.85 }}>
-                              {explanation.tacticalContext.summary}
-                            </p>
                             <ul style={{ marginTop: "0.5rem", opacity: 0.85 }}>
-                              {explanation.tacticalContext.details.map(
+                              {explanation.tacticalContext.details?.map(
                                 (d, i) => (
                                   <li key={i}>{d}</li>
                                 )
@@ -170,11 +167,8 @@ export default function DiscoveryLab() {
                             <div style={{ marginTop: "1.25rem" }}>
                               <strong>Regime Context</strong>
                             </div>
-                            <p style={{ marginTop: "0.4rem", opacity: 0.85 }}>
-                              {explanation.regimeContext.summary}
-                            </p>
                             <ul style={{ marginTop: "0.5rem", opacity: 0.85 }}>
-                              {explanation.regimeContext.details.map(
+                              {explanation.regimeContext.details?.map(
                                 (d, i) => (
                                   <li key={i}>{d}</li>
                                 )
@@ -184,33 +178,37 @@ export default function DiscoveryLab() {
                         )}
 
                         {/* FACTOR ATTRIBUTION */}
-                        <div style={{ marginTop: "1.25rem" }}>
-                          <strong>Factor Attribution</strong>
-                        </div>
+                        {Object.keys(factors).length > 0 && (
+                          <>
+                            <div style={{ marginTop: "1.25rem" }}>
+                              <strong>Factor Attribution</strong>
+                            </div>
 
-                        <table
-                          style={{ marginTop: "0.75rem" }}
-                          width="100%"
-                          cellPadding="6"
-                        >
-                          <thead>
-                            <tr style={{ opacity: 0.7 }}>
-                              <th align="left">Factor</th>
-                              <th align="right">Contribution</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {Object.entries(factors).map(([k, v]) => (
-                              <tr key={k}>
-                                <td>{k}</td>
-                                <td align="right" style={deltaStyle(v)}>
-                                  {v > 0 ? "+" : ""}
-                                  {v.toFixed(2)}
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
+                            <table
+                              style={{ marginTop: "0.75rem" }}
+                              width="100%"
+                              cellPadding="6"
+                            >
+                              <thead>
+                                <tr style={{ opacity: 0.7 }}>
+                                  <th align="left">Factor</th>
+                                  <th align="right">Contribution</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {Object.entries(factors).map(([k, v]) => (
+                                  <tr key={k}>
+                                    <td>{k}</td>
+                                    <td align="right" style={deltaStyle(v)}>
+                                      {v > 0 ? "+" : ""}
+                                      {v.toFixed(2)}
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </>
+                        )}
 
                         {/* REGIME SENSITIVITY */}
                         {deltas && (
@@ -218,6 +216,7 @@ export default function DiscoveryLab() {
                             <div style={{ marginTop: "1.25rem" }}>
                               <strong>Regime Sensitivity</strong>
                             </div>
+
                             <table
                               style={{ marginTop: "0.5rem" }}
                               width="100%"
@@ -265,6 +264,25 @@ export default function DiscoveryLab() {
                               }}
                             >
                               {validation.summary}
+                            </p>
+                          </>
+                        )}
+
+                        {/* SYNTHESIS */}
+                        {explanation.plainEnglishSummary && (
+                          <>
+                            <div style={{ marginTop: "1.5rem" }}>
+                              <strong>Overall Assessment</strong>
+                            </div>
+                            <p
+                              style={{
+                                marginTop: "0.5rem",
+                                fontSize: "0.9rem",
+                                opacity: 0.85,
+                                lineHeight: "1.4rem",
+                              }}
+                            >
+                              {explanation.plainEnglishSummary}
                             </p>
                           </>
                         )}

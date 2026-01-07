@@ -1,25 +1,14 @@
 /**
- * D6.1 → D10.3e — Unified Discovery Explanation Contract
+ * D6.1 → D10.3f — Unified Discovery Explanation Contract
  * -----------------------------------------------------
  * Single authoritative explanation surface.
  * Read-only. Deterministic. Institutional-grade.
  */
 
-const {
-  explainTacticalContext,
-} = require("./tacticalExplanation.js");
-
-const {
-  explainFundamentalContext,
-} = require("./fundamentalExplanation.js");
-
-const {
-  explainConvictionContext,
-} = require("./convictionExplanation.js");
-
-const {
-  explainRegimeContext,
-} = require("./regimeExplanation.js");
+const { explainTacticalContext } = require("./tacticalExplanation.js");
+const { explainFundamentalContext } = require("./fundamentalExplanation.js");
+const { explainConvictionContext } = require("./convictionExplanation.js");
+const { explainRegimeContext } = require("./regimeExplanation.js");
 
 function explainDiscoveryResult(input) {
   if (!input || typeof input !== "object") {
@@ -43,61 +32,42 @@ function explainDiscoveryResult(input) {
     );
   }
 
+  const plainEnglishSummary = buildPlainEnglishSummary({
+    decision,
+    conviction,
+    regime,
+    fundamentals,
+    tactical,
+  });
+
   const explanation = {
     symbol,
-
     decision,
 
-    /* ============================
-       CONVICTION / CONFIDENCE
-    ============================ */
     convictionContext: explainConvictionContext({
       convictionScore: conviction.score,
       normalized: conviction.normalized,
     }),
 
-    /* ============================
-       BUSINESS FUNDAMENTALS
-    ============================ */
     fundamentalContext: explainFundamentalContext(fundamentals || {}),
 
-    /* ============================
-       MARKET BEHAVIOR (TACTICAL)
-    ============================ */
     tacticalContext: explainTacticalContext(
       tactical || {},
       tactical || {}
     ),
 
-    /* ============================
-       REGIME CONTEXT (NEW)
-    ============================ */
     regimeContext: explainRegimeContext(regime || {}),
 
-    /* ============================
-       FACTOR ATTRIBUTION
-    ============================ */
     factorAttribution: attribution || {},
 
-    /* ============================
-       HISTORICAL VALIDATION
-    ============================ */
     historicalValidation: validation || {
       available: false,
       summary:
         "This asset does not yet have enough historical Discovery observations.",
     },
 
-    /* ============================
-       PLAIN ENGLISH SUMMARY
-    ============================ */
-    plainEnglishSummary: buildPlainEnglishSummary({
-      decision,
-      conviction,
-      regime,
-      fundamentals,
-      tactical,
-    }),
+    // ✅ SYNTHESIS (AUTHORITATIVE)
+    plainEnglishSummary,
 
     disclaimer:
       "This explanation describes how the Discovery classification was formed. It is not advice and does not trigger actions.",
