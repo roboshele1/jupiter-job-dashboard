@@ -29,7 +29,7 @@ export default function Portfolio() {
     <div>
       <h1>Portfolio</h1>
 
-      <div>
+      <div style={{ marginBottom: 12 }}>
         Currency: {snapshot.currency}<br />
         As-Of: {new Date(snapshot._asOf).toLocaleString()}<br />
         Total Snapshot: ${snapshot.totals.snapshotValue.toFixed(2)}<br />
@@ -48,6 +48,7 @@ export default function Portfolio() {
             <th>Δ</th>
             <th>Δ%</th>
             <th>Source</th>
+            <th>Freshness</th>
           </tr>
         </thead>
         <tbody>
@@ -61,6 +62,11 @@ export default function Portfolio() {
               <td>${p.delta.toFixed(2)}</td>
               <td>{p.deltaPct.toFixed(2)}%</td>
               <td>{p.priceSource}</td>
+              <td>
+                {p.priceFreshness
+                  ? `${p.priceFreshness.level} (${p.priceFreshness.confidence})`
+                  : "—"}
+              </td>
             </tr>
           ))}
         </tbody>

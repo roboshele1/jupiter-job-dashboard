@@ -1,26 +1,28 @@
 // engine/portfolio/portfolioValuation.js
-// D8.5 — Unified Price Resolver wiring (AUTHORITATIVE)
-// Portfolio valuation MUST route through Unified Price Resolver only
+// D9.3 — Portfolio valuation with freshness (AUTHORITATIVE)
 
 import { resolvePrices } from "../market/priceResolver.js";
+import { applyPriceFreshness } from "../market/priceFreshnessEngine.js";
 
 export async function valuePortfolio(holdings = []) {
   if (!Array.isArray(holdings)) holdings = [];
 
-  // Normalize positions for resolver
   const resolverInput = holdings.map(h => ({
     symbol: h.symbol,
     type: h.assetClass === "crypto" ? "crypto" : "equity"
   }));
 
-  // 🔒 AUTHORITATIVE PRICE SOURCE
   const resolved = await resolvePrices(resolverInput);
 
+  // 🔒 Apply freshness ONCE at engine boundary
+  const enrichedSnapshot = applyPriceFreshness(resolved);
+
   const positions = holdings.map(h => {
-    const r = resolved.prices?.[h.symbol] ?? {
+    const r = enrichedSnapshot.prices?.[h.symbol] ?? {
       price: 0,
       source: "unknown",
-      currency: h.currency ?? "CAD"
+      currency: h.currency ?? "CAD",
+      freshness: null
     };
 
     const livePrice = Number(r.price) || 0;
@@ -38,9 +40,9 @@ export async function valuePortfolio(holdings = []) {
       liveValue,
       delta,
       deltaPct,
-      currency: r.currency,
+      currency: r.currency ?? "CAD",
       priceSource: r.source,
-      timestamp: Date.now()
+      priceFreshness: r.freshness
     };
   });
 
@@ -60,14 +62,15 @@ export async function valuePortfolio(holdings = []) {
       : 0;
 
   return {
-    contract: "PORTFOLIO_VALUATION_DETERMINISTIC_V1",
+    contract: "PORTFOLIO_VALUATION_DETERMINISTIC_V2",
     currency: "CAD",
+    fetchedAt: enrichedSnapshot.fetchedAt,
     totals,
     positions,
     priceSnapshotMeta: {
-      contract: resolved.contract,
-      source: resolved.source,
-      fetchedAt: resolved.fetchedAt
+      contract: enrichedSnapshot.contract,
+      source: enrichedSnapshot.source,
+      fetchedAt: enrichedSnapshot.fetchedAt
     }
   };
 }
