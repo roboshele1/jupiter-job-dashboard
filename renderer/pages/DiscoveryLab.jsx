@@ -1,124 +1,253 @@
-// renderer/pages/DiscoveryLab.jsx
-
 import React, { useEffect, useState } from "react";
 
-const convictionBadge = (value) => {
-  if (!Number.isFinite(value)) return { label: "—", color: "#555" };
-  if (value >= 0.7) return { label: "High", color: "#2ecc71" };
-  if (value >= 0.4) return { label: "Medium", color: "#f1c40f" };
-  return { label: "Low", color: "#e67e22" };
+const badgeStyle = (level) => {
+  const map = {
+    High: "#2ecc71",
+    Medium: "#f1c40f",
+    Low: "#e67e22",
+  };
+  return {
+    display: "inline-block",
+    padding: "0.25rem 0.6rem",
+    borderRadius: "6px",
+    fontSize: "0.8rem",
+    background: map[level] || "#777",
+    color: "#000",
+    fontWeight: 600,
+  };
 };
+
+const deltaStyle = (value) => ({
+  color: value > 0 ? "#2ecc71" : value < 0 ? "#e74c3c" : "#aaa",
+  fontWeight: 600,
+});
 
 export default function DiscoveryLab() {
   const [rows, setRows] = useState([]);
+  const [expanded, setExpanded] = useState({});
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
 
   useEffect(() => {
     let mounted = true;
 
-    async function load() {
+    async function loadDiscovery() {
       try {
         const result = await window.jupiter.invoke("discovery:run");
-
-        if (!result || !Array.isArray(result.canonical)) {
-          throw new Error("Invalid discovery payload");
-        }
-
-        if (mounted) {
+        if (mounted && Array.isArray(result?.canonical)) {
           setRows(result.canonical);
         }
-      } catch (e) {
-        if (mounted) setError(e.message);
+      } catch (err) {
+        console.error("Discovery load failed:", err);
       } finally {
         if (mounted) setLoading(false);
       }
     }
 
-    load();
+    loadDiscovery();
     return () => {
       mounted = false;
     };
   }, []);
 
+  if (loading) {
+    return <div style={{ padding: "2rem" }}>Loading discovery intelligence…</div>;
+  }
+
   return (
-    <div style={{ padding: "2rem", maxWidth: 1200 }}>
+    <div style={{ padding: "2rem", maxWidth: 1400 }}>
       <h1>Discovery Lab</h1>
       <p style={{ opacity: 0.8 }}>
         Read-only market discovery surface (Phase 2C).
       </p>
 
-      <section style={{ marginTop: "2rem" }}>
-        <h2>Status</h2>
-        <ul>
-          <li>Mode: Read-only</li>
-          <li>Phase: 2C (UI + Ranked Static Discovery)</li>
-          <li>Engines: None</li>
-          <li>Data Source: Mock / Static</li>
-        </ul>
-      </section>
+      <h3 style={{ marginTop: "2rem" }}>Ranked Market Discovery</h3>
 
-      <section style={{ marginTop: "3rem" }}>
-        <h2>Ranked Market Discovery</h2>
+      <table width="100%" cellPadding="10">
+        <thead>
+          <tr>
+            <th align="left">Rank</th>
+            <th align="left">Symbol</th>
+            <th align="left">Decision</th>
+            <th align="left">Regime</th>
+            <th align="left">Why It Surfaced</th>
+            <th align="right">Confidence</th>
+          </tr>
+        </thead>
 
-        {loading && <p style={{ opacity: 0.6 }}>Loading discovery…</p>}
+        <tbody>
+          {rows.map((r) => {
+            const isOpen = expanded[r.rank];
+            const explanation = r.explanation || {};
+            const factors = explanation.factorAttribution || {};
+            const deltas = r.regimeDeltaSummary;
+            const validation = explanation.historicalValidation;
 
-        {error && (
-          <p style={{ color: "#f87171" }}>Discovery error: {error}</p>
-        )}
+            const convictionLevel =
+              r.conviction?.level ||
+              (r.conviction?.normalized >= 0.7
+                ? "High"
+                : r.conviction?.normalized >= 0.4
+                ? "Medium"
+                : "Low");
 
-        {!loading && !error && (
-          <table
-            style={{
-              width: "100%",
-              marginTop: "1rem",
-              borderCollapse: "collapse",
-            }}
-          >
-            <thead>
-              <tr style={{ textAlign: "left", borderBottom: "1px solid #333" }}>
-                <th>Rank</th>
-                <th>Symbol</th>
-                <th>Decision</th>
-                <th>Regime</th>
-                <th>Conviction</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((r) => {
-                const badge = convictionBadge(r.conviction?.normalized);
+            return (
+              <React.Fragment key={r.rank}>
+                <tr
+                  style={{ cursor: "pointer" }}
+                  onClick={() =>
+                    setExpanded((prev) => ({
+                      ...prev,
+                      [r.rank]: !prev[r.rank],
+                    }))
+                  }
+                >
+                  <td>#{r.rank}</td>
+                  <td>{r.symbol.symbol}</td>
+                  <td>{r.decision.decision}</td>
+                  <td>{r.regime.label}</td>
+                  <td style={{ opacity: 0.85 }}>
+                    {explanation.plainEnglishSummary}
+                  </td>
+                  <td align="right">
+                    <span style={badgeStyle(convictionLevel)}>
+                      {convictionLevel}
+                    </span>
+                  </td>
+                </tr>
 
-                return (
-                  <tr key={r.rank} style={{ borderBottom: "1px solid #222" }}>
-                    <td>#{r.rank}</td>
-                    <td>{r.symbol.symbol}</td>
-                    <td>{r.decision.decision}</td>
-                    <td>{r.regime.label}</td>
-                    <td>
-                      <span
-                        style={{
-                          padding: "0.2rem 0.6rem",
-                          borderRadius: 6,
-                          fontSize: "0.8rem",
-                          fontWeight: 600,
-                          background: badge.color,
-                          color: "#000",
-                        }}
-                      >
-                        {badge.label}
-                      </span>
+                {isOpen && (
+                  <tr>
+                    <td colSpan={6} style={{ background: "#0f172a" }}>
+                      <div style={{ padding: "1rem" }}>
+                        {/* FACTOR ATTRIBUTION */}
+                        <strong>Factor Attribution</strong>
+
+                        <table
+                          style={{ marginTop: "0.75rem" }}
+                          width="100%"
+                          cellPadding="6"
+                        >
+                          <thead>
+                            <tr style={{ opacity: 0.7 }}>
+                              <th align="left">Factor</th>
+                              <th align="right">Contribution</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {Object.entries(factors).map(([k, v]) => (
+                              <tr key={k}>
+                                <td>{k}</td>
+                                <td align="right" style={deltaStyle(v)}>
+                                  {v > 0 ? "+" : ""}
+                                  {v.toFixed(2)}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+
+                        {/* REGIME SENSITIVITY */}
+                        {deltas && (
+                          <>
+                            <div style={{ marginTop: "1.25rem" }}>
+                              <strong>Regime Sensitivity</strong>
+                            </div>
+
+                            <table
+                              style={{ marginTop: "0.5rem" }}
+                              width="100%"
+                              cellPadding="6"
+                            >
+                              <thead>
+                                <tr style={{ opacity: 0.7 }}>
+                                  <th align="left">Alternate Regime</th>
+                                  <th align="right">Conviction Δ</th>
+                                  <th align="left">Explanation</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {deltas.deltas.map((d) => (
+                                  <tr key={d.regime}>
+                                    <td>{d.regime}</td>
+                                    <td
+                                      align="right"
+                                      style={deltaStyle(d.convictionDelta)}
+                                    >
+                                      {d.convictionDelta > 0 ? "+" : ""}
+                                      {d.convictionDelta.toFixed(2)}
+                                    </td>
+                                    <td style={{ opacity: 0.85 }}>
+                                      {d.explanation}
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </>
+                        )}
+
+                        {/* HISTORICAL VALIDATION */}
+                        {validation && (
+                          <>
+                            <div style={{ marginTop: "1.25rem" }}>
+                              <strong>Historical Validation</strong>
+                            </div>
+
+                            <p
+                              style={{
+                                marginTop: "0.4rem",
+                                fontSize: "0.85rem",
+                                opacity: 0.8,
+                              }}
+                            >
+                              {validation.summary ||
+                                "This classification has been evaluated against historical regime behavior."}
+                            </p>
+
+                            {validation.metrics && (
+                              <table
+                                style={{ marginTop: "0.5rem" }}
+                                width="100%"
+                                cellPadding="6"
+                              >
+                                <thead>
+                                  <tr style={{ opacity: 0.7 }}>
+                                    <th align="left">Metric</th>
+                                    <th align="right">Result</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {Object.entries(validation.metrics).map(
+                                    ([k, v]) => (
+                                      <tr key={k}>
+                                        <td>{k}</td>
+                                        <td align="right">
+                                          {typeof v === "number"
+                                            ? v.toFixed(2)
+                                            : String(v)}
+                                        </td>
+                                      </tr>
+                                    )
+                                  )}
+                                </tbody>
+                              </table>
+                            )}
+                          </>
+                        )}
+                      </div>
                     </td>
                   </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        )}
+                )}
+              </React.Fragment>
+            );
+          })}
+        </tbody>
+      </table>
 
-        <p style={{ marginTop: 12, fontSize: 12, opacity: 0.6 }}>
-          Discovery outputs are classification-only. No actions are executed.
-        </p>
-      </section>
+      <p style={{ marginTop: "1rem", fontSize: "0.75rem", opacity: 0.6 }}>
+        Discovery outputs are mathematical classifications only. No actions are
+        executed.
+      </p>
     </div>
   );
 }

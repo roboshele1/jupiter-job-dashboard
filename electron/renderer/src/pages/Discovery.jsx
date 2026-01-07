@@ -1,20 +1,33 @@
-// electron/renderer/src/pages/Discovery.jsx
-
-import { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 
 /**
- * Discovery Lab — Phase 2C
+ * DISCOVERY LAB — Phase 2C
  * --------------------------------------------------
- * Read-only Ranked Market Discovery surface
- * Canonical binding only (engine → IPC → UI)
- *
- * Source:
- * window.jupiter.invoke("discovery:run").canonical
+ * Read-only, deterministic market discovery surface.
+ * This UI renders canonical discovery output produced
+ * by the engine (no opinions, no overrides).
  */
 
-export default function Discovery() {
+const confidenceBadge = (level) => {
+  const map = {
+    High: "#2ecc71",
+    Medium: "#f1c40f",
+    Low: "#e67e22",
+  };
+
+  return {
+    display: "inline-block",
+    padding: "0.25rem 0.6rem",
+    borderRadius: "6px",
+    fontSize: "0.75rem",
+    background: map[level] || "#777",
+    color: "#000",
+    fontWeight: 600,
+  };
+};
+
+export default function DiscoveryLab() {
   const [rows, setRows] = useState([]);
-  const [error, setError] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -23,20 +36,13 @@ export default function Discovery() {
     async function loadDiscovery() {
       try {
         const result = await window.jupiter.invoke("discovery:run");
-
-        if (!result || !Array.isArray(result.canonical)) {
-          throw new Error("Invalid discovery payload");
-        }
-
-        if (mounted) {
+        if (mounted && Array.isArray(result?.canonical)) {
           setRows(result.canonical);
-          setLoading(false);
         }
-      } catch (e) {
-        if (mounted) {
-          setError(e.message);
-          setLoading(false);
-        }
+      } catch (err) {
+        console.error("Discovery load failed:", err);
+      } finally {
+        if (mounted) setLoading(false);
       }
     }
 
@@ -46,59 +52,89 @@ export default function Discovery() {
     };
   }, []);
 
-  if (loading) {
-    return <div style={{ padding: 16 }}>Loading discovery intelligence…</div>;
-  }
-
-  if (error) {
-    return (
-      <div style={{ padding: 16, color: "#f87171" }}>
-        Discovery error: {error}
-      </div>
-    );
-  }
-
   return (
-    <div style={{ padding: 16 }}>
-      <h2>Discovery Lab</h2>
+    <div style={{ padding: "2rem", maxWidth: 1400 }}>
+      <h1>Discovery Lab</h1>
 
       <p style={{ opacity: 0.8 }}>
-        Read-only ranked market discovery surface (Phase 2C).
+        Read-only market discovery surface (Phase 2C).
       </p>
 
-      <h3 style={{ marginTop: 24 }}>Ranked Market Discovery</h3>
+      {/* STATUS */}
+      <section style={{ marginTop: "1.5rem" }}>
+        <h3>Status</h3>
+        <ul style={{ opacity: 0.85 }}>
+          <li>Mode: Read-only</li>
+          <li>Phase: 2C (UI + Ranked Static Discovery)</li>
+          <li>Engines: None</li>
+          <li>Data Source: Mock / Static</li>
+        </ul>
+      </section>
 
-      <table width="100%" cellPadding="10">
-        <thead>
-          <tr>
-            <th align="left">Rank</th>
-            <th align="left">Symbol</th>
-            <th align="left">Decision</th>
-            <th align="left">Regime</th>
-            <th align="right">Conviction</th>
-          </tr>
-        </thead>
+      {/* RANKED MARKET DISCOVERY */}
+      <section style={{ marginTop: "2.5rem" }}>
+        <h2>Ranked Market Discovery</h2>
 
-        <tbody>
-          {rows.map((r) => (
-            <tr key={r.rank}>
-              <td>#{r.rank}</td>
-              <td>{r.symbol.symbol}</td>
-              <td>{r.decision.decision}</td>
-              <td>{r.regime.label}</td>
-              <td align="right">
-                {Number.isFinite(r.conviction.normalized)
-                  ? r.conviction.normalized.toFixed(2)
-                  : "—"}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+        {loading && <p style={{ opacity: 0.6 }}>Loading discovery…</p>}
 
-      <p style={{ marginTop: 12, fontSize: 12, opacity: 0.6 }}>
-        Discovery outputs are mathematical classifications only. No actions are executed.
-      </p>
+        {!loading && rows.length === 0 && (
+          <p style={{ opacity: 0.6 }}>No discovery results available.</p>
+        )}
+
+        {!loading && rows.length > 0 && (
+          <table
+            style={{
+              width: "100%",
+              marginTop: "1rem",
+              borderCollapse: "collapse",
+            }}
+          >
+            <thead>
+              <tr style={{ textAlign: "left", borderBottom: "1px solid #333" }}>
+                <th>Rank</th>
+                <th>Symbol</th>
+                <th>Decision</th>
+                <th>Regime</th>
+                <th>Why It Surfaced</th>
+                <th style={{ textAlign: "right" }}>Confidence</th>
+              </tr>
+            </thead>
+
+            <tbody>
+              {rows.map((r) => {
+                const confidence =
+                  r.conviction?.normalized >= 0.66
+                    ? "High"
+                    : r.conviction?.normalized >= 0.33
+                    ? "Medium"
+                    : "Low";
+
+                return (
+                  <tr key={r.rank} style={{ borderBottom: "1px solid #222" }}>
+                    <td>#{r.rank}</td>
+                    <td>{r.symbol.symbol}</td>
+                    <td>{r.decision.decision}</td>
+                    <td>{r.regime.label}</td>
+                    <td style={{ opacity: 0.85 }}>
+                      {r.explanation?.plainEnglishSummary ||
+                        "No explanation available."}
+                    </td>
+                    <td style={{ textAlign: "right" }}>
+                      <span style={confidenceBadge(confidence)}>
+                        {confidence}
+                      </span>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        )}
+
+        <p style={{ marginTop: 12, fontSize: 12, opacity: 0.6 }}>
+          Discovery outputs are classification-only. No actions are executed.
+        </p>
+      </section>
     </div>
   );
 }
