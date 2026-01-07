@@ -1,72 +1,104 @@
-// ~/JUPITER/electron/renderer/src/pages/Discovery.jsx
+// electron/renderer/src/pages/Discovery.jsx
 
 import { useEffect, useState } from "react";
-import { fetchLiveQuotes } from "../../services/marketData";
 
-/*
-Phase 2B — Step 4 (Discovery Lab)
-- Live market scanning
-- Simple movers surface (by price level for now)
-- No mocks, no placeholders
-*/
+/**
+ * Discovery Lab — Phase 2C
+ * --------------------------------------------------
+ * Read-only Ranked Market Discovery surface
+ * Canonical binding only (engine → IPC → UI)
+ *
+ * Source:
+ * window.jupiter.invoke("discovery:run").canonical
+ */
 
 export default function Discovery() {
   const [rows, setRows] = useState([]);
   const [error, setError] = useState(null);
-
-  // Initial discovery universe (expand later)
-  const SYMBOLS = ["AAPL", "MSFT", "NVDA", "TSLA", "AMZN", "META"];
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let mounted = true;
 
-    async function load() {
+    async function loadDiscovery() {
       try {
-        const data = await fetchLiveQuotes(SYMBOLS);
-        // deterministic sort: highest price first (proxy for activity)
-        const sorted = [...data].sort((a, b) => (b.price ?? 0) - (a.price ?? 0));
-        if (mounted) setRows(sorted);
+        const result = await window.jupiter.invoke("discovery:run");
+
+        if (!result || !Array.isArray(result.canonical)) {
+          throw new Error("Invalid discovery payload");
+        }
+
+        if (mounted) {
+          setRows(result.canonical);
+          setLoading(false);
+        }
       } catch (e) {
-        if (mounted) setError(e.message);
+        if (mounted) {
+          setError(e.message);
+          setLoading(false);
+        }
       }
     }
 
-    load();
-    return () => (mounted = false);
+    loadDiscovery();
+    return () => {
+      mounted = false;
+    };
   }, []);
 
+  if (loading) {
+    return <div style={{ padding: 16 }}>Loading discovery intelligence…</div>;
+  }
+
   if (error) {
-    return <div style={{ padding: 16 }}>Error: {error}</div>;
+    return (
+      <div style={{ padding: 16, color: "#f87171" }}>
+        Discovery error: {error}
+      </div>
+    );
   }
 
   return (
     <div style={{ padding: 16 }}>
       <h2>Discovery Lab</h2>
 
-      <table width="100%" cellPadding="8">
+      <p style={{ opacity: 0.8 }}>
+        Read-only ranked market discovery surface (Phase 2C).
+      </p>
+
+      <h3 style={{ marginTop: 24 }}>Ranked Market Discovery</h3>
+
+      <table width="100%" cellPadding="10">
         <thead>
           <tr>
+            <th align="left">Rank</th>
             <th align="left">Symbol</th>
-            <th align="right">Price</th>
-            <th align="right">Open</th>
-            <th align="right">High</th>
-            <th align="right">Low</th>
-            <th align="right">Volume</th>
+            <th align="left">Decision</th>
+            <th align="left">Regime</th>
+            <th align="right">Conviction</th>
           </tr>
         </thead>
+
         <tbody>
-          {rows.map(r => (
-            <tr key={r.symbol}>
-              <td>{r.symbol}</td>
-              <td align="right">{r.price ?? "-"}</td>
-              <td align="right">{r.open ?? "-"}</td>
-              <td align="right">{r.high ?? "-"}</td>
-              <td align="right">{r.low ?? "-"}</td>
-              <td align="right">{r.volume ?? "-"}</td>
+          {rows.map((r) => (
+            <tr key={r.rank}>
+              <td>#{r.rank}</td>
+              <td>{r.symbol.symbol}</td>
+              <td>{r.decision.decision}</td>
+              <td>{r.regime.label}</td>
+              <td align="right">
+                {Number.isFinite(r.conviction.normalized)
+                  ? r.conviction.normalized.toFixed(2)
+                  : "—"}
+              </td>
             </tr>
           ))}
         </tbody>
       </table>
+
+      <p style={{ marginTop: 12, fontSize: 12, opacity: 0.6 }}>
+        Discovery outputs are mathematical classifications only. No actions are executed.
+      </p>
     </div>
   );
 }

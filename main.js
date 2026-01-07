@@ -1,8 +1,54 @@
-import { ipcMain } from "electron";
-import { getPortfolioSnapshot } from "./engine/ipc/portfolioSnapshotService.js";
+K// main.js — JUPITER (Canonical Electron Bootstrap)
+// -----------------------------------------------
+// Restores Electron lifecycle, preload bridge, and IPC authority.
+// NO business logic. NO engine logic. NO UI logic.
 
-ipcMain.handle("portfolio:getSnapshot", async (_event, payload) => {
-  const { positions, previousSnapshot } = payload;
-  return await getPortfolioSnapshot(positions, previousSnapshot);
+import { app, BrowserWindow, ipcMain } from "electron";
+import path from "path";
+import { fileURLToPath } from "url";
+
+// IPC registry (authoritative)
+import { registerAllIpc } from "./electron/ipc/registerIpc.js";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+let mainWindow = null;
+
+function createWindow() {
+  mainWindow = new BrowserWindow({
+    width: 1400,
+    height: 900,
+    webPreferences: {
+      preload: path.join(__dirname, "preload.js"),
+      contextIsolation: true,
+      nodeIntegration: false
+    }
+  });
+
+  // Vite dev server
+  if (process.env.VITE_DEV_SERVER_URL) {
+    mainWindow.loadURL(process.env.VITE_DEV_SERVER_URL);
+  } else {
+    mainWindow.loadFile(path.join(__dirname, "renderer/index.html"));
+  }
+}
+
+app.whenReady().then(() => {
+  // Register ALL IPC surfaces (Discovery, Portfolio, Chat, etc.)
+  registerAllIpc(ipcMain);
+
+  createWindow();
+
+  app.on("activate", () => {
+    if (BrowserWindow.getAllWindows().length === 0) {
+      createWindow();
+    }
+  });
 });
 
+app.on("window-all-closed", () => {
+  if (process.platform !== "darwin") {
+    app.quit();
+  }
+});

@@ -1,18 +1,24 @@
 // engine/discovery/scoring/fundamentalScore.js
 
 /**
- * FUNDAMENTAL SCORE — D1.2
- * ------------------------
+ * FUNDAMENTAL SCORE — D1.2 (HARDENED)
+ * ----------------------------------
  * Deterministic 0–10 score derived from normalized metrics.
- * No mutation. No timing. No regime awareness (added later).
+ * Safe under partial or missing data.
+ * No mutation. No timing. No regime awareness.
  */
 
 function clamp(value, min = 0, max = 1) {
+  if (!Number.isFinite(value)) return 0;
   return Math.max(min, Math.min(max, value));
 }
 
-function scoreFundamentals(normalized) {
-  if (!normalized || typeof normalized !== "object") {
+function safe(value, fallback = 0) {
+  return Number.isFinite(value) ? value : fallback;
+}
+
+function scoreFundamentals(normalized = {}) {
+  if (typeof normalized !== "object") {
     throw new Error("INVALID_INPUT: normalized metrics required");
   }
 
@@ -25,19 +31,19 @@ function scoreFundamentals(normalized) {
   });
 
   const growthScore = clamp(
-    (normalized.revenueGrowth + (normalized.epsGrowth || 0)) / 2
+    (safe(normalized.revenueGrowth) + safe(normalized.epsGrowth)) / 2
   );
 
   const qualityScore = clamp(
-    (normalized.roe + (normalized.roic || normalized.roe)) / 2
+    (safe(normalized.roe) + safe(normalized.roic, safe(normalized.roe))) / 2
   );
 
-  const cashScore = clamp(normalized.fcfMargin || 0);
+  const cashScore = clamp(safe(normalized.fcfMargin));
 
-  const balanceScore = clamp(1 - (normalized.debtRatio || 0));
+  const balanceScore = clamp(1 - safe(normalized.debtRatio));
 
   const penalty =
-    normalized.roe < 0.3 || normalized.fcfMargin < 0.2 ? 0.3 : 0;
+    safe(normalized.roe) < 0.3 || safe(normalized.fcfMargin) < 0.2 ? 0.3 : 0;
 
   const raw =
     growthScore * weights.growth +
@@ -46,9 +52,20 @@ function scoreFundamentals(normalized) {
     balanceScore * weights.balance -
     penalty * weights.penalties;
 
-  return Math.round(clamp(raw) * 10 * 100) / 100;
+  const finalScore = Math.round(clamp(raw) * 10 * 100) / 100;
+
+  return Object.freeze({
+    score: finalScore,
+    factors: Object.freeze({
+      growth: growthScore,
+      quality: qualityScore,
+      cash: cashScore,
+      balance: balanceScore,
+    }),
+  });
 }
 
 module.exports = Object.freeze({
   scoreFundamentals,
 });
+

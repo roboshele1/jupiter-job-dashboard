@@ -74,7 +74,6 @@ export function registerAllIpc(ipcMain) {
       "../../engine/chat/v2/orchestrator/chatV2Orchestrator.js"
     );
 
-    // Hard guarantee: never pass null portfolioSnapshot to downstream layers
     if (!cachedSnapshot) await computeSnapshot();
 
     return runChatV2Orchestrator({
@@ -85,5 +84,20 @@ export function registerAllIpc(ipcMain) {
       memoryContext: payload.memoryContext || null,
       context: payload.context || null
     });
+  });
+
+  /* =========================================================
+     DISCOVERY LAB — RANKED AUTONOMOUS SCAN (D7.14)
+     ========================================================= */
+  ipcMain.handle("discovery:run", async () => {
+    const discoveryModule = await import(
+      "../../engine/discovery/runDiscoveryScan.js"
+    );
+
+    const runDiscoveryScan = discoveryModule.default.runDiscoveryScan;
+
+    const results = await runDiscoveryScan();
+
+    return Object.freeze(results);
   });
 }

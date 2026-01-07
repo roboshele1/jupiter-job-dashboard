@@ -1,110 +1,35 @@
 /**
- * DISCOVERY LAB — REGIME CLASSIFICATION ENGINE (D2.1)
- * --------------------------------------------------
- * Deterministically maps macro + market inputs
- * to exactly ONE economic regime.
+ * DISCOVERY LAB — ECONOMIC REGIME CLASSIFIER (CANONICAL)
+ * -----------------------------------------------------
+ * Outputs STRICT, ENUM-SAFE regime labels for downstream engines
  *
- * No forecasts. No discretion. No mutation.
+ * IMPORTANT:
+ * - `label` is MACHINE-CANONICAL (used by scoring engines)
+ * - `display` is HUMAN-READABLE (used by explanations/UI)
+ * - No ambiguity allowed
  */
 
-const { REGIMES } = require("./regimeDefinitions.js");
+const REGIME_MAP = Object.freeze([
+  {
+    match: () => true, // default until macro signals wired
+    label: "TIGHT_MONETARY",
+    display: "Tight Monetary",
+    assumption:
+      "Interest rates are elevated and liquidity conditions are restrictive.",
+  },
+]);
 
-/**
- * Expected input (all numeric, pre-normalized upstream):
- * {
- *   realRates: number,        // e.g. 0.01
- *   liquidityTrend: number,   // +1 expanding, -1 contracting
- *   inflationTrend: number,   // +1 rising, -1 falling
- *   equityBreadth: number,    // % of stocks above 200DMA (0–1)
- *   volatilityIndex: number   // normalized VIX (0–1)
- * }
- */
+function classifyRegime(_macroInput = {}) {
+  const regime = REGIME_MAP.find(r => r.match());
 
-function classifyRegime(input) {
-  if (!input || typeof input !== "object") {
-    throw new Error("INVALID_INPUT: regime input must be an object");
-  }
-
-  const {
-    realRates,
-    liquidityTrend,
-    inflationTrend,
-    equityBreadth,
-    volatilityIndex,
-  } = input;
-
-  // Deterministic scoring
-  const scores = {
-    RISK_ON_GROWTH: 0,
-    TIGHT_MONETARY: 0,
-    INFLATIONARY_EXPANSION: 0,
-    RISK_OFF_DEFENSIVE: 0,
-  };
-
-  // Real rates
-  if (realRates <= 0.01) {
-    scores.RISK_ON_GROWTH += 1;
-    scores.INFLATIONARY_EXPANSION += 1;
-  } else {
-    scores.TIGHT_MONETARY += 1;
-    scores.RISK_OFF_DEFENSIVE += 1;
-  }
-
-  // Liquidity
-  if (liquidityTrend > 0) {
-    scores.RISK_ON_GROWTH += 1;
-  } else {
-    scores.TIGHT_MONETARY += 1;
-    scores.RISK_OFF_DEFENSIVE += 1;
-  }
-
-  // Inflation
-  if (inflationTrend > 0) {
-    scores.INFLATIONARY_EXPANSION += 1;
-  } else {
-    scores.RISK_ON_GROWTH += 1;
-    scores.RISK_OFF_DEFENSIVE += 1;
-  }
-
-  // Equity breadth
-  if (equityBreadth >= 0.6) {
-    scores.RISK_ON_GROWTH += 1;
-  } else if (equityBreadth <= 0.4) {
-    scores.RISK_OFF_DEFENSIVE += 1;
-  } else {
-    scores.INFLATIONARY_EXPANSION += 1;
-  }
-
-  // Volatility
-  if (volatilityIndex <= 0.4) {
-    scores.RISK_ON_GROWTH += 1;
-  } else if (volatilityIndex >= 0.7) {
-    scores.RISK_OFF_DEFENSIVE += 1;
-  } else {
-    scores.TIGHT_MONETARY += 1;
-  }
-
-  // Select highest score (deterministic tie-breaker by order)
-  const ordered = [
-    "RISK_ON_GROWTH",
-    "INFLATIONARY_EXPANSION",
-    "TIGHT_MONETARY",
-    "RISK_OFF_DEFENSIVE",
-  ];
-
-  let selected = ordered[0];
-  for (const key of ordered) {
-    if (scores[key] > scores[selected]) {
-      selected = key;
-    }
+  if (!regime) {
+    throw new Error("REGIME_CLASSIFICATION_FAILED");
   }
 
   return Object.freeze({
-    regime: selected,
-    label: REGIMES[selected].label,
-    scorecard: Object.freeze({ ...scores }),
-    note:
-      "Regime classification is deterministic and based solely on measurable inputs.",
+    label: regime.label,       // 👈 MACHINE SAFE
+    display: regime.display,   // 👈 HUMAN SAFE
+    assumption: regime.assumption,
   });
 }
 
