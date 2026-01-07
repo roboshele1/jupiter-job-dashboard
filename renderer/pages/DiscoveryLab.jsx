@@ -57,7 +57,7 @@ export default function DiscoveryLab() {
     <div style={{ padding: "2rem", maxWidth: 1400 }}>
       <h1>Discovery Lab</h1>
       <p style={{ opacity: 0.8 }}>
-        Read-only market discovery surface (Phase 2C).
+        Read-only market discovery surface (Phase 3A).
       </p>
 
       <h3 style={{ marginTop: "2rem" }}>Ranked Market Discovery</h3>
@@ -146,6 +146,49 @@ export default function DiscoveryLab() {
                           </tbody>
                         </table>
 
+                        {/* MARKET BEHAVIOR */}
+                        {explanation?.tacticalContext && (
+                          <>
+                            <div style={{ marginTop: "1.25rem" }}>
+                              <strong>Market Behavior</strong>
+                            </div>
+
+                            <p
+                              style={{
+                                marginTop: "0.4rem",
+                                fontSize: "0.85rem",
+                                opacity: 0.85,
+                                maxWidth: 900,
+                              }}
+                            >
+                              {explanation.tacticalContext.summary}
+                            </p>
+
+                            {Array.isArray(
+                              explanation.tacticalContext.details
+                            ) && (
+                              <ul
+                                style={{
+                                  marginTop: "0.5rem",
+                                  paddingLeft: "1.25rem",
+                                  opacity: 0.8,
+                                }}
+                              >
+                                {explanation.tacticalContext.details.map(
+                                  (line, i) => (
+                                    <li
+                                      key={i}
+                                      style={{ marginBottom: "0.25rem" }}
+                                    >
+                                      {line}
+                                    </li>
+                                  )
+                                )}
+                              </ul>
+                            )}
+                          </>
+                        )}
+
                         {/* REGIME SENSITIVITY */}
                         {deltas && (
                           <>
@@ -200,38 +243,8 @@ export default function DiscoveryLab() {
                                 opacity: 0.8,
                               }}
                             >
-                              {validation.summary ||
-                                "This classification has been evaluated against historical regime behavior."}
+                              {validation.summary}
                             </p>
-
-                            {validation.metrics && (
-                              <table
-                                style={{ marginTop: "0.5rem" }}
-                                width="100%"
-                                cellPadding="6"
-                              >
-                                <thead>
-                                  <tr style={{ opacity: 0.7 }}>
-                                    <th align="left">Metric</th>
-                                    <th align="right">Result</th>
-                                  </tr>
-                                </thead>
-                                <tbody>
-                                  {Object.entries(validation.metrics).map(
-                                    ([k, v]) => (
-                                      <tr key={k}>
-                                        <td>{k}</td>
-                                        <td align="right">
-                                          {typeof v === "number"
-                                            ? v.toFixed(2)
-                                            : String(v)}
-                                        </td>
-                                      </tr>
-                                    )
-                                  )}
-                                </tbody>
-                              </table>
-                            )}
                           </>
                         )}
                       </div>
@@ -243,12 +256,6 @@ export default function DiscoveryLab() {
           })}
         </tbody>
       </table>
-
-      <p style={{ marginTop: "1rem", fontSize: "0.75rem", opacity: 0.6 }}>
-        Discovery outputs are mathematical classifications only. No actions are
-        executed.
-      </p>
     </div>
   );
 }
-
