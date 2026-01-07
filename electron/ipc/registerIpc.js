@@ -29,12 +29,7 @@ async function computeSnapshot() {
 
   cachedSnapshot = {
     timestamp: Date.now(),
-    totalValue: valuation.totalValue,
-    allocation: valuation.allocation,
-    topHoldings: valuation.topHoldings,
-    holdings: valuation.holdings,
-    deltas: valuation.deltas || {},
-    confidence: valuation.confidence || {}
+    portfolio: valuation
   };
 
   return cachedSnapshot;
@@ -67,7 +62,7 @@ export function registerAllIpc(ipcMain) {
   });
 
   /* =========================================================
-     CHAT V2 — AUTHORITATIVE IPC (CANONICAL)
+     CHAT V2 — AUTHORITATIVE IPC
      ========================================================= */
   ipcMain.handle("chat:v2:run", async (_event, payload = {}) => {
     const { runChatV2Orchestrator } = await import(
@@ -87,7 +82,7 @@ export function registerAllIpc(ipcMain) {
   });
 
   /* =========================================================
-     DISCOVERY LAB — RANKED AUTONOMOUS SCAN (D7.14)
+     DISCOVERY LAB — RANKED AUTONOMOUS SCAN
      ========================================================= */
   ipcMain.handle("discovery:run", async () => {
     const discoveryModule = await import(
@@ -95,9 +90,30 @@ export function registerAllIpc(ipcMain) {
     );
 
     const runDiscoveryScan = discoveryModule.default.runDiscoveryScan;
-
     const results = await runDiscoveryScan();
 
     return Object.freeze(results);
+  });
+
+  /* =========================================================
+     WATCHLIST ENGINE — READ-ONLY (D10.7)
+     ========================================================= */
+  ipcMain.handle("watchlist:run", async () => {
+    const { runWatchlistScan } = await import(
+      "../../engine/watchlist/runWatchlistScan.js"
+    );
+
+    const discoveryModule = await import(
+      "../../engine/discovery/runDiscoveryScan.js"
+    );
+
+    const discoveryResults =
+      discoveryModule.default.runDiscoveryScan
+        ? (await discoveryModule.default.runDiscoveryScan()).canonical
+        : [];
+
+    return Object.freeze(
+      runWatchlistScan({ discoveryResults })
+    );
   });
 }
