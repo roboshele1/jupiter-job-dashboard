@@ -1,18 +1,13 @@
 /**
- * D6.2 — Unified Discovery Explanation Contract (LIVE)
- * ---------------------------------------------------
- * Purpose:
- * Provide a single, deterministic, human-readable explanation object
- * that merges all Discovery intelligence layers, including LIVE tactical context.
- *
- * Guarantees:
- * - Read-only
- * - Deterministic
- * - Explainable in everyday English
- * - No advice, no actions
+ * D6.1 — Unified Discovery Explanation Contract (ENHANCED)
+ * -------------------------------------------------------
+ * Merges fundamentals, tactical behavior, regime context,
+ * and conviction confidence into a single explainable object.
  */
 
 const { explainTacticalContext } = require("./tacticalExplanation.js");
+const { explainFundamentalContext } = require("./fundamentalExplanation.js");
+const { explainConvictionContext } = require("./convictionExplanation.js");
 
 function explainDiscoveryResult(input) {
   if (!input || typeof input !== "object") {
@@ -30,46 +25,38 @@ function explainDiscoveryResult(input) {
     validation,
   } = input;
 
-  if (!symbol || !decision || conviction == null) {
-    throw new Error(
-      "MISSING_FIELDS: symbol, decision, and conviction are required"
-    );
-  }
-
-  // LIVE tactical explanation (safe even if inputs are partial)
-  const tacticalExplanation = explainTacticalContext(
+  const tacticalContext = explainTacticalContext(
     tactical?.inputs || {},
     tactical || {}
   );
 
-  const explanation = Object.freeze({
+  const fundamentalContext = explainFundamentalContext(fundamentals || {});
+
+  const convictionContext = explainConvictionContext({
+    convictionScore: conviction?.score,
+    normalized: conviction?.normalized,
+    ownership: false,
+  });
+
+  return Object.freeze({
     symbol,
 
     decision,
 
-    convictionScore: conviction.score,
-    convictionNormalized: conviction.normalized,
+    convictionScore: conviction?.score,
+    convictionNormalized: conviction?.normalized,
+
+    convictionContext,
 
     regime: {
       label: regime?.label || "UNKNOWN",
       assumption:
-        regime?.assumption ||
-        "No explicit economic regime assumption was provided.",
+        regime?.assumption || "No explicit macro regime assumption applied.",
     },
 
-    fundamentals: {
-      score: fundamentals?.score ?? null,
-      summary:
-        fundamentals?.summary ||
-        "Business fundamentals were evaluated for strength, profitability, and financial quality.",
-    },
+    fundamentals: fundamentalContext,
 
-    tacticalContext: {
-      score: tactical?.score ?? null,
-      summary: tacticalExplanation.summary,
-      details: tacticalExplanation.details,
-      disclaimer: tacticalExplanation.disclaimer,
-    },
+    tacticalContext,
 
     factorAttribution: attribution || {},
 
@@ -77,61 +64,26 @@ function explainDiscoveryResult(input) {
       validation || {
         available: false,
         summary:
-          "This asset does not yet have enough historical Discovery observations.",
+          "This asset has not yet accumulated sufficient historical Discovery observations.",
       },
 
-    plainEnglishSummary: buildPlainEnglishSummary({
-      decision,
-      regime,
-      fundamentals,
-      tacticalSummary: tacticalExplanation.summary,
-      validation,
-    }),
+    plainEnglishSummary: [
+      `Jupiter classified this asset as ${decision.replace("_", " ")} using measured data.`,
+      convictionContext?.summary,
+      fundamentalContext?.summary,
+      tacticalContext?.summary,
+      regime?.label
+        ? `This assessment assumes a ${regime.label
+            .replace("_", " ")
+            .toLowerCase()} environment.`
+        : null,
+    ]
+      .filter(Boolean)
+      .join(" "),
 
     disclaimer:
-      "This classification is a mathematical assessment based on observed data. It is not financial advice and does not instruct actions.",
+      "This output is an explainable analytical classification. It is not advice and does not trigger actions.",
   });
-
-  return explanation;
-}
-
-function buildPlainEnglishSummary({
-  decision,
-  regime,
-  fundamentals,
-  tacticalSummary,
-  validation,
-}) {
-  const lines = [];
-
-  lines.push(
-    `Jupiter classified this asset as ${decision.replace(
-      "_",
-      " "
-    )} based on measured data, not opinions.`
-  );
-
-  if (fundamentals?.summary) {
-    lines.push(`From a business perspective: ${fundamentals.summary}`);
-  }
-
-  if (tacticalSummary) {
-    lines.push(`From a market behavior perspective: ${tacticalSummary}`);
-  }
-
-  if (regime?.label) {
-    lines.push(
-      `This assessment assumes a ${regime.label
-        .replace("_", " ")
-        .toLowerCase()} economic environment.`
-    );
-  }
-
-  if (validation?.summary) {
-    lines.push(`Historically: ${validation.summary}`);
-  }
-
-  return lines.join(" ");
 }
 
 module.exports = Object.freeze({
