@@ -182,4 +182,19 @@ export function registerAllIpc(ipcMain) {
       })
     );
   });
+
+  /* =========================================================
+     LIVE MARKET SNAPSHOT — SHADOW MODE (D11.2)
+     ========================================================= */
+  ipcMain.handle("market:live:snapshot", async (_event, payload = {}) => {
+    const { getLiveMarketSnapshot } = await import(
+      "../../engine/market/live/liveMarketSnapshotService.js"
+    );
+
+    return Object.freeze(
+      await getLiveMarketSnapshot({
+        symbols: Array.isArray(payload.symbols) ? payload.symbols : []
+      })
+    );
+  });
 }
