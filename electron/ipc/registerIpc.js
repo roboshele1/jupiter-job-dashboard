@@ -43,48 +43,22 @@ export function registerAllIpc(ipcMain) {
     return cachedSnapshot;
   });
 
-  /* =========================================================
-     PORTFOLIO SNAPSHOT (READ-ONLY)
-     ========================================================= */
   ipcMain.handle("portfolio:getSnapshot", async () => {
     if (!cachedSnapshot) await computeSnapshot();
     return cachedSnapshot;
   });
 
-  /* =========================================================
-     DECISION ENGINE (READ-ONLY)
-     ========================================================= */
   ipcMain.handle("decision:run", async (_event, payload) => {
-    const decisionModule = await import(
+    const { runDecisionEngine } = await import(
       "../../engine/decision/decisionEngine.js"
     );
-
-    const runDecisionEngine =
-      decisionModule.runDecisionEngine ||
-      decisionModule.default?.runDecisionEngine;
-
-    if (typeof runDecisionEngine !== "function") {
-      throw new Error("DECISION_ENGINE_INVALID");
-    }
-
     return runDecisionEngine(payload);
   });
 
-  /* =========================================================
-     CHAT V2 — AUTHORITATIVE IPC
-     ========================================================= */
   ipcMain.handle("chat:v2:run", async (_event, payload = {}) => {
-    const chatModule = await import(
+    const { runChatV2Orchestrator } = await import(
       "../../engine/chat/v2/orchestrator/chatV2Orchestrator.js"
     );
-
-    const runChatV2Orchestrator =
-      chatModule.runChatV2Orchestrator ||
-      chatModule.default?.runChatV2Orchestrator;
-
-    if (typeof runChatV2Orchestrator !== "function") {
-      throw new Error("CHAT_V2_ENGINE_INVALID");
-    }
 
     if (!cachedSnapshot) await computeSnapshot();
 
@@ -98,91 +72,47 @@ export function registerAllIpc(ipcMain) {
     });
   });
 
-  /* =========================================================
-     DISCOVERY LAB — RANKED AUTONOMOUS SCAN (D10+)
-     ========================================================= */
+  /* =========================
+     DISCOVERY
+     ========================= */
   ipcMain.handle("discovery:run", async () => {
     const discoveryModule = await import(
       "../../engine/discovery/runDiscoveryScan.js"
+    );
+    const themeModule = await import(
+      "../../engine/discovery/orchestrator/discoveryThemeOrchestrator.js"
     );
 
     const runDiscoveryScan =
       discoveryModule.runDiscoveryScan ||
       discoveryModule.default?.runDiscoveryScan;
-
-    if (typeof runDiscoveryScan !== "function") {
-      throw new Error("DISCOVERY_ENGINE_INVALID");
-    }
-
-    const themeModule = await import(
-      "../../engine/discovery/orchestrator/discoveryThemeOrchestrator.js"
-    );
 
     const buildThemes =
       themeModule.buildThemes ||
       themeModule.default?.buildThemes;
 
-    if (typeof buildThemes !== "function") {
-      throw new Error("DISCOVERY_THEME_ORCHESTRATOR_INVALID");
+    if (!runDiscoveryScan || !buildThemes) {
+      throw new Error("DISCOVERY_PIPELINE_INVALID");
     }
 
     const results = await runDiscoveryScan();
-    const emergingThemes = buildThemes({
-      canonical: results.canonical || []
-    });
 
     return Object.freeze({
       ...results,
-      emergingThemes
+      emergingThemes: buildThemes({ canonical: results.canonical || [] })
     });
   });
 
-  /* =========================================================
-     WATCHLIST ENGINE — BASE
-     ========================================================= */
-  ipcMain.handle("watchlist:run", async () => {
-    const watchlistModule = await import(
-      "../../engine/watchlist/runWatchlistScan.js"
-    );
-
-    const runWatchlistScan =
-      watchlistModule.runWatchlistScan ||
-      watchlistModule.default?.runWatchlistScan;
-
-    if (typeof runWatchlistScan !== "function") {
-      throw new Error("WATCHLIST_ENGINE_INVALID");
-    }
-
-    const discoveryModule = await import(
-      "../../engine/discovery/runDiscoveryScan.js"
-    );
-
-    const runDiscoveryScan =
-      discoveryModule.runDiscoveryScan ||
-      discoveryModule.default?.runDiscoveryScan;
-
-    const discoveryResults =
-      typeof runDiscoveryScan === "function"
-        ? (await runDiscoveryScan()).canonical
-        : [];
-
-    return Object.freeze(
-      runWatchlistScan({ discoveryResults })
-    );
-  });
-
-  /* =========================================================
-     WATCHLIST CANDIDATES — COGNITION LAYER
-     ========================================================= */
+  /* =========================
+     WATCHLIST
+     ========================= */
   ipcMain.handle("watchlist:candidates", async () => {
     const watchlistModule = await import(
       "../../engine/watchlist/runWatchlistScan.js"
     );
-
     const orchestratorModule = await import(
       "../../engine/watchlist/orchestrator/watchlistCandidatesOrchestrator.js"
     );
-
     const discoveryModule = await import(
       "../../engine/discovery/runDiscoveryScan.js"
     );
@@ -199,43 +129,34 @@ export function registerAllIpc(ipcMain) {
       discoveryModule.runDiscoveryScan ||
       discoveryModule.default?.runDiscoveryScan;
 
-    if (typeof runWatchlistScan !== "function") {
-      throw new Error("WATCHLIST_ENGINE_INVALID");
+    if (!runWatchlistScan || !buildWatchlistCandidates || !runDiscoveryScan) {
+      throw new Error("WATCHLIST_PIPELINE_INVALID");
     }
 
-    if (typeof buildWatchlistCandidates !== "function") {
-      throw new Error("WATCHLIST_CANDIDATES_ORCHESTRATOR_INVALID");
-    }
-
-    const discoveryResults =
-      typeof runDiscoveryScan === "function"
-        ? (await runDiscoveryScan()).canonical
-        : [];
-
-    const baseWatchlist = runWatchlistScan({ discoveryResults });
+    const discoveryResults = (await runDiscoveryScan()).canonical;
 
     return Object.freeze(
       buildWatchlistCandidates({
-        watchlistResult: baseWatchlist,
+        watchlistResult: runWatchlistScan({ discoveryResults }),
         discoveryResults
       })
     );
   });
 
   /* =========================================================
-     DISCOVERY ↔ LIVE MARKET DIVERGENCE EXPLANATIONS (D11.4)
+     DISCOVERY DIVERGENCE EXPLANATIONS
      ========================================================= */
   ipcMain.handle("discovery:divergence:explanations", async () => {
-    const explanationModule = await import(
+    const divergenceModule = await import(
       "../../engine/discovery/explain/divergenceExplanationEngine.js"
     );
 
     const buildDivergenceExplanations =
-      explanationModule.buildDivergenceExplanations ||
-      explanationModule.default?.buildDivergenceExplanations;
+      divergenceModule.buildDivergenceExplanations ||
+      divergenceModule.default?.buildDivergenceExplanations;
 
     if (typeof buildDivergenceExplanations !== "function") {
-      throw new Error("DIVERGENCE_EXPLANATION_ENGINE_INVALID");
+      throw new Error("DIVERGENCE_ENGINE_INVALID");
     }
 
     const discoveryModule = await import(
@@ -250,27 +171,47 @@ export function registerAllIpc(ipcMain) {
       throw new Error("DISCOVERY_ENGINE_INVALID");
     }
 
-    const liveMarketModule = await import(
+    const liveModule = await import(
       "../../engine/market/live/liveMarketSnapshotService.js"
     );
 
     const getLiveMarketSnapshot =
-      liveMarketModule.getLiveMarketSnapshot ||
-      liveMarketModule.default?.getLiveMarketSnapshot;
+      liveModule.getLiveMarketSnapshot ||
+      liveModule.default?.getLiveMarketSnapshot;
 
     if (typeof getLiveMarketSnapshot !== "function") {
       throw new Error("LIVE_MARKET_SNAPSHOT_INVALID");
     }
 
-    const discoveryResults = (await runDiscoveryScan()).canonical || [];
-    const symbols = discoveryResults.map(r => r.symbol.symbol);
-    const live = await getLiveMarketSnapshot({ symbols });
-
-    return Object.freeze(
-      buildDivergenceExplanations({
-        discoveryResults,
-        liveMarketData: live.data || []
-      })
+    const discoveryResults = await runDiscoveryScan();
+    const symbols = (discoveryResults.canonical || []).map(
+      (r) => r.symbol.symbol
     );
+
+    const liveSnapshot = await getLiveMarketSnapshot({ symbols });
+
+    return buildDivergenceExplanations({
+      discoveryResults: discoveryResults.canonical || [],
+      liveMarketData: liveSnapshot.data || []
+    });
+  });
+
+  /* =========================================================
+     CONFIDENCE EVALUATION — D12.4 (SHADOW)
+     ========================================================= */
+  ipcMain.handle("confidence:evaluate", async (_event, payload) => {
+    const confidenceModule = await import(
+      "../../engine/confidence/orchestrator/confidenceEvaluationOrchestrator.js"
+    );
+
+    const runConfidenceEvaluation =
+      confidenceModule.runConfidenceEvaluation ||
+      confidenceModule.default?.runConfidenceEvaluation;
+
+    if (typeof runConfidenceEvaluation !== "function") {
+      throw new Error("CONFIDENCE_EVALUATION_ENGINE_INVALID");
+    }
+
+    return runConfidenceEvaluation(payload);
   });
 }
