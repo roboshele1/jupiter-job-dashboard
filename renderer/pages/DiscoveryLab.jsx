@@ -20,6 +20,12 @@ const badgeStyle = (level) => {
   };
 };
 
+const cadenceStyle = (label) => ({
+  fontSize: "0.75rem",
+  opacity: 0.7,
+  marginLeft: "0.5rem",
+});
+
 const deltaStyle = (value) => ({
   color: value > 0 ? "#2ecc71" : value < 0 ? "#e74c3c" : "#aaa",
   fontWeight: 600,
@@ -29,8 +35,12 @@ export default function DiscoveryLab() {
   const [rows, setRows] = useState([]);
   const [themes, setThemes] = useState([]);
   const [watchlistCandidates, setWatchlistCandidates] = useState([]);
+
+  const [loadingDiscovery, setLoadingDiscovery] = useState(true);
+  const [loadingThemes, setLoadingThemes] = useState(true);
+  const [loadingWatchlist, setLoadingWatchlist] = useState(true);
+
   const [expanded, setExpanded] = useState({});
-  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let mounted = true;
@@ -49,6 +59,11 @@ export default function DiscoveryLab() {
         }
       } catch (err) {
         console.error("Discovery load failed:", err);
+      } finally {
+        if (mounted) {
+          setLoadingDiscovery(false);
+          setLoadingThemes(false);
+        }
       }
     }
 
@@ -62,19 +77,20 @@ export default function DiscoveryLab() {
         }
       } catch (err) {
         console.error("Watchlist candidates load failed:", err);
+      } finally {
+        if (mounted) setLoadingWatchlist(false);
       }
     }
 
-    Promise.all([loadDiscovery(), loadWatchlistCandidates()]).finally(() => {
-      if (mounted) setLoading(false);
-    });
+    loadDiscovery();
+    loadWatchlistCandidates();
 
     return () => {
       mounted = false;
     };
   }, []);
 
-  if (loading) {
+  if (loadingDiscovery && loadingThemes && loadingWatchlist) {
     return <div style={{ padding: "2rem" }}>Loading discovery intelligence…</div>;
   }
 
@@ -88,9 +104,14 @@ export default function DiscoveryLab() {
       {/* ============================
           EMERGING THEMES (WHY)
       ============================ */}
-      <h3 style={{ marginTop: "2.5rem" }}>Emerging Themes</h3>
+      <h3 style={{ marginTop: "2.5rem" }}>
+        Emerging Themes
+        <span style={cadenceStyle()}>Structural · Slow cadence</span>
+      </h3>
 
-      {themes.length === 0 ? (
+      {loadingThemes ? (
+        <p style={{ opacity: 0.6 }}>Analyzing structural patterns…</p>
+      ) : themes.length === 0 ? (
         <p style={{ opacity: 0.6, marginTop: "0.5rem" }}>
           No emerging structural themes detected.
         </p>
@@ -127,9 +148,14 @@ export default function DiscoveryLab() {
       {/* ============================
           WATCHLIST CANDIDATES (MONITOR)
       ============================ */}
-      <h3 style={{ marginTop: "3rem" }}>Watchlist Candidates</h3>
+      <h3 style={{ marginTop: "3rem" }}>
+        Watchlist Candidates
+        <span style={cadenceStyle()}>Observational · Medium cadence</span>
+      </h3>
 
-      {watchlistCandidates.length === 0 ? (
+      {loadingWatchlist ? (
+        <p style={{ opacity: 0.6 }}>Evaluating monitoring candidates…</p>
+      ) : watchlistCandidates.length === 0 ? (
         <p style={{ opacity: 0.6, marginTop: "0.5rem" }}>
           No assets currently meet monitoring criteria.
         </p>
@@ -185,90 +211,97 @@ export default function DiscoveryLab() {
       {/* ============================
           RANKED MARKET DISCOVERY (WHAT)
       ============================ */}
-      <h3 style={{ marginTop: "3rem" }}>Ranked Market Discovery</h3>
+      <h3 style={{ marginTop: "3rem" }}>
+        Ranked Market Discovery
+        <span style={cadenceStyle()}>Tactical · Fast cadence</span>
+      </h3>
 
-      <table width="100%" cellPadding="10">
-        <thead>
-          <tr>
-            <th align="left">Rank</th>
-            <th align="left">Symbol</th>
-            <th align="left">Decision</th>
-            <th align="left">Regime</th>
-            <th align="left">Why It Surfaced</th>
-            <th align="right">Confidence</th>
-          </tr>
-        </thead>
+      {loadingDiscovery ? (
+        <p style={{ opacity: 0.6 }}>Running discovery scan…</p>
+      ) : (
+        <table width="100%" cellPadding="10">
+          <thead>
+            <tr>
+              <th align="left">Rank</th>
+              <th align="left">Symbol</th>
+              <th align="left">Decision</th>
+              <th align="left">Regime</th>
+              <th align="left">Why It Surfaced</th>
+              <th align="right">Confidence</th>
+            </tr>
+          </thead>
 
-        <tbody>
-          {rows.map((r) => {
-            const isOpen = expanded[r.rank];
-            const explanation = r.explanation || {};
-            const factors = explanation.factorAttribution || {};
+          <tbody>
+            {rows.map((r) => {
+              const isOpen = expanded[r.rank];
+              const explanation = r.explanation || {};
+              const factors = explanation.factorAttribution || {};
 
-            const convictionLevel =
-              r.conviction?.level ||
-              (r.conviction?.normalized >= 0.7
-                ? "High"
-                : r.conviction?.normalized >= 0.4
-                ? "Medium"
-                : "Low");
+              const convictionLevel =
+                r.conviction?.level ||
+                (r.conviction?.normalized >= 0.7
+                  ? "High"
+                  : r.conviction?.normalized >= 0.4
+                  ? "Medium"
+                  : "Low");
 
-            return (
-              <React.Fragment key={r.rank}>
-                <tr
-                  style={{ cursor: "pointer" }}
-                  onClick={() =>
-                    setExpanded((prev) => ({
-                      ...prev,
-                      [r.rank]: !prev[r.rank],
-                    }))
-                  }
-                >
-                  <td>#{r.rank}</td>
-                  <td>{r.symbol.symbol}</td>
-                  <td>{r.decision.decision}</td>
-                  <td>{r.regime.label}</td>
-                  <td style={{ opacity: 0.85 }}>
-                    {explanation.plainEnglishSummary}
-                  </td>
-                  <td align="right">
-                    <span style={badgeStyle(convictionLevel)}>
-                      {convictionLevel}
-                    </span>
-                  </td>
-                </tr>
-
-                {isOpen && (
-                  <tr>
-                    <td colSpan={6} style={{ background: "#0f172a" }}>
-                      <div style={{ padding: "1.25rem" }}>
-                        {Object.keys(factors).length > 0 && (
-                          <>
-                            <strong>Factor Attribution</strong>
-                            <table width="100%" cellPadding="6">
-                              <tbody>
-                                {Object.entries(factors).map(([k, v]) => (
-                                  <tr key={k}>
-                                    <td>{k}</td>
-                                    <td align="right" style={deltaStyle(v)}>
-                                      {v > 0 ? "+" : ""}
-                                      {v.toFixed(2)}
-                                    </td>
-                                  </tr>
-                                ))}
-                              </tbody>
-                            </table>
-                          </>
-                        )}
-                      </div>
+              return (
+                <React.Fragment key={r.rank}>
+                  <tr
+                    style={{ cursor: "pointer" }}
+                    onClick={() =>
+                      setExpanded((prev) => ({
+                        ...prev,
+                        [r.rank]: !prev[r.rank],
+                      }))
+                    }
+                  >
+                    <td>#{r.rank}</td>
+                    <td>{r.symbol.symbol}</td>
+                    <td>{r.decision.decision}</td>
+                    <td>{r.regime.label}</td>
+                    <td style={{ opacity: 0.85 }}>
+                      {explanation.plainEnglishSummary}
+                    </td>
+                    <td align="right">
+                      <span style={badgeStyle(convictionLevel)}>
+                        {convictionLevel}
+                      </span>
                     </td>
                   </tr>
-                )}
-              </React.Fragment>
-            );
-          })}
-        </tbody>
-      </table>
+
+                  {isOpen && (
+                    <tr>
+                      <td colSpan={6} style={{ background: "#0f172a" }}>
+                        <div style={{ padding: "1.25rem" }}>
+                          {Object.keys(factors).length > 0 && (
+                            <>
+                              <strong>Factor Attribution</strong>
+                              <table width="100%" cellPadding="6">
+                                <tbody>
+                                  {Object.entries(factors).map(([k, v]) => (
+                                    <tr key={k}>
+                                      <td>{k}</td>
+                                      <td align="right" style={deltaStyle(v)}>
+                                        {v > 0 ? "+" : ""}
+                                        {v.toFixed(2)}
+                                      </td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                </React.Fragment>
+              );
+            })}
+          </tbody>
+        </table>
+      )}
     </div>
   );
 }
