@@ -101,7 +101,7 @@ export function registerAllIpc(ipcMain) {
       throw new Error("DISCOVERY_THEME_ORCHESTRATOR_INVALID");
     }
 
-    const runDiscoveryScan = discoveryModule.default.runDiscoveryScan;
+    const runDiscoveryScan = discoveryModule.runDiscoveryScan;
     const results = await runDiscoveryScan();
 
     const emergingThemes = buildThemes({
@@ -127,8 +127,8 @@ export function registerAllIpc(ipcMain) {
     );
 
     const discoveryResults =
-      discoveryModule.default.runDiscoveryScan
-        ? (await discoveryModule.default.runDiscoveryScan()).canonical
+      discoveryModule.runDiscoveryScan
+        ? (await discoveryModule.runDiscoveryScan()).canonical
         : [];
 
     return Object.freeze(
@@ -169,8 +169,8 @@ export function registerAllIpc(ipcMain) {
     }
 
     const discoveryResults =
-      discoveryModule.default.runDiscoveryScan
-        ? (await discoveryModule.default.runDiscoveryScan()).canonical
+      discoveryModule.runDiscoveryScan
+        ? (await discoveryModule.runDiscoveryScan()).canonical
         : [];
 
     const baseWatchlist = runWatchlistScan({ discoveryResults });
@@ -184,16 +184,54 @@ export function registerAllIpc(ipcMain) {
   });
 
   /* =========================================================
-     LIVE MARKET SNAPSHOT — SHADOW MODE (D11.2)
+     DISCOVERY DIVERGENCE EXPLANATIONS — SHADOW (D11.4)
      ========================================================= */
-  ipcMain.handle("market:live:snapshot", async (_event, payload = {}) => {
-    const { getLiveMarketSnapshot } = await import(
+  ipcMain.handle("discovery:divergence:explanations", async () => {
+    const discoveryModule = await import(
+      "../../engine/discovery/runDiscoveryScan.js"
+    );
+
+    const liveMarketModule = await import(
       "../../engine/market/live/liveMarketSnapshotService.js"
     );
 
+    const explanationModule = await import(
+      "../../engine/discovery/explain/divergenceExplanationEngine.js"
+    );
+
+    const runDiscoveryScan =
+      discoveryModule.runDiscoveryScan ||
+      discoveryModule.default?.runDiscoveryScan;
+
+    const getLiveMarketSnapshot =
+      liveMarketModule.getLiveMarketSnapshot ||
+      liveMarketModule.default?.getLiveMarketSnapshot;
+
+    const buildDivergenceExplanations =
+      explanationModule.buildDivergenceExplanations ||
+      explanationModule.default?.buildDivergenceExplanations;
+
+    if (typeof runDiscoveryScan !== "function") {
+      throw new Error("DISCOVERY_ENGINE_INVALID");
+    }
+
+    if (typeof getLiveMarketSnapshot !== "function") {
+      throw new Error("LIVE_MARKET_SNAPSHOT_INVALID");
+    }
+
+    if (typeof buildDivergenceExplanations !== "function") {
+      throw new Error("DIVERGENCE_EXPLANATION_ENGINE_INVALID");
+    }
+
+    const discovery = await runDiscoveryScan();
+    const symbols = discovery.canonical.map(r => r.symbol.symbol);
+
+    const liveSnapshot = await getLiveMarketSnapshot({ symbols });
+
     return Object.freeze(
-      await getLiveMarketSnapshot({
-        symbols: Array.isArray(payload.symbols) ? payload.symbols : []
+      buildDivergenceExplanations({
+        discoveryResults: discovery.canonical,
+        liveMarketData: liveSnapshot.data || []
       })
     );
   });
