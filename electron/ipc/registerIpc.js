@@ -8,6 +8,7 @@ import { valuePortfolio } from "../../engine/portfolio/portfolioValuation.js";
  * -----------------------------
  * Registers all read-only IPC surfaces.
  * No mutation. No UI logic.
+ * No execution.
  */
 
 let cachedSnapshot = null;
@@ -43,33 +44,12 @@ export function registerAllIpc(ipcMain) {
     return cachedSnapshot;
   });
 
+  /* =========================
+     PORTFOLIO
+     ========================= */
   ipcMain.handle("portfolio:getSnapshot", async () => {
     if (!cachedSnapshot) await computeSnapshot();
     return cachedSnapshot;
-  });
-
-  ipcMain.handle("decision:run", async (_event, payload) => {
-    const { runDecisionEngine } = await import(
-      "../../engine/decision/decisionEngine.js"
-    );
-    return runDecisionEngine(payload);
-  });
-
-  ipcMain.handle("chat:v2:run", async (_event, payload = {}) => {
-    const { runChatV2Orchestrator } = await import(
-      "../../engine/chat/v2/orchestrator/chatV2Orchestrator.js"
-    );
-
-    if (!cachedSnapshot) await computeSnapshot();
-
-    return runChatV2Orchestrator({
-      query: payload.query,
-      portfolioSnapshot: cachedSnapshot,
-      marketSnapshot: payload.marketSnapshot || null,
-      userPreferences: payload.userPreferences || {},
-      memoryContext: payload.memoryContext || null,
-      context: payload.context || null
-    });
   });
 
   /* =========================
@@ -143,9 +123,9 @@ export function registerAllIpc(ipcMain) {
     );
   });
 
-  /* =========================================================
-     DISCOVERY DIVERGENCE EXPLANATIONS
-     ========================================================= */
+  /* =========================
+     DIVERGENCE EXPLANATIONS
+     ========================= */
   ipcMain.handle("discovery:divergence:explanations", async () => {
     const divergenceModule = await import(
       "../../engine/discovery/explain/divergenceExplanationEngine.js"
@@ -167,10 +147,6 @@ export function registerAllIpc(ipcMain) {
       discoveryModule.runDiscoveryScan ||
       discoveryModule.default?.runDiscoveryScan;
 
-    if (typeof runDiscoveryScan !== "function") {
-      throw new Error("DISCOVERY_ENGINE_INVALID");
-    }
-
     const liveModule = await import(
       "../../engine/market/live/liveMarketSnapshotService.js"
     );
@@ -179,13 +155,9 @@ export function registerAllIpc(ipcMain) {
       liveModule.getLiveMarketSnapshot ||
       liveModule.default?.getLiveMarketSnapshot;
 
-    if (typeof getLiveMarketSnapshot !== "function") {
-      throw new Error("LIVE_MARKET_SNAPSHOT_INVALID");
-    }
-
     const discoveryResults = await runDiscoveryScan();
     const symbols = (discoveryResults.canonical || []).map(
-      (r) => r.symbol.symbol
+      r => r.symbol.symbol
     );
 
     const liveSnapshot = await getLiveMarketSnapshot({ symbols });
@@ -196,9 +168,9 @@ export function registerAllIpc(ipcMain) {
     });
   });
 
-  /* =========================================================
-     CONFIDENCE EVALUATION — D12.4 (SHADOW)
-     ========================================================= */
+  /* =========================
+     CONFIDENCE (SHADOW)
+     ========================= */
   ipcMain.handle("confidence:evaluate", async (_event, payload) => {
     const confidenceModule = await import(
       "../../engine/confidence/orchestrator/confidenceEvaluationOrchestrator.js"
@@ -213,5 +185,24 @@ export function registerAllIpc(ipcMain) {
     }
 
     return runConfidenceEvaluation(payload);
+  });
+
+  /* =========================
+     EXECUTION EXPOSURE (SHADOW)
+     ========================= */
+  ipcMain.handle("execution:exposure:evaluate", async (_event, payload) => {
+    const exposureModule = await import(
+      "../../engine/execution/executionExposureEngine.js"
+    );
+
+    const evaluateExecutionExposure =
+      exposureModule.evaluateExecutionExposure ||
+      exposureModule.default?.evaluateExecutionExposure;
+
+    if (typeof evaluateExecutionExposure !== "function") {
+      throw new Error("EXECUTION_EXPOSURE_ENGINE_INVALID");
+    }
+
+    return evaluateExecutionExposure(payload);
   });
 }
