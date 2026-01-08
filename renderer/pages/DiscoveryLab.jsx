@@ -45,7 +45,7 @@ function convictionLabelFromNormalized(n) {
 }
 
 export default function DiscoveryLab() {
-  // Core discovery surfaces
+  // Core discovery
   const [rows, setRows] = useState([]);
   const [themes, setThemes] = useState([]);
   const [watchlistCandidates, setWatchlistCandidates] = useState([]);
@@ -56,13 +56,12 @@ export default function DiscoveryLab() {
   const [preview, setPreview] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  // Manual research (on-demand)
+  // Manual research
   const [manualSymbol, setManualSymbol] = useState("");
   const [manualLoading, setManualLoading] = useState(false);
   const [manualResult, setManualResult] = useState(null);
   const [manualError, setManualError] = useState("");
 
-  // Optional confidence history (safe if IPC not wired)
   const [confidenceHistory, setConfidenceHistory] = useState([]);
 
   useEffect(() => {
@@ -137,10 +136,8 @@ export default function DiscoveryLab() {
   const manualDecision = manual?.decision?.decision || "NONE";
   const manualConv = Number(manual?.conviction?.normalized ?? 0);
   const manualConvPct = (manualConv * 100).toFixed(1);
-  const manualExplain =
-    manual?.explanation?.plainEnglishSummary ||
-    manual?.explanation?.summary ||
-    "Explanation unavailable.";
+
+  const fundamentalContext = manual?.explanation?.fundamentalContext || null;
 
   const rankedRows = useMemo(() => (Array.isArray(rows) ? rows : []), [rows]);
 
@@ -150,14 +147,14 @@ export default function DiscoveryLab() {
 
   return (
     <div style={{ display: "flex", height: "100%", padding: "2rem", gap: "1.5rem" }}>
-      {/* ================= LEFT ================= */}
+      {/* LEFT */}
       <div style={{ flex: 3, maxWidth: 1400 }}>
         <h1>Discovery Lab</h1>
         <p style={{ opacity: 0.8 }}>
           Read-only market discovery surface (Phase D12+). Shadow autonomy preserved.
         </p>
 
-        {/* ================= MANUAL RESEARCH ================= */}
+        {/* MANUAL RESEARCH */}
         <div
           style={{
             background: "#0b1220",
@@ -186,9 +183,7 @@ export default function DiscoveryLab() {
                 borderRadius: "8px",
                 outline: "none",
               }}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") runManualResearch();
-              }}
+              onKeyDown={(e) => e.key === "Enter" && runManualResearch()}
             />
             <button
               onClick={runManualResearch}
@@ -216,17 +211,14 @@ export default function DiscoveryLab() {
           {manual && (
             <div style={{ marginTop: "0.9rem" }}>
               <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
-                <h3 style={{ margin: 0 }}>{manual?.symbol}</h3>
+                <h3 style={{ margin: 0 }}>{manual.symbol}</h3>
                 <span style={badgeStyle(manualDecision)}>{manualDecision}</span>
                 <span style={{ opacity: 0.8, fontWeight: 700 }}>
                   Conviction: {manualConvPct}%
                 </span>
               </div>
-              <p style={{ marginTop: "0.5rem", opacity: 0.8, lineHeight: 1.35 }}>
-                {manualExplain}
-              </p>
 
-              {/* MANUAL FUNDAMENTALS PANEL */}
+              {/* FUNDAMENTALS EXPLANATION (DEDICATED) */}
               <div
                 style={{
                   marginTop: "0.75rem",
@@ -235,24 +227,23 @@ export default function DiscoveryLab() {
                   borderRadius: "8px",
                 }}
               >
-                <h4 style={{ marginTop: 0 }}>Fundamentals (Read-only)</h4>
-                <ul style={{ paddingLeft: "1rem", opacity: 0.9 }}>
-                  <li>Growth: {manual?.fundamentals?.factors?.growth ?? "—"}</li>
-                  <li>Quality (Margins): {manual?.fundamentals?.factors?.quality ?? "—"}</li>
-                  <li>Cash Generation: {manual?.fundamentals?.factors?.cash ?? "—"}</li>
-                  <li>Balance Sheet Risk: {manual?.fundamentals?.factors?.risk ?? "—"}</li>
-                  <li>
-                    <strong>
-                      Total Score: {manual?.fundamentals?.score ?? "—"} / 10
-                    </strong>
-                  </li>
-                </ul>
+                <h4 style={{ marginTop: 0 }}>Fundamental Assessment</h4>
+                <p style={{ opacity: 0.85 }}>
+                  {fundamentalContext?.summary || "Fundamental context unavailable."}
+                </p>
+                {Array.isArray(fundamentalContext?.details) && (
+                  <ul style={{ paddingLeft: "1.1rem", opacity: 0.85 }}>
+                    {fundamentalContext.details.map((d, i) => (
+                      <li key={i}>{d}</li>
+                    ))}
+                  </ul>
+                )}
               </div>
             </div>
           )}
         </div>
 
-        {/* ================= EMERGING THEMES ================= */}
+        {/* EMERGING THEMES */}
         <h3 style={{ marginTop: "2.5rem" }}>
           Emerging Themes
           <span style={cadenceStyle()}>Structural · Slow cadence</span>
@@ -277,7 +268,7 @@ export default function DiscoveryLab() {
           ))
         )}
 
-        {/* ================= WATCHLIST ================= */}
+        {/* WATCHLIST */}
         <h3 style={{ marginTop: "2.5rem" }}>
           Watchlist Candidates
           <span style={cadenceStyle()}>Observational · Medium cadence</span>
@@ -302,7 +293,7 @@ export default function DiscoveryLab() {
           ))
         )}
 
-        {/* ================= RANKED DISCOVERY ================= */}
+        {/* RANKED DISCOVERY */}
         <h3 style={{ marginTop: "2.5rem" }}>
           Ranked Market Discovery
           <span style={cadenceStyle()}>Tactical · Fast cadence</span>
@@ -357,7 +348,6 @@ export default function DiscoveryLab() {
                       </td>
                     </tr>
 
-                    {/* ===== EXPANDED FACTORS PANEL (RESTORED) ===== */}
                     {expanded[r.rank] && (
                       <tr>
                         <td colSpan={6} style={{ background: "#0f172a" }}>
@@ -396,7 +386,7 @@ export default function DiscoveryLab() {
         )}
       </div>
 
-      {/* ================= RIGHT: INSIGHT PANEL ================= */}
+      {/* RIGHT: INSIGHT PANEL */}
       <div
         style={{
           flex: 1,
@@ -421,9 +411,6 @@ export default function DiscoveryLab() {
               {selectedInsight.divergence?.summary ||
                 selectedInsight.row?.explanation?.plainEnglishSummary ||
                 "No divergence summary available."}
-            </p>
-            <p style={{ opacity: 0.65 }}>
-              {selectedInsight.divergence?.interpretation || ""}
             </p>
 
             <h4 style={{ marginTop: "1.25rem" }}>Decision</h4>
