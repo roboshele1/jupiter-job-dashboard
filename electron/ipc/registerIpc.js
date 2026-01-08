@@ -82,7 +82,7 @@ export function registerAllIpc(ipcMain) {
   });
 
   /* =========================================================
-     DISCOVERY LAB — RANKED AUTONOMOUS SCAN (EXTENDED D10.4)
+     DISCOVERY LAB — RANKED AUTONOMOUS SCAN (D10.4)
      ========================================================= */
   ipcMain.handle("discovery:run", async () => {
     const discoveryModule = await import(
@@ -93,7 +93,6 @@ export function registerAllIpc(ipcMain) {
       "../../engine/discovery/orchestrator/discoveryThemeOrchestrator.js"
     );
 
-    // CJS / ESM interop-safe resolution
     const buildThemes =
       themeModule.buildThemes ||
       themeModule.default?.buildThemes;
@@ -116,7 +115,7 @@ export function registerAllIpc(ipcMain) {
   });
 
   /* =========================================================
-     WATCHLIST ENGINE — READ-ONLY (D10.7)
+     WATCHLIST ENGINE — BASE (READ-ONLY)
      ========================================================= */
   ipcMain.handle("watchlist:run", async () => {
     const { runWatchlistScan } = await import(
@@ -134,6 +133,53 @@ export function registerAllIpc(ipcMain) {
 
     return Object.freeze(
       runWatchlistScan({ discoveryResults })
+    );
+  });
+
+  /* =========================================================
+     WATCHLIST CANDIDATES — COGNITION LAYER (D10.5)
+     ========================================================= */
+  ipcMain.handle("watchlist:candidates", async () => {
+    const watchlistModule = await import(
+      "../../engine/watchlist/runWatchlistScan.js"
+    );
+
+    const orchestratorModule = await import(
+      "../../engine/watchlist/orchestrator/watchlistCandidatesOrchestrator.js"
+    );
+
+    const discoveryModule = await import(
+      "../../engine/discovery/runDiscoveryScan.js"
+    );
+
+    const runWatchlistScan =
+      watchlistModule.runWatchlistScan ||
+      watchlistModule.default?.runWatchlistScan;
+
+    const buildWatchlistCandidates =
+      orchestratorModule.buildWatchlistCandidates ||
+      orchestratorModule.default?.buildWatchlistCandidates;
+
+    if (typeof runWatchlistScan !== "function") {
+      throw new Error("WATCHLIST_ENGINE_INVALID");
+    }
+
+    if (typeof buildWatchlistCandidates !== "function") {
+      throw new Error("WATCHLIST_CANDIDATES_ORCHESTRATOR_INVALID");
+    }
+
+    const discoveryResults =
+      discoveryModule.default.runDiscoveryScan
+        ? (await discoveryModule.default.runDiscoveryScan()).canonical
+        : [];
+
+    const baseWatchlist = runWatchlistScan({ discoveryResults });
+
+    return Object.freeze(
+      buildWatchlistCandidates({
+        watchlistResult: baseWatchlist,
+        discoveryResults
+      })
     );
   });
 }
