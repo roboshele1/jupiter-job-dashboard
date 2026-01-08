@@ -1,11 +1,16 @@
 /**
- * DISCOVERY LAB — AUTONOMOUS SCAN (D7.5 → D7.10)
- * --------------------------------------------
- * - Universe build
+ * DISCOVERY LAB — AUTONOMOUS SCAN (D13.3)
+ * -------------------------------------
+ * - Universe normalization
  * - Per-asset Discovery evaluation
  * - Canonical ranking
  * - Multi-regime comparative ranking
- * - Regime delta analysis (why ranks shift)
+ * - Regime delta analysis
+ *
+ * CONTRACT:
+ * - Universe entries may be strings OR objects { symbol, tags }
+ * - Discovery engine always receives a string symbol
+ * - Tags are preserved on the result (descriptive only)
  */
 
 const { buildDiscoveryUniverse } = require("./universe/buildDiscoveryUniverse.js");
@@ -19,15 +24,35 @@ const {
 } = require("./ranking/regimeDeltaAnalysis.js");
 
 async function runDiscoveryScan() {
-  const universe = await buildDiscoveryUniverse();
+  const rawUniverse = await buildDiscoveryUniverse();
+
+  // ---- NORMALIZE UNIVERSE ----
+  const universe = rawUniverse
+    .map((u) => {
+      if (typeof u === "string") {
+        return { symbol: u, tags: [] };
+      }
+      if (u && typeof u.symbol === "string") {
+        return { symbol: u.symbol, tags: u.tags || [] };
+      }
+      return null;
+    })
+    .filter(Boolean);
 
   const evaluated = [];
-  for (const symbol of universe) {
+
+  for (const asset of universe) {
     const result = await runDiscoveryEngine({
-      symbol,
+      symbol: asset.symbol,
       ownership: false,
     });
-    evaluated.push(result);
+
+    evaluated.push(
+      Object.freeze({
+        ...result,
+        tags: asset.tags, // descriptive only
+      })
+    );
   }
 
   const canonical = rankDiscoveryResults(evaluated);
