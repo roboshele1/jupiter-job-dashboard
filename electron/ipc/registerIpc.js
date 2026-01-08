@@ -55,9 +55,18 @@ export function registerAllIpc(ipcMain) {
      DECISION ENGINE (READ-ONLY)
      ========================================================= */
   ipcMain.handle("decision:run", async (_event, payload) => {
-    const { runDecisionEngine } = await import(
+    const decisionModule = await import(
       "../../engine/decision/decisionEngine.js"
     );
+
+    const runDecisionEngine =
+      decisionModule.runDecisionEngine ||
+      decisionModule.default?.runDecisionEngine;
+
+    if (typeof runDecisionEngine !== "function") {
+      throw new Error("DECISION_ENGINE_INVALID");
+    }
+
     return runDecisionEngine(payload);
   });
 
@@ -65,9 +74,17 @@ export function registerAllIpc(ipcMain) {
      CHAT V2 — AUTHORITATIVE IPC
      ========================================================= */
   ipcMain.handle("chat:v2:run", async (_event, payload = {}) => {
-    const { runChatV2Orchestrator } = await import(
+    const chatModule = await import(
       "../../engine/chat/v2/orchestrator/chatV2Orchestrator.js"
     );
+
+    const runChatV2Orchestrator =
+      chatModule.runChatV2Orchestrator ||
+      chatModule.default?.runChatV2Orchestrator;
+
+    if (typeof runChatV2Orchestrator !== "function") {
+      throw new Error("CHAT_V2_ENGINE_INVALID");
+    }
 
     if (!cachedSnapshot) await computeSnapshot();
 
@@ -82,12 +99,20 @@ export function registerAllIpc(ipcMain) {
   });
 
   /* =========================================================
-     DISCOVERY LAB — RANKED AUTONOMOUS SCAN (D10.4)
+     DISCOVERY LAB — RANKED AUTONOMOUS SCAN (D10+)
      ========================================================= */
   ipcMain.handle("discovery:run", async () => {
     const discoveryModule = await import(
       "../../engine/discovery/runDiscoveryScan.js"
     );
+
+    const runDiscoveryScan =
+      discoveryModule.runDiscoveryScan ||
+      discoveryModule.default?.runDiscoveryScan;
+
+    if (typeof runDiscoveryScan !== "function") {
+      throw new Error("DISCOVERY_ENGINE_INVALID");
+    }
 
     const themeModule = await import(
       "../../engine/discovery/orchestrator/discoveryThemeOrchestrator.js"
@@ -101,9 +126,7 @@ export function registerAllIpc(ipcMain) {
       throw new Error("DISCOVERY_THEME_ORCHESTRATOR_INVALID");
     }
 
-    const runDiscoveryScan = discoveryModule.runDiscoveryScan;
     const results = await runDiscoveryScan();
-
     const emergingThemes = buildThemes({
       canonical: results.canonical || []
     });
@@ -115,20 +138,32 @@ export function registerAllIpc(ipcMain) {
   });
 
   /* =========================================================
-     WATCHLIST ENGINE — BASE (READ-ONLY)
+     WATCHLIST ENGINE — BASE
      ========================================================= */
   ipcMain.handle("watchlist:run", async () => {
-    const { runWatchlistScan } = await import(
+    const watchlistModule = await import(
       "../../engine/watchlist/runWatchlistScan.js"
     );
+
+    const runWatchlistScan =
+      watchlistModule.runWatchlistScan ||
+      watchlistModule.default?.runWatchlistScan;
+
+    if (typeof runWatchlistScan !== "function") {
+      throw new Error("WATCHLIST_ENGINE_INVALID");
+    }
 
     const discoveryModule = await import(
       "../../engine/discovery/runDiscoveryScan.js"
     );
 
+    const runDiscoveryScan =
+      discoveryModule.runDiscoveryScan ||
+      discoveryModule.default?.runDiscoveryScan;
+
     const discoveryResults =
-      discoveryModule.runDiscoveryScan
-        ? (await discoveryModule.runDiscoveryScan()).canonical
+      typeof runDiscoveryScan === "function"
+        ? (await runDiscoveryScan()).canonical
         : [];
 
     return Object.freeze(
@@ -137,7 +172,7 @@ export function registerAllIpc(ipcMain) {
   });
 
   /* =========================================================
-     WATCHLIST CANDIDATES — COGNITION LAYER (D10.5)
+     WATCHLIST CANDIDATES — COGNITION LAYER
      ========================================================= */
   ipcMain.handle("watchlist:candidates", async () => {
     const watchlistModule = await import(
@@ -160,6 +195,10 @@ export function registerAllIpc(ipcMain) {
       orchestratorModule.buildWatchlistCandidates ||
       orchestratorModule.default?.buildWatchlistCandidates;
 
+    const runDiscoveryScan =
+      discoveryModule.runDiscoveryScan ||
+      discoveryModule.default?.runDiscoveryScan;
+
     if (typeof runWatchlistScan !== "function") {
       throw new Error("WATCHLIST_ENGINE_INVALID");
     }
@@ -169,8 +208,8 @@ export function registerAllIpc(ipcMain) {
     }
 
     const discoveryResults =
-      discoveryModule.runDiscoveryScan
-        ? (await discoveryModule.runDiscoveryScan()).canonical
+      typeof runDiscoveryScan === "function"
+        ? (await runDiscoveryScan()).canonical
         : [];
 
     const baseWatchlist = runWatchlistScan({ discoveryResults });
@@ -184,54 +223,53 @@ export function registerAllIpc(ipcMain) {
   });
 
   /* =========================================================
-     DISCOVERY DIVERGENCE EXPLANATIONS — SHADOW (D11.4)
+     DISCOVERY ↔ LIVE MARKET DIVERGENCE EXPLANATIONS (D11.4)
      ========================================================= */
   ipcMain.handle("discovery:divergence:explanations", async () => {
-    const discoveryModule = await import(
-      "../../engine/discovery/runDiscoveryScan.js"
-    );
-
-    const liveMarketModule = await import(
-      "../../engine/market/live/liveMarketSnapshotService.js"
-    );
-
     const explanationModule = await import(
       "../../engine/discovery/explain/divergenceExplanationEngine.js"
+    );
+
+    const buildDivergenceExplanations =
+      explanationModule.buildDivergenceExplanations ||
+      explanationModule.default?.buildDivergenceExplanations;
+
+    if (typeof buildDivergenceExplanations !== "function") {
+      throw new Error("DIVERGENCE_EXPLANATION_ENGINE_INVALID");
+    }
+
+    const discoveryModule = await import(
+      "../../engine/discovery/runDiscoveryScan.js"
     );
 
     const runDiscoveryScan =
       discoveryModule.runDiscoveryScan ||
       discoveryModule.default?.runDiscoveryScan;
 
-    const getLiveMarketSnapshot =
-      liveMarketModule.getLiveMarketSnapshot ||
-      liveMarketModule.default?.getLiveMarketSnapshot;
-
-    const buildDivergenceExplanations =
-      explanationModule.buildDivergenceExplanations ||
-      explanationModule.default?.buildDivergenceExplanations;
-
     if (typeof runDiscoveryScan !== "function") {
       throw new Error("DISCOVERY_ENGINE_INVALID");
     }
+
+    const liveMarketModule = await import(
+      "../../engine/market/live/liveMarketSnapshotService.js"
+    );
+
+    const getLiveMarketSnapshot =
+      liveMarketModule.getLiveMarketSnapshot ||
+      liveMarketModule.default?.getLiveMarketSnapshot;
 
     if (typeof getLiveMarketSnapshot !== "function") {
       throw new Error("LIVE_MARKET_SNAPSHOT_INVALID");
     }
 
-    if (typeof buildDivergenceExplanations !== "function") {
-      throw new Error("DIVERGENCE_EXPLANATION_ENGINE_INVALID");
-    }
-
-    const discovery = await runDiscoveryScan();
-    const symbols = discovery.canonical.map(r => r.symbol.symbol);
-
-    const liveSnapshot = await getLiveMarketSnapshot({ symbols });
+    const discoveryResults = (await runDiscoveryScan()).canonical || [];
+    const symbols = discoveryResults.map(r => r.symbol.symbol);
+    const live = await getLiveMarketSnapshot({ symbols });
 
     return Object.freeze(
       buildDivergenceExplanations({
-        discoveryResults: discovery.canonical,
-        liveMarketData: liveSnapshot.data || []
+        discoveryResults,
+        liveMarketData: live.data || []
       })
     );
   });
