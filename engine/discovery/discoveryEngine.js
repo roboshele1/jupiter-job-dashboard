@@ -1,18 +1,9 @@
 /**
- * DISCOVERY LAB — AUTHORITATIVE ORCHESTRATOR (COMMONJS)
- * ----------------------------------------------------
- * Deterministic, read-only execution path that assembles
- * Discovery intelligence layers into a single canonical result.
- *
- * IMPORTANT:
- * - CommonJS only
- * - No hard dependency on regime definitions file
- * - Regimes inferred from classifier contract
+ * DISCOVERY LAB — AUTHORITATIVE ORCHESTRATOR (D16.5)
+ * -------------------------------------------------
+ * Deterministic, read-only execution path.
+ * Now wired with MULTI-PERIOD FUNDAMENTALS.
  */
-
-// ==============================
-// IMPORTS (COMMONJS — CANONICAL)
-// ==============================
 
 const { scoreFundamentals } = require("./scoring/fundamentalScore.js");
 const { computeTacticalScore } = require("./scoring/tacticalScore.js");
@@ -22,6 +13,15 @@ const { applyRegimeAdjustments } = require("./regime/scoring/regimeScoreAdjuster
 
 const { classifyDiscoveryDecision } = require("./decision/classifyDecision.js");
 const { explainDiscoveryResult } = require("./explain/unifiedDiscoveryExplanation.js");
+
+const {
+  getLiveFundamentals,
+  getFundamentalsHistory,
+} = require("../market/live/liveFundamentalsService.js");
+
+const {
+  normalizeFundamentals,
+} = require("./scoring/normalizeFundamentals.js");
 
 // ==============================
 // HELPER — REGIME DELTA ANALYSIS
@@ -49,7 +49,7 @@ function computeRegimeDeltas({ baseRegime, fundamentals, tactical }) {
 
   const deltas = [];
 
-  KNOWN_REGIMES.forEach(regimeKey => {
+  KNOWN_REGIMES.forEach((regimeKey) => {
     if (regimeKey === baseRegime) return;
 
     const adjusted = applyRegimeAdjustments({
@@ -81,7 +81,7 @@ function computeRegimeDeltas({ baseRegime, fundamentals, tactical }) {
 
   return Object.freeze({
     baseRegime,
-    comparedAgainst: deltas.map(d => d.regime),
+    comparedAgainst: deltas.map((d) => d.regime),
     deltas,
   });
 }
@@ -101,7 +101,29 @@ async function runDiscoveryEngine(input) {
     throw new Error("MISSING_SYMBOL: Discovery requires a symbol");
   }
 
-  const fundamentals = scoreFundamentals(input.fundamentals || {});
+  // ---- LIVE FUNDAMENTALS (TTM + HISTORY) ----
+  const [ttm, history] = await Promise.all([
+    getLiveFundamentals(symbol),
+    getFundamentalsHistory(symbol),
+  ]);
+
+  const normalized = normalizeFundamentals({ ttm, history });
+
+  const fundamentals = scoreFundamentals({
+    financials: {
+      income_statement: {
+        revenue_growth: normalized.revenueGrowth,
+        gross_margin: normalized.grossMargin,
+      },
+      balance_sheet: {
+        debt_to_equity: normalized.debtToEquity,
+      },
+      cash_flow_statement: {
+        free_cash_flow: normalized.freeCashFlow,
+      },
+    },
+  });
+
   const tactical = computeTacticalScore(input.tactical || {});
   const regime = classifyRegime(input.macro || {});
 
@@ -149,14 +171,10 @@ async function runDiscoveryEngine(input) {
       tactical,
       regime,
       attribution: regimeAdjusted.adjustedFactors,
-      validation: null,
+      validation: normalized.notes || null,
     }),
   });
 }
-
-// ==============================
-// EXPORT (COMMONJS)
-// ==============================
 
 module.exports = Object.freeze({
   runDiscoveryEngine,

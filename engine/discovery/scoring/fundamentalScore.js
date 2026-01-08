@@ -1,71 +1,56 @@
-// engine/discovery/scoring/fundamentalScore.js
-
 /**
- * FUNDAMENTAL SCORE — D1.2 (HARDENED)
- * ----------------------------------
- * Deterministic 0–10 score derived from normalized metrics.
- * Safe under partial or missing data.
- * No mutation. No timing. No regime awareness.
+ * FUNDAMENTAL SCORING ENGINE (D16)
+ * --------------------------------
+ * Converts real financials into normalized conviction signals.
+ * No price prediction. Long-term durability focus.
  */
 
-function clamp(value, min = 0, max = 1) {
-  if (!Number.isFinite(value)) return 0;
-  return Math.max(min, Math.min(max, value));
-}
-
-function safe(value, fallback = 0) {
-  return Number.isFinite(value) ? value : fallback;
-}
-
-function scoreFundamentals(normalized = {}) {
-  if (typeof normalized !== "object") {
-    throw new Error("INVALID_INPUT: normalized metrics required");
+function scoreFundamentals(financials = {}) {
+  if (!financials) {
+    return {
+      score: 0,
+      factors: {},
+      notes: ["No fundamentals available"],
+    };
   }
 
-  const weights = Object.freeze({
-    growth: 0.30,
-    quality: 0.25,
-    cash: 0.20,
-    balance: 0.15,
-    penalties: 0.10,
-  });
+  const income = financials.financials?.income_statement || {};
+  const balance = financials.financials?.balance_sheet || {};
+  const cashflow = financials.financials?.cash_flow_statement || {};
 
-  const growthScore = clamp(
-    (safe(normalized.revenueGrowth) + safe(normalized.epsGrowth)) / 2
-  );
+  const revenueGrowth = income.revenue_growth ?? 0;
+  const freeCashFlow = cashflow.free_cash_flow ?? 0;
+  const debtToEquity = balance.debt_to_equity ?? 1;
+  const grossMargin = income.gross_margin ?? 0;
 
-  const qualityScore = clamp(
-    (safe(normalized.roe) + safe(normalized.roic, safe(normalized.roe))) / 2
-  );
+  const growth =
+    revenueGrowth > 0.15 ? 2 :
+    revenueGrowth > 0.05 ? 1 : 0;
 
-  const cashScore = clamp(safe(normalized.fcfMargin));
+  const quality =
+    grossMargin > 0.5 ? 2 :
+    grossMargin > 0.3 ? 1 : 0;
 
-  const balanceScore = clamp(1 - safe(normalized.debtRatio));
+  const risk =
+    debtToEquity > 2 ? 2 :
+    debtToEquity > 1 ? 1 : 0;
 
-  const penalty =
-    safe(normalized.roe) < 0.3 || safe(normalized.fcfMargin) < 0.2 ? 0.3 : 0;
+  const cash =
+    freeCashFlow > 0 ? 2 : 0;
 
-  const raw =
-    growthScore * weights.growth +
-    qualityScore * weights.quality +
-    cashScore * weights.cash +
-    balanceScore * weights.balance -
-    penalty * weights.penalties;
+  const score = growth + quality + cash - risk;
 
-  const finalScore = Math.round(clamp(raw) * 10 * 100) / 100;
-
-  return Object.freeze({
-    score: finalScore,
-    factors: Object.freeze({
-      growth: growthScore,
-      quality: qualityScore,
-      cash: cashScore,
-      balance: balanceScore,
-    }),
-  });
+  return {
+    score,
+    factors: {
+      growth,
+      quality,
+      risk,
+      cash,
+    },
+  };
 }
 
 module.exports = Object.freeze({
   scoreFundamentals,
 });
-

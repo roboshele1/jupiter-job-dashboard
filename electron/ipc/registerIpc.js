@@ -53,7 +53,7 @@ export function registerAllIpc(ipcMain) {
   });
 
   /* =========================
-     DISCOVERY
+     DISCOVERY — AUTONOMOUS
      ========================= */
   ipcMain.handle("discovery:run", async () => {
     const discoveryModule = await import(
@@ -80,6 +80,38 @@ export function registerAllIpc(ipcMain) {
     return Object.freeze({
       ...results,
       emergingThemes: buildThemes({ canonical: results.canonical || [] })
+    });
+  });
+
+  /* =========================
+     DISCOVERY — MANUAL ANALYSIS (D15.1)
+     ========================= */
+  ipcMain.handle("discovery:analyze:symbol", async (_event, payload) => {
+    if (!payload || typeof payload.symbol !== "string") {
+      throw new Error("INVALID_PAYLOAD: symbol required");
+    }
+
+    const discoveryEngineModule = await import(
+      "../../engine/discovery/discoveryEngine.js"
+    );
+
+    const runDiscoveryEngine =
+      discoveryEngineModule.runDiscoveryEngine ||
+      discoveryEngineModule.default?.runDiscoveryEngine;
+
+    if (typeof runDiscoveryEngine !== "function") {
+      throw new Error("DISCOVERY_ENGINE_INVALID");
+    }
+
+    const result = await runDiscoveryEngine({
+      symbol: payload.symbol.toUpperCase(),
+      ownership: payload.ownership === true
+    });
+
+    return Object.freeze({
+      mode: "MANUAL_RESEARCH",
+      input: payload,
+      result
     });
   });
 
@@ -121,51 +153,6 @@ export function registerAllIpc(ipcMain) {
         discoveryResults
       })
     );
-  });
-
-  /* =========================
-     DIVERGENCE EXPLANATIONS
-     ========================= */
-  ipcMain.handle("discovery:divergence:explanations", async () => {
-    const divergenceModule = await import(
-      "../../engine/discovery/explain/divergenceExplanationEngine.js"
-    );
-
-    const buildDivergenceExplanations =
-      divergenceModule.buildDivergenceExplanations ||
-      divergenceModule.default?.buildDivergenceExplanations;
-
-    if (typeof buildDivergenceExplanations !== "function") {
-      throw new Error("DIVERGENCE_ENGINE_INVALID");
-    }
-
-    const discoveryModule = await import(
-      "../../engine/discovery/runDiscoveryScan.js"
-    );
-
-    const runDiscoveryScan =
-      discoveryModule.runDiscoveryScan ||
-      discoveryModule.default?.runDiscoveryScan;
-
-    const liveModule = await import(
-      "../../engine/market/live/liveMarketSnapshotService.js"
-    );
-
-    const getLiveMarketSnapshot =
-      liveModule.getLiveMarketSnapshot ||
-      liveModule.default?.getLiveMarketSnapshot;
-
-    const discoveryResults = await runDiscoveryScan();
-    const symbols = (discoveryResults.canonical || []).map(
-      r => r.symbol.symbol
-    );
-
-    const liveSnapshot = await getLiveMarketSnapshot({ symbols });
-
-    return buildDivergenceExplanations({
-      discoveryResults: discoveryResults.canonical || [],
-      liveMarketData: liveSnapshot.data || []
-    });
   });
 
   /* =========================
