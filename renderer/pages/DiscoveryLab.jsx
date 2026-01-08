@@ -79,13 +79,11 @@ export default function DiscoveryLab() {
 
   async function loadConfidenceHistory(symbol) {
     try {
-      const result = await window.jupiter.invoke(
-        "confidence:history:get",
-        { symbol }
-      );
+      const result = await window.jupiter.invoke("confidence:history:get", {
+        symbol,
+      });
       setConfidenceHistory(result || []);
-    } catch (err) {
-      console.error("Confidence history load failed:", err);
+    } catch {
       setConfidenceHistory([]);
     }
   }
@@ -96,7 +94,7 @@ export default function DiscoveryLab() {
 
   return (
     <div style={{ display: "flex", height: "100%", padding: "2rem", gap: "1.5rem" }}>
-      {/* ================= LEFT: DISCOVERY ================= */}
+      {/* ================= LEFT ================= */}
       <div style={{ flex: 3, maxWidth: 1400 }}>
         <h1>Discovery Lab</h1>
         <p style={{ opacity: 0.8 }}>
@@ -130,6 +128,35 @@ export default function DiscoveryLab() {
           ))
         )}
 
+        {/* Watchlist Candidates */}
+        <h3 style={{ marginTop: "3rem" }}>
+          Watchlist Candidates
+          <span style={cadenceStyle()}>Observational · Medium cadence</span>
+        </h3>
+
+        {watchlistCandidates.length === 0 ? (
+          <p style={{ opacity: 0.6 }}>
+            No assets currently meet monitoring criteria.
+          </p>
+        ) : (
+          watchlistCandidates.map((w) => (
+            <div
+              key={w.watchId}
+              style={{
+                background: "#0b1220",
+                padding: "0.9rem",
+                borderRadius: "8px",
+                marginBottom: "0.6rem",
+              }}
+            >
+              <strong>{w.symbol}</strong>
+              <p style={{ opacity: 0.7, marginTop: "0.3rem" }}>
+                {w.monitorReason}
+              </p>
+            </div>
+          ))
+        )}
+
         {/* Ranked Discovery */}
         <h3 style={{ marginTop: "3rem" }}>
           Ranked Market Discovery
@@ -147,7 +174,6 @@ export default function DiscoveryLab() {
               <th align="right">Confidence</th>
             </tr>
           </thead>
-
           <tbody>
             {rows.map((r) => {
               const explanation = r.explanation || {};
@@ -240,28 +266,20 @@ export default function DiscoveryLab() {
             </p>
 
             <h4 style={{ marginTop: "1.5rem" }}>Confidence History</h4>
-
             {confidenceHistory.length === 0 ? (
               <p style={{ opacity: 0.5 }}>No confidence history recorded.</p>
             ) : (
               <ul style={{ paddingLeft: "1rem" }}>
                 {confidenceHistory.map((h, i) => (
-                  <li key={i} style={{ marginBottom: "0.4rem" }}>
+                  <li key={i}>
                     <span style={badgeStyle(h.confidence)}>
                       {h.confidence}
                     </span>{" "}
-                    <span style={{ opacity: 0.6, marginLeft: "0.4rem" }}>
-                      ({h.regime})
-                    </span>
+                    <span style={{ opacity: 0.6 }}>({h.regime})</span>
                   </li>
                 ))}
               </ul>
             )}
-
-            <p style={{ fontSize: "0.75rem", opacity: 0.4, marginTop: "1rem" }}>
-              Confidence history is descriptive only. It does not imply execution,
-              timing, or prediction.
-            </p>
           </>
         )}
       </div>
