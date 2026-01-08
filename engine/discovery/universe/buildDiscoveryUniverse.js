@@ -1,13 +1,15 @@
 /**
- * D13.3 — AUTONOMOUS DISCOVERY UNIVERSE (PROGRESSIVE)
- * -------------------------------------------------
- * - No seeded symbols
- * - Deterministic
- * - Progressive relaxation (if universe too small)
- * - Transparent internal stats (future UI surfacing)
+ * D14.3 — Controlled Fallback Discovery Universe
+ * ----------------------------------------------
+ * PURPOSE:
+ * - Preserve LIVE universe as authoritative
+ * - Activate FALLBACK universe ONLY when live snapshot is empty
+ * - Maintain determinism, caps, and auditability
  *
- * OUTPUT CONTRACT (unchanged):
- * - Returns Array<{ symbol, tags }>
+ * IMPORTANT:
+ * - Fallback is explicit and labeled
+ * - No silent loosening
+ * - No execution, no prediction
  */
 
 const {
@@ -15,16 +17,22 @@ const {
 } = require("../../market/live/liveMarketSnapshotService.js");
 
 const HARD_CAP = 60;
-const MIN_UNIVERSE_SIZE = 15;
+const STRICT_VOLUME_FLOOR = 1_000_000;
+const RELAXED_VOLUME_FLOOR = 500_000;
 
 /**
- * Progressive filter tiers (deterministic order)
+ * Explicit fallback universe (deterministic, institutional)
+ * Used ONLY when live snapshot yields zero assets
  */
-const FILTER_TIERS = Object.freeze([
-  { minVolume: 1_000_000 },
-  { minVolume: 750_000 },
-  { minVolume: 500_000 },
-  { minVolume: 250_000 },
+const FALLBACK_UNIVERSE = Object.freeze([
+  { symbol: "AAPL", tags: ["mega_cap", "quality"] },
+  { symbol: "MSFT", tags: ["mega_cap", "quality"] },
+  { symbol: "NVDA", tags: ["mega_cap", "growth", "high_beta"] },
+  { symbol: "AMZN", tags: ["mega_cap", "growth"] },
+  { symbol: "GOOGL", tags: ["mega_cap", "quality"] },
+  { symbol: "META", tags: ["mega_cap", "growth"] },
+  { symbol: "AVGO", tags: ["mega_cap", "quality"] },
+  { symbol: "ASML", tags: ["mega_cap", "quality"] },
 ]);
 
 async function buildDiscoveryUniverse() {
@@ -32,50 +40,77 @@ async function buildDiscoveryUniverse() {
     scope: "DISCOVERY_UNIVERSE",
   });
 
-  const data = Array.isArray(snapshot?.data) ? snapshot.data : [];
+  const data = snapshot?.data || [];
 
-  const stats = {
-    scanned: data.length,
-    tierUsed: null,
-    passedLiquidity: 0,
-    capped: false,
-  };
+  let universe = [];
+  let mode = "STRICT";
+  let notes = [];
 
-  let selected = [];
+  // ---------- PASS 1: STRICT LIVE ----------
+  universe = filterAndBuild({
+    data,
+    volumeFloor: STRICT_VOLUME_FLOOR,
+  });
 
-  for (const tier of FILTER_TIERS) {
-    selected = data
-      .filter(a => a && a.symbol && a.volume && a.price)
-      .filter(a => a.volume >= tier.minVolume)
-      .sort((a, b) => {
-        if (b.volume !== a.volume) return b.volume - a.volume;
-        return a.symbol.localeCompare(b.symbol);
-      });
+  notes.push(`Strict pass: volume >= ${STRICT_VOLUME_FLOOR}`);
 
-    stats.passedLiquidity = selected.length;
+  // ---------- PASS 2: RELAXED LIVE ----------
+  if (universe.length === 0 && data.length > 0) {
+    universe = filterAndBuild({
+      data,
+      volumeFloor: RELAXED_VOLUME_FLOOR,
+    });
 
-    if (selected.length >= MIN_UNIVERSE_SIZE) {
-      stats.tierUsed = tier.minVolume;
-      break;
-    }
+    mode = "RELAXED_ON_EMPTY";
+    notes.push(`Relaxed pass: volume >= ${RELAXED_VOLUME_FLOOR}`);
   }
 
-  if (selected.length > HARD_CAP) {
-    selected = selected.slice(0, HARD_CAP);
-    stats.capped = true;
+  // ---------- PASS 3: EXPLICIT FALLBACK ----------
+  if (universe.length === 0) {
+    universe = FALLBACK_UNIVERSE.slice(0, HARD_CAP);
+    mode = "FALLBACK_UNIVERSE";
+    notes.push(
+      "Live market snapshot empty. Activated explicit fallback universe."
+    );
   }
 
-  const universe = selected.map(a =>
-    Object.freeze({
+  universe = universe.slice(0, HARD_CAP);
+
+  return Object.freeze({
+    mode,
+    universe: Object.freeze(universe),
+    telemetry: Object.freeze({
+      rawSnapshotCount: data.length,
+      universeCount: universe.length,
+      volumeFloorUsed:
+        mode === "STRICT"
+          ? STRICT_VOLUME_FLOOR
+          : mode === "RELAXED_ON_EMPTY"
+          ? RELAXED_VOLUME_FLOOR
+          : null,
+      notes,
+    }),
+  });
+}
+
+function filterAndBuild({ data, volumeFloor }) {
+  return data
+    .filter(
+      (a) =>
+        a &&
+        typeof a.symbol === "string" &&
+        a.volume &&
+        a.price &&
+        a.volume >= volumeFloor
+    )
+    .sort((a, b) => {
+      if (b.volume !== a.volume) return b.volume - a.volume;
+      return a.symbol.localeCompare(b.symbol);
+    })
+    .map((a) => ({
       symbol: a.symbol,
       tags: deriveTags(a),
-    })
-  );
-
-  // Intentionally not returned yet (D13.4 will surface)
-  // console.log("[DISCOVERY_UNIVERSE_STATS]", stats);
-
-  return Object.freeze(universe);
+    }));
 }
 
 function deriveTags(asset) {
@@ -87,9 +122,8 @@ function deriveTags(asset) {
     else tags.push("mid_small_cap");
   }
 
-  if (asset.volatility != null) {
-    if (asset.volatility > 0.05) tags.push("high_beta");
-    else tags.push("low_beta");
+  if (asset.volatility) {
+    tags.push(asset.volatility > 0.05 ? "high_beta" : "low_beta");
   }
 
   if (asset.assetClass) {
