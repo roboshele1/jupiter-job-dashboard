@@ -82,17 +82,37 @@ export function registerAllIpc(ipcMain) {
   });
 
   /* =========================================================
-     DISCOVERY LAB — RANKED AUTONOMOUS SCAN
+     DISCOVERY LAB — RANKED AUTONOMOUS SCAN (EXTENDED D10.4)
      ========================================================= */
   ipcMain.handle("discovery:run", async () => {
     const discoveryModule = await import(
       "../../engine/discovery/runDiscoveryScan.js"
     );
 
+    const themeModule = await import(
+      "../../engine/discovery/orchestrator/discoveryThemeOrchestrator.js"
+    );
+
+    // CJS / ESM interop-safe resolution
+    const buildThemes =
+      themeModule.buildThemes ||
+      themeModule.default?.buildThemes;
+
+    if (typeof buildThemes !== "function") {
+      throw new Error("DISCOVERY_THEME_ORCHESTRATOR_INVALID");
+    }
+
     const runDiscoveryScan = discoveryModule.default.runDiscoveryScan;
     const results = await runDiscoveryScan();
 
-    return Object.freeze(results);
+    const emergingThemes = buildThemes({
+      canonical: results.canonical || []
+    });
+
+    return Object.freeze({
+      ...results,
+      emergingThemes
+    });
   });
 
   /* =========================================================
