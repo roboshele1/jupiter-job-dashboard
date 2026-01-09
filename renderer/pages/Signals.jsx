@@ -1,12 +1,13 @@
 import React, { useEffect, useMemo, useState } from "react";
 
 /**
- * Phase 2A → 2B – Signals Activation (ADD-ONLY)
+ * Phase 2A → 2C – Signals Activation + Context Rendering (ADD-ONLY)
  * Rules honored:
  * - NO JSX removed
  * - Existing table + help text preserved
  * - Static snapshot retained as fallback
  * - IPC snapshot consumed read-only
+ * - Context rendered if present, ignored if absent
  */
 
 const IMPACT_RANK = { High: 3, Moderate: 2, Low: 1 };
@@ -23,12 +24,22 @@ const deltaStyle = (delta) => ({
   fontWeight: 700,
 });
 
+const contextStyle = (context) => ({
+  fontWeight: 700,
+  color:
+    context === "ACCUMULATION_ZONE"
+      ? "#2ecc71"
+      : context === "DISTRIBUTION_ZONE"
+      ? "#e74c3c"
+      : "#9ca3af",
+});
+
 export default function Signals() {
   const [sortKey, setSortKey] = useState("portfolioImpact");
   const [ipcSnapshot, setIpcSnapshot] = useState(null);
   const [status, setStatus] = useState("idle");
 
-  // ---- EXISTING STATIC SNAPSHOT (UNCHANGED FALLBACK) ----
+  // ---- STATIC SNAPSHOT (UNCHANGED FALLBACK) ----
   const staticSnapshot = {
     timestamp: "2025-12-30T16:28:28.562Z",
     notifications: [],
@@ -41,6 +52,7 @@ export default function Signals() {
         portfolioImpact: "High",
         confidence: "High",
         delta: "↑",
+        context: "NEUTRAL",
       },
       {
         symbol: "ETH",
@@ -50,6 +62,7 @@ export default function Signals() {
         portfolioImpact: "Moderate",
         confidence: "Medium",
         delta: "↓",
+        context: "ACCUMULATION_ZONE",
       },
       {
         symbol: "NVDA",
@@ -59,11 +72,12 @@ export default function Signals() {
         portfolioImpact: "Low",
         confidence: "Medium",
         delta: "→",
+        context: "NEUTRAL",
       },
     ],
   };
 
-  // ---- Phase 2B: IPC SNAPSHOT (READ-ONLY) ----
+  // ---- IPC SNAPSHOT (READ-ONLY) ----
   useEffect(() => {
     async function loadIpcSnapshot() {
       if (!window.api?.invoke) return;
@@ -104,7 +118,7 @@ export default function Signals() {
     <div className="signals-page">
       <h2>Signals</h2>
 
-      {/* ---- NOTIFICATIONS BANNER ---- */}
+      {/* ---- NOTIFICATIONS ---- */}
       <div style={{ marginBottom: 8, opacity: 0.75 }}>
         Notifications: {notificationCount || "None"}
       </div>
@@ -117,16 +131,17 @@ export default function Signals() {
           <li><b>Mean Reversion</b>: Distance from recent average price.</li>
           <li><b>Portfolio Impact</b>: Estimated influence on portfolio outcomes.</li>
           <li><b>Confidence</b>: Derived signal reliability.</li>
+          <li><b>Context</b>: Structural posture (not an action).</li>
           <li><b>Δ</b>: Change since last snapshot.</li>
         </ul>
       </div>
 
-      {/* ---- SOURCE BADGE ---- */}
+      {/* ---- SOURCE ---- */}
       <div style={{ opacity: 0.6, marginBottom: 8 }}>
         Source: {ipcSnapshot ? "Live IPC snapshot" : "Static snapshot"}
       </div>
 
-      {/* ---- SIGNALS TABLE ---- */}
+      {/* ---- TABLE ---- */}
       <table className="signals-table">
         <thead>
           <tr>
@@ -146,6 +161,7 @@ export default function Signals() {
             >
               Confidence
             </th>
+            <th>Context</th>
             <th
               onClick={() => setSortKey("delta")}
               style={{ cursor: "pointer" }}
@@ -174,6 +190,11 @@ export default function Signals() {
                 }}
               >
                 {s.confidence}
+              </td>
+              <td>
+                <span style={contextStyle(s.context)}>
+                  {s.context || "—"}
+                </span>
               </td>
               <td>
                 <span style={deltaStyle(s.delta)}>{s.delta}</span>

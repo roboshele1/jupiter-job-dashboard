@@ -1,5 +1,5 @@
 // engine/signals/signalsEngine.js
-// Signals Engine V2 — Confidence-aware + Context classification
+// Signals Engine V3 — Confidence + Context + Delta (RESTORED)
 // Deterministic, read-only, no execution authority
 
 const CONFIDENCE_ORDER = { Low: 1, Medium: 2, High: 3 };
@@ -22,35 +22,16 @@ function classifyMeanReversion(deltaPct = 0) {
   return "Neutral";
 }
 
-function normalizeConfidence(v) {
-  if (typeof v === "string") return v;
-  if (v >= 0.8) return "High";
-  if (v >= 0.5) return "Medium";
-  return "Low";
+function classifyContext(deltaPct = 0) {
+  if (deltaPct <= -0.05) return "ACCUMULATION_ZONE";
+  if (deltaPct >= 0.05) return "DISTRIBUTION_ZONE";
+  return "NEUTRAL";
 }
 
-/**
- * CONTEXT CLASSIFIER — APPEND-ONLY
- * Describes portfolio posture, not action.
- */
-function classifyContext({ momentum, meanReversion, portfolioImpact, confidence }) {
-  if (
-    (meanReversion === "Oversold" || momentum === "Weak") &&
-    portfolioImpact === "High" &&
-    confidence !== "Low"
-  ) {
-    return "ACCUMULATION_ZONE";
-  }
-
-  if (
-    (meanReversion === "Overextended" || momentum === "Strong") &&
-    portfolioImpact === "Low" &&
-    confidence === "Low"
-  ) {
-    return "DISTRIBUTION_ZONE";
-  }
-
-  return "NEUTRAL";
+function computeDelta(deltaPct = 0) {
+  if (deltaPct > 0) return "↑";
+  if (deltaPct < 0) return "↓";
+  return "→";
 }
 
 export function buildSignalsSnapshot({
@@ -67,7 +48,7 @@ export function buildSignalsSnapshot({
     confidenceEvaluations.find(c => c.symbol === "PORTFOLIO")
       ?.confidenceTransition?.nextConfidence || "Low";
 
-  const portfolioSignal = {
+  signals.push({
     symbol: "PORTFOLIO",
     assetClass: "aggregate",
     momentum: "-",
@@ -75,17 +56,9 @@ export function buildSignalsSnapshot({
     portfolioImpact: "Low",
     confidence: portfolioConfidence,
     confidenceRank: CONFIDENCE_ORDER[portfolioConfidence],
-    delta: "→"
-  };
-
-  portfolioSignal.context = classifyContext({
-    momentum: portfolioSignal.momentum,
-    meanReversion: portfolioSignal.meanReversion,
-    portfolioImpact: portfolioSignal.portfolioImpact,
-    confidence: portfolioSignal.confidence
+    delta: "→",
+    context: "NEUTRAL"
   });
-
-  signals.push(portfolioSignal);
 
   // ------------------------------
   // PER-ASSET SIGNALS
@@ -102,29 +75,19 @@ export function buildSignalsSnapshot({
     const nextConf =
       evalResult?.confidenceTransition?.nextConfidence || "Low";
 
-    const momentum = classifyMomentum(p.deltaPct ?? 0);
-    const meanReversion = classifyMeanReversion(p.deltaPct ?? 0);
-    const portfolioImpact = classifyImpact(p.deltaPct ?? 0);
+    const deltaPct = p.deltaPct ?? 0;
 
-    const signal = {
+    signals.push({
       symbol: p.symbol,
       assetClass: p.assetClass,
-      momentum,
-      meanReversion,
-      portfolioImpact,
+      momentum: classifyMomentum(deltaPct),
+      meanReversion: classifyMeanReversion(deltaPct),
+      portfolioImpact: classifyImpact(deltaPct),
       confidence: nextConf,
       confidenceRank: CONFIDENCE_ORDER[nextConf],
-      delta: "→"
-    };
-
-    signal.context = classifyContext({
-      momentum,
-      meanReversion,
-      portfolioImpact,
-      confidence: nextConf
+      delta: computeDelta(deltaPct),
+      context: classifyContext(deltaPct)
     });
-
-    signals.push(signal);
   }
 
   return {

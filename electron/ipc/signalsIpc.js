@@ -1,5 +1,11 @@
 // electron/ipc/signalsIpc.js
+// Signals IPC — authoritative snapshot bridge
+// Deterministic, read-only, pinned per session
+
 import { buildSignalsSnapshot } from '../../engine/signals/signalsEngine.js';
+import snapshotEngine from '../../engine/signalsSnapshotEngine.js';
+
+const { recordSnapshot } = snapshotEngine;
 
 let pinnedSnapshot = null;
 
@@ -12,11 +18,12 @@ export function registerSignalsIpc(ipcMain, getPortfolioSnapshot) {
 
     const portfolioSnap = await getPortfolioSnapshot();
 
-    pinnedSnapshot = buildSignalsSnapshot({
+    const rawSnapshot = buildSignalsSnapshot({
       portfolio: portfolioSnap?.portfolio,
-      confidence: portfolioSnap?.confidence
+      confidenceEvaluations: portfolioSnap?.confidenceEvaluations || []
     });
 
+    pinnedSnapshot = recordSnapshot(rawSnapshot);
     return pinnedSnapshot;
   });
 
@@ -26,4 +33,3 @@ export function registerSignalsIpc(ipcMain, getPortfolioSnapshot) {
     return { ok: true };
   });
 }
-
