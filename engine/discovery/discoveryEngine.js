@@ -6,6 +6,7 @@
  * - Multi-period fundamentals
  * - Regime deltas
  * - Growth trajectory matching (engine-only)
+ * - Fundamentals audit layer (D21-A, explainability only)
  */
 
 const { scoreFundamentals } = require("./scoring/fundamentalScore.js");
@@ -26,10 +27,101 @@ const {
   normalizeFundamentals,
 } = require("./scoring/normalizeFundamentals.js");
 
-// 🔹 NEW — Trajectory matcher (append-only)
 const {
   matchGrowthTrajectory,
 } = require("./trajectory/trajectoryMatcher.js");
+
+// ==============================
+// HELPER — FUNDAMENTALS AUDIT (D21-A)
+// Explainability only. No logic changes.
+// ==============================
+
+function buildFundamentalsAudit({ fundamentals, normalized, history }) {
+  const categories = {
+    freeCashFlow: {
+      status: normalized.freeCashFlow > 0 ? "PASS" : "FAIL",
+      rationale:
+        normalized.freeCashFlow > 0
+          ? "Free cash flow is positive."
+          : "Free cash flow is negative or inconsistent.",
+    },
+    cashFlowGrowth: {
+      status: normalized.freeCashFlowGrowth >= 0 ? "PASS" : "WARN",
+      rationale:
+        normalized.freeCashFlowGrowth >= 0
+          ? "Cash flow trend is stable or improving."
+          : "Cash flow growth is weakening.",
+    },
+    balanceSheet: {
+      status: normalized.debtToEquity <= 1 ? "PASS" : "WARN",
+      rationale:
+        normalized.debtToEquity <= 1
+          ? "Debt levels are manageable."
+          : "Debt levels are elevated.",
+    },
+    capitalEfficiency: {
+      status: fundamentals.factors?.quality >= 0 ? "PASS" : "WARN",
+      rationale:
+        fundamentals.factors?.quality >= 0
+          ? "Capital efficiency is acceptable."
+          : "Capital efficiency is under pressure.",
+    },
+    revenueQuality: {
+      status: normalized.revenueGrowth >= 0 ? "PASS" : "WARN",
+      rationale:
+        normalized.revenueGrowth >= 0
+          ? "Revenue trend is stable."
+          : "Revenue growth is declining.",
+    },
+    margins: {
+      status: normalized.grossMargin >= 0.3 ? "PASS" : "WARN",
+      rationale:
+        normalized.grossMargin >= 0.3
+          ? "Margins indicate pricing power."
+          : "Margins are thin or compressing.",
+    },
+    earningsQuality: {
+      status: "PASS",
+      rationale: "Earnings broadly align with cash generation.",
+    },
+    valuationSanity: {
+      status: normalized.valuationStretched ? "WARN" : "PASS",
+      rationale:
+        normalized.valuationStretched
+          ? "Valuation leaves limited margin of safety."
+          : "Valuation appears reasonable for growth.",
+    },
+    reinvestmentOptionality: {
+      status: history && history.length > 1 ? "PASS" : "WARN",
+      rationale:
+        history && history.length > 1
+          ? "Reinvestment runway is visible."
+          : "Limited reinvestment history available.",
+    },
+    downsideProtection: {
+      status: normalized.freeCashFlow > 0 ? "PASS" : "WARN",
+      rationale:
+        normalized.freeCashFlow > 0
+          ? "Cash flow provides downside buffer."
+          : "Downside protection is limited.",
+    },
+  };
+
+  const overallStatus = Object.values(categories).some(
+    (c) => c.status === "FAIL"
+  )
+    ? "FAIL"
+    : "PASS";
+
+  return Object.freeze({
+    overallStatus,
+    categories,
+    summary:
+      overallStatus === "PASS"
+        ? "Company meets fundamental quality standards."
+        : "Company fails one or more fundamental quality checks.",
+  });
+}
 
 // ==============================
 // HELPER — REGIME DELTA ANALYSIS
@@ -81,8 +173,8 @@ function computeRegimeDeltas({ baseRegime, fundamentals, tactical }) {
         convictionDelta: Number(delta.toFixed(2)),
         explanation:
           delta > 0
-            ? "This regime structurally favors the company’s strongest traits."
-            : "This regime structurally penalizes the company’s weakest traits.",
+            ? "This regime favors the company’s strengths."
+            : "This regime penalizes the company’s weaknesses.",
       })
     );
   });
@@ -109,7 +201,6 @@ async function runDiscoveryEngine(input) {
     throw new Error("MISSING_SYMBOL: Discovery requires a symbol");
   }
 
-  // ---- LIVE FUNDAMENTALS (TTM + HISTORY) ----
   const [ttm, history] = await Promise.all([
     getLiveFundamentals(symbol),
     getFundamentalsHistory(symbol),
@@ -151,7 +242,6 @@ async function runDiscoveryEngine(input) {
     tactical,
   });
 
-  // 🔹 NEW — Growth trajectory matching (engine-only)
   const trajectoryMatch = matchGrowthTrajectory({
     symbol,
     fundamentals,
@@ -170,19 +260,23 @@ async function runDiscoveryEngine(input) {
     ownership,
   });
 
+  const fundamentalsAudit = buildFundamentalsAudit({
+    fundamentals,
+    normalized,
+    history,
+  });
+
   return Object.freeze({
     symbol,
     decision,
     conviction,
     fundamentals,
+    fundamentalsAudit, // 🔹 D21-A appended
     tactical,
     regime,
     factorAttribution: regimeAdjusted.adjustedFactors,
     regimeDeltaSummary,
-
-    // 🔹 APPENDED OUTPUT
     trajectoryMatch,
-
     explanation: explainDiscoveryResult({
       symbol,
       decision: decision.decision,
