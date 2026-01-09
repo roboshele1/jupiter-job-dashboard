@@ -13,6 +13,16 @@ const IMPACT_RANK = { High: 3, Moderate: 2, Low: 1 };
 const CONFIDENCE_RANK = { High: 3, Medium: 2, Low: 1 };
 const DELTA_RANK = { "↑": 3, "→": 2, "↓": 1 };
 
+const deltaStyle = (delta) => ({
+  color:
+    delta === "↑"
+      ? "#2ecc71"
+      : delta === "↓"
+      ? "#e74c3c"
+      : "#9ca3af",
+  fontWeight: 700,
+});
+
 export default function Signals() {
   const [sortKey, setSortKey] = useState("portfolioImpact");
   const [ipcSnapshot, setIpcSnapshot] = useState(null);
@@ -94,12 +104,12 @@ export default function Signals() {
     <div className="signals-page">
       <h2>Signals</h2>
 
-      {/* ---- NOTIFICATIONS BANNER (NOW REAL) ---- */}
+      {/* ---- NOTIFICATIONS BANNER ---- */}
       <div style={{ marginBottom: 8, opacity: 0.75 }}>
         Notifications: {notificationCount || "None"}
       </div>
 
-      {/* ---- EXISTING HELP TEXT (PRESERVED) ---- */}
+      {/* ---- HELP TEXT ---- */}
       <div className="signals-help">
         <strong>How to read this table:</strong>
         <ul>
@@ -111,12 +121,12 @@ export default function Signals() {
         </ul>
       </div>
 
-      {/* ---- SOURCE BADGE (ADD-ONLY) ---- */}
+      {/* ---- SOURCE BADGE ---- */}
       <div style={{ opacity: 0.6, marginBottom: 8 }}>
         Source: {ipcSnapshot ? "Live IPC snapshot" : "Static snapshot"}
       </div>
 
-      {/* ---- EXISTING TABLE (PRESERVED) ---- */}
+      {/* ---- SIGNALS TABLE ---- */}
       <table className="signals-table">
         <thead>
           <tr>
@@ -156,15 +166,18 @@ export default function Signals() {
                 style={{
                   color:
                     s.confidence === "High"
-                      ? "lime"
+                      ? "#2ecc71"
                       : s.confidence === "Medium"
-                      ? "gold"
-                      : "gray",
+                      ? "#f1c40f"
+                      : "#9ca3af",
+                  fontWeight: 700,
                 }}
               >
                 {s.confidence}
               </td>
-              <td>{s.delta}</td>
+              <td>
+                <span style={deltaStyle(s.delta)}>{s.delta}</span>
+              </td>
             </tr>
           ))}
         </tbody>
@@ -176,4 +189,3 @@ export default function Signals() {
     </div>
   );
 }
-
