@@ -1,33 +1,36 @@
 // engine/signalsSnapshotEngine.js
-// Authoritative snapshot history + delta computation
+// Signals Snapshot History — Delta authority
 
 let lastSnapshot = null;
 
-function computeDelta(current, previous) {
-  if (!previous) return "→";
-  if (current > previous) return "↑";
-  if (current < previous) return "↓";
+const CONFIDENCE_ORDER = { Low: 1, Medium: 2, High: 3 };
+
+function computeDelta(currentRank, previousRank) {
+  if (previousRank == null) return "→";
+  if (currentRank > previousRank) return "↑";
+  if (currentRank < previousRank) return "↓";
   return "→";
 }
 
-function normalizeSignals(snapshot) {
-  return snapshot.signals.map(s => {
+function recordSnapshot(snapshot) {
+  const normalizedSignals = snapshot.signals.map(s => {
     const prev = lastSnapshot?.signals?.find(p => p.symbol === s.symbol);
     return {
       ...s,
-      delta: computeDelta(s.confidenceRank, prev?.confidenceRank),
+      delta: computeDelta(
+        s.confidenceRank,
+        prev?.confidenceRank
+      )
     };
   });
-}
 
-function recordSnapshot(snapshot) {
   const normalized = {
     ...snapshot,
-    signals: normalizeSignals(snapshot),
+    signals: normalizedSignals
   };
-  lastSnapshot = snapshot;
+
+  lastSnapshot = normalized;
   return normalized;
 }
 
-module.exports = { recordSnapshot };
-
+module.exports = Object.freeze({ recordSnapshot });

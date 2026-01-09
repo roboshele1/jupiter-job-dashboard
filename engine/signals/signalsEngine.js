@@ -1,18 +1,12 @@
 // engine/signals/signalsEngine.js
-// Deterministic, defensive Signals Engine
-// NEVER throws on missing inputs
+// Signals Engine V2 — Confidence-aware
+// Deterministic, read-only, no execution authority
 
-// ----------------- HELPERS -----------------
+const CONFIDENCE_ORDER = { Low: 1, Medium: 2, High: 3 };
 
 function classifyImpact(pct = 0) {
   if (pct <= -0.05) return "High";
   if (pct <= -0.02) return "Moderate";
-  return "Low";
-}
-
-function classifyConfidence(v = 0) {
-  if (v >= 0.8) return "High";
-  if (v >= 0.5) return "Medium";
   return "Low";
 }
 
@@ -28,61 +22,68 @@ function classifyMeanReversion(deltaPct = 0) {
   return "Neutral";
 }
 
-function buildNotifications(insights = {}) {
-  const notes = [];
-  const conf = insights?.confidence?.confidence ?? 0;
-
-  if (conf >= 0.8) {
-    notes.push({ type: "HIGH_CONFIDENCE_SIGNAL", severity: "info" });
-  }
-
-  return notes;
+function normalizeConfidence(v) {
+  if (typeof v === "string") return v;
+  if (v >= 0.8) return "High";
+  if (v >= 0.5) return "Medium";
+  return "Low";
 }
 
-// ----------------- MAIN ENGINE -----------------
-
-export function buildSignalsSnapshot({ insights = {}, portfolio = {} }) {
+export function buildSignalsSnapshot({
+  confidenceEvaluations = [],
+  portfolio = {}
+} = {}) {
   const timestamp = Date.now();
-
-  const deltas = insights?.deltas ?? {};
-  const confidenceVal = insights?.confidence?.confidence ?? 0;
-
   const signals = [];
 
-  // ---- PORTFOLIO AGGREGATE (ALWAYS PRESENT) ----
+  // ------------------------------
+  // PORTFOLIO AGGREGATE (SYSTEM POSTURE)
+  // ------------------------------
+  const portfolioConfidence =
+    confidenceEvaluations.find(c => c.symbol === "PORTFOLIO")
+      ?.confidenceTransition?.nextConfidence || "Low";
+
   signals.push({
     symbol: "PORTFOLIO",
     assetClass: "aggregate",
     momentum: "-",
     meanReversion: "-",
-    portfolioImpact: classifyImpact(deltas.deltaPortfolioImpactPct ?? 0),
-    confidence: classifyConfidence(confidenceVal),
+    portfolioImpact: "Low",
+    confidence: portfolioConfidence,
+    confidenceRank: CONFIDENCE_ORDER[portfolioConfidence],
     delta: "→"
   });
 
-  // ---- PER-ASSET SIGNALS (SAFE) ----
+  // ------------------------------
+  // PER-ASSET SIGNALS
+  // ------------------------------
   const positions = Array.isArray(portfolio.positions)
     ? portfolio.positions
     : [];
 
   for (const p of positions) {
-    const deltaPct = p.deltaPct ?? 0;
+    const evalResult = confidenceEvaluations.find(
+      e => e.symbol === p.symbol
+    );
+
+    const nextConf =
+      evalResult?.confidenceTransition?.nextConfidence || "Low";
 
     signals.push({
       symbol: p.symbol,
       assetClass: p.assetClass,
-      momentum: classifyMomentum(deltaPct),
-      meanReversion: classifyMeanReversion(deltaPct),
-      portfolioImpact: classifyImpact(deltaPct),
-      confidence: classifyConfidence(confidenceVal),
-      delta: deltaPct > 0 ? "↑" : deltaPct < 0 ? "↓" : "→"
+      momentum: classifyMomentum(p.deltaPct ?? 0),
+      meanReversion: classifyMeanReversion(p.deltaPct ?? 0),
+      portfolioImpact: classifyImpact(p.deltaPct ?? 0),
+      confidence: nextConf,
+      confidenceRank: CONFIDENCE_ORDER[nextConf],
+      delta: "→"
     });
   }
 
   return {
     timestamp,
     signals,
-    notifications: buildNotifications(insights)
+    notifications: []
   };
 }
-
