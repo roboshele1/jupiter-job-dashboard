@@ -1,20 +1,17 @@
 /**
  * DISCOVERY LAB — AUTHORITATIVE ORCHESTRATOR (D20)
- * ------------------------------------------------
  * Deterministic, read-only execution path.
- * Now wired with:
- * - Multi-period fundamentals
- * - Regime deltas
- * - Growth trajectory matching (engine-only)
- * - Fundamentals audit layer (D21-A, explainability only)
+ * - Fundamentals audit layer (D21-A)
+ * - Discovery snapshot history (D21-B)
  */
+
+const fs = require("fs");
+const path = require("path");
 
 const { scoreFundamentals } = require("./scoring/fundamentalScore.js");
 const { computeTacticalScore } = require("./scoring/tacticalScore.js");
-
 const { classifyRegime } = require("./regime/classifyRegime.js");
 const { applyRegimeAdjustments } = require("./regime/scoring/regimeScoreAdjuster.js");
-
 const { classifyDiscoveryDecision } = require("./decision/classifyDecision.js");
 const { explainDiscoveryResult } = require("./explain/unifiedDiscoveryExplanation.js");
 
@@ -23,17 +20,11 @@ const {
   getFundamentalsHistory,
 } = require("../market/live/liveFundamentalsService.js");
 
-const {
-  normalizeFundamentals,
-} = require("./scoring/normalizeFundamentals.js");
-
-const {
-  matchGrowthTrajectory,
-} = require("./trajectory/trajectoryMatcher.js");
+const { normalizeFundamentals } = require("./scoring/normalizeFundamentals.js");
+const { matchGrowthTrajectory } = require("./trajectory/trajectoryMatcher.js");
 
 // ==============================
-// HELPER — FUNDAMENTALS AUDIT (D21-A)
-// Explainability only. No logic changes.
+// FUNDAMENTALS AUDIT (D21-A)
 // ==============================
 
 function buildFundamentalsAudit({ fundamentals, normalized, history }) {
@@ -107,9 +98,7 @@ function buildFundamentalsAudit({ fundamentals, normalized, history }) {
     },
   };
 
-  const overallStatus = Object.values(categories).some(
-    (c) => c.status === "FAIL"
-  )
+  const overallStatus = Object.values(categories).some((c) => c.status === "FAIL")
     ? "FAIL"
     : "PASS";
 
@@ -124,66 +113,34 @@ function buildFundamentalsAudit({ fundamentals, normalized, history }) {
 }
 
 // ==============================
-// HELPER — REGIME DELTA ANALYSIS
+// SNAPSHOT HISTORY (D21-B)
 // ==============================
 
-function computeRegimeDeltas({ baseRegime, fundamentals, tactical }) {
-  const baseFactors = {
-    growth: fundamentals.factors?.growth ?? 0,
-    quality: fundamentals.factors?.quality ?? 0,
-    risk: fundamentals.factors?.risk ?? 0,
-    momentum: tactical.breakdown?.momentum ?? 0,
-  };
+const SNAPSHOT_PATH = path.join(process.cwd(), "data", "discoverySnapshots.json");
+const SNAPSHOT_LIMIT = 30;
 
-  const KNOWN_REGIMES = [
-    "RISK_ON_GROWTH",
-    "TIGHT_MONETARY",
-    "INFLATIONARY_EXPANSION",
-    "RISK_OFF_DEFENSIVE",
-  ];
+function recordDiscoverySnapshot({ regimeLabel, counts }) {
+  let snapshots = [];
+  if (fs.existsSync(SNAPSHOT_PATH)) {
+    try {
+      snapshots = JSON.parse(fs.readFileSync(SNAPSHOT_PATH, "utf8")) || [];
+    } catch {
+      snapshots = [];
+    }
+  }
 
-  const baseAdjusted = applyRegimeAdjustments({
-    regime: baseRegime,
-    factors: baseFactors,
+  snapshots.push({
+    timestamp: new Date().toISOString(),
+    regime: regimeLabel,
+    counts,
   });
 
-  const deltas = [];
+  if (snapshots.length > SNAPSHOT_LIMIT) {
+    snapshots = snapshots.slice(-SNAPSHOT_LIMIT);
+  }
 
-  KNOWN_REGIMES.forEach((regimeKey) => {
-    if (regimeKey === baseRegime) return;
-
-    const adjusted = applyRegimeAdjustments({
-      regime: regimeKey,
-      factors: baseFactors,
-    });
-
-    const delta =
-      (adjusted.adjustedFactors.growth +
-        adjusted.adjustedFactors.quality -
-        adjusted.adjustedFactors.risk +
-        adjusted.adjustedFactors.momentum) -
-      (baseAdjusted.adjustedFactors.growth +
-        baseAdjusted.adjustedFactors.quality -
-        baseAdjusted.adjustedFactors.risk +
-        baseAdjusted.adjustedFactors.momentum);
-
-    deltas.push(
-      Object.freeze({
-        regime: regimeKey,
-        convictionDelta: Number(delta.toFixed(2)),
-        explanation:
-          delta > 0
-            ? "This regime favors the company’s strengths."
-            : "This regime penalizes the company’s weaknesses.",
-      })
-    );
-  });
-
-  return Object.freeze({
-    baseRegime,
-    comparedAgainst: deltas.map((d) => d.regime),
-    deltas,
-  });
+  fs.mkdirSync(path.dirname(SNAPSHOT_PATH), { recursive: true });
+  fs.writeFileSync(SNAPSHOT_PATH, JSON.stringify(snapshots, null, 2));
 }
 
 // ==============================
@@ -191,15 +148,9 @@ function computeRegimeDeltas({ baseRegime, fundamentals, tactical }) {
 // ==============================
 
 async function runDiscoveryEngine(input) {
-  if (!input || typeof input !== "object") {
-    throw new Error("INVALID_INPUT: Discovery engine requires input object");
-  }
-
+  if (!input || typeof input !== "object") throw new Error("INVALID_INPUT");
   const { symbol, ownership = false } = input;
-
-  if (!symbol) {
-    throw new Error("MISSING_SYMBOL: Discovery requires a symbol");
-  }
+  if (!symbol) throw new Error("MISSING_SYMBOL");
 
   const [ttm, history] = await Promise.all([
     getLiveFundamentals(symbol),
@@ -223,24 +174,8 @@ async function runDiscoveryEngine(input) {
     },
   });
 
-  const tactical = computeTacticalScore(input.tactical || {});
-  const regime = classifyRegime(input.macro || {});
-
-  const regimeAdjusted = applyRegimeAdjustments({
-    regime: regime.label,
-    factors: {
-      growth: fundamentals.factors?.growth ?? 0,
-      quality: fundamentals.factors?.quality ?? 0,
-      risk: fundamentals.factors?.risk ?? 0,
-      momentum: tactical.breakdown?.momentum ?? 0,
-    },
-  });
-
-  const regimeDeltaSummary = computeRegimeDeltas({
-    baseRegime: regime.label,
-    fundamentals,
-    tactical,
-  });
+  const tactical = computeTacticalScore({});
+  const regime = classifyRegime({});
 
   const trajectoryMatch = matchGrowthTrajectory({
     symbol,
@@ -266,16 +201,24 @@ async function runDiscoveryEngine(input) {
     history,
   });
 
+  recordDiscoverySnapshot({
+    regimeLabel: regime.label,
+    counts: {
+      ranked: decision?.decision ? 1 : 0,
+      trajectory: trajectoryMatch?.available ? 1 : 0,
+      themes: 0,
+      watchlist: 0,
+    },
+  });
+
   return Object.freeze({
     symbol,
     decision,
     conviction,
     fundamentals,
-    fundamentalsAudit, // 🔹 D21-A appended
+    fundamentalsAudit,
     tactical,
     regime,
-    factorAttribution: regimeAdjusted.adjustedFactors,
-    regimeDeltaSummary,
     trajectoryMatch,
     explanation: explainDiscoveryResult({
       symbol,
@@ -284,12 +227,8 @@ async function runDiscoveryEngine(input) {
       fundamentals,
       tactical,
       regime,
-      attribution: regimeAdjusted.adjustedFactors,
-      validation: normalized.notes || null,
     }),
   });
 }
 
-module.exports = Object.freeze({
-  runDiscoveryEngine,
-});
+module.exports = Object.freeze({ runDiscoveryEngine });
