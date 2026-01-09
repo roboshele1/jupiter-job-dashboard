@@ -10,6 +10,9 @@ const badgeStyle = (level) => {
     BUY: "#2ecc71",
     BUY_MORE: "#1abc9c",
     NONE: "#777",
+    PASS: "#2ecc71",
+    WARN: "#f1c40f",
+    FAIL: "#e74c3c",
   };
   return {
     display: "inline-block",
@@ -424,6 +427,35 @@ export default function DiscoveryLab() {
               </div>
             ))
         )}
+
+        {/* ======================= */}
+        {/* APPENDED: DISCOVERY SNAPSHOT SUMMARY (READ-ONLY) */}
+        {/* ======================= */}
+        {telemetry?.snapshot && (
+          <>
+            <h3 style={{ marginTop: "2.5rem" }}>
+              Discovery Snapshot Summary
+              <span style={cadenceStyle()}>Engine · Observational</span>
+            </h3>
+            <div
+              style={{
+                background: "#0b1220",
+                padding: "0.9rem",
+                borderRadius: "10px",
+              }}
+            >
+              <p style={{ margin: 0, opacity: 0.8 }}>
+                Last run: {telemetry.snapshot.timestamp}
+              </p>
+              <p style={{ margin: 0, opacity: 0.8 }}>
+                Regime: {telemetry.snapshot.regime}
+              </p>
+              <p style={{ margin: 0, opacity: 0.8 }}>
+                Counts: {JSON.stringify(telemetry.snapshot.counts)}
+              </p>
+            </div>
+          </>
+        )}
       </div>
 
       {/* RIGHT: INSIGHT PANEL */}
@@ -470,6 +502,32 @@ export default function DiscoveryLab() {
                 %
               </span>
             </div>
+
+            {/* ======================= */}
+            {/* APPENDED: FUNDAMENTALS AUDIT (READ-ONLY) */}
+            {/* ======================= */}
+            {selectedInsight.row?.fundamentalsAudit && (
+              <>
+                <h4 style={{ marginTop: "1.25rem" }}>Fundamentals Audit</h4>
+                <div style={{ marginTop: "0.5rem" }}>
+                  {Object.entries(
+                    selectedInsight.row.fundamentalsAudit.categories || {}
+                  ).map(([k, v]) => (
+                    <div
+                      key={k}
+                      style={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        marginBottom: "0.25rem",
+                      }}
+                    >
+                      <span style={{ opacity: 0.8 }}>{k}</span>
+                      <span style={badgeStyle(v.status)}>{v.status}</span>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
 
             <h4 style={{ marginTop: "1.25rem" }}>Confidence History</h4>
             {confidenceHistory.length === 0 ? (
