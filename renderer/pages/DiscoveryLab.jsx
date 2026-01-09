@@ -48,7 +48,6 @@ function convictionLabelFromNormalized(n) {
 }
 
 export default function DiscoveryLab() {
-  // Core discovery
   const [rows, setRows] = useState([]);
   const [themes, setThemes] = useState([]);
   const [watchlistCandidates, setWatchlistCandidates] = useState([]);
@@ -56,10 +55,8 @@ export default function DiscoveryLab() {
   const [selectedInsight, setSelectedInsight] = useState(null);
   const [expanded, setExpanded] = useState({});
   const [telemetry, setTelemetry] = useState(null);
-  const [preview, setPreview] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  // Manual research
   const [manualSymbol, setManualSymbol] = useState("");
   const [manualLoading, setManualLoading] = useState(false);
   const [manualResult, setManualResult] = useState(null);
@@ -83,7 +80,6 @@ export default function DiscoveryLab() {
         setRows(Array.isArray(discovery?.canonical) ? discovery.canonical : []);
         setThemes(discovery?.emergingThemes?.themes || []);
         setTelemetry(discovery?.telemetry || null);
-        setPreview(Array.isArray(discovery?.preview) ? discovery.preview : []);
         setWatchlistCandidates(watchlist?.candidates || []);
 
         const map = {};
@@ -129,7 +125,7 @@ export default function DiscoveryLab() {
       setManualResult(r || null);
     } catch (e) {
       console.error("Manual research failed:", e);
-      setManualError("Manual analysis failed. Check IPC handler + engine availability.");
+      setManualError("Manual analysis failed.");
     } finally {
       setManualLoading(false);
     }
@@ -139,7 +135,6 @@ export default function DiscoveryLab() {
   const manualDecision = manual?.decision?.decision || "NONE";
   const manualConv = Number(manual?.conviction?.normalized ?? 0);
   const manualConvPct = (manualConv * 100).toFixed(1);
-
   const fundamentalContext = manual?.explanation?.fundamentalContext || null;
 
   const rankedRows = useMemo(() => (Array.isArray(rows) ? rows : []), [rows]);
@@ -158,15 +153,7 @@ export default function DiscoveryLab() {
         </p>
 
         {/* MANUAL RESEARCH */}
-        <div
-          style={{
-            background: "#0b1220",
-            padding: "1rem",
-            borderRadius: "10px",
-            border: "1px solid rgba(255,255,255,0.08)",
-            marginTop: "1.25rem",
-          }}
-        >
+        <div style={{ background: "#0b1220", padding: "1rem", borderRadius: "10px", marginTop: "1.25rem" }}>
           <h3 style={{ margin: 0 }}>
             Manual Research
             <span style={cadenceStyle()}>User-driven · Immediate</span>
@@ -177,70 +164,29 @@ export default function DiscoveryLab() {
               value={manualSymbol}
               onChange={(e) => setManualSymbol(e.target.value)}
               placeholder="Enter ticker (e.g., NVDA)"
-              style={{
-                flex: 1,
-                padding: "0.55rem 0.75rem",
-                background: "#020617",
-                border: "1px solid rgba(255,255,255,0.15)",
-                color: "#fff",
-                borderRadius: "8px",
-                outline: "none",
-              }}
+              style={{ flex: 1, padding: "0.55rem 0.75rem", background: "#020617", color: "#fff", borderRadius: "8px" }}
               onKeyDown={(e) => e.key === "Enter" && runManualResearch()}
             />
-            <button
-              onClick={runManualResearch}
-              disabled={manualLoading}
-              style={{
-                padding: "0.55rem 1rem",
-                borderRadius: "8px",
-                background: "#2563eb",
-                color: "#fff",
-                border: "none",
-                cursor: "pointer",
-                fontWeight: 700,
-              }}
-            >
+            <button onClick={runManualResearch} disabled={manualLoading}>
               {manualLoading ? "Analyzing…" : "Analyze"}
             </button>
           </div>
 
-          {manualError && (
-            <p style={{ marginTop: "0.75rem", color: "#fca5a5", fontWeight: 600 }}>
-              {manualError}
-            </p>
-          )}
-
           {manual && (
             <div style={{ marginTop: "0.9rem" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
-                <h3 style={{ margin: 0 }}>{manual.symbol}</h3>
-                <span style={badgeStyle(manualDecision)}>{manualDecision}</span>
-                <span style={{ opacity: 0.8, fontWeight: 700 }}>
-                  Conviction: {manualConvPct}%
-                </span>
-              </div>
+              <h3>{manual.symbol}</h3>
+              <span style={badgeStyle(manualDecision)}>{manualDecision}</span>
+              <span style={{ marginLeft: "0.5rem" }}>Conviction {manualConvPct}%</span>
 
-              <div
-                style={{
-                  marginTop: "0.75rem",
-                  background: "#020617",
-                  padding: "0.75rem",
-                  borderRadius: "8px",
-                }}
-              >
-                <h4 style={{ marginTop: 0 }}>Fundamental Assessment</h4>
-                <p style={{ opacity: 0.85 }}>
-                  {fundamentalContext?.summary || "Fundamental context unavailable."}
-                </p>
-                {Array.isArray(fundamentalContext?.details) && (
-                  <ul style={{ paddingLeft: "1.1rem", opacity: 0.85 }}>
-                    {fundamentalContext.details.map((d, i) => (
-                      <li key={i}>{d}</li>
-                    ))}
-                  </ul>
-                )}
-              </div>
+              <h4>Fundamental Assessment</h4>
+              <p>{fundamentalContext?.summary}</p>
+              {Array.isArray(fundamentalContext?.details) && (
+                <ul>
+                  {fundamentalContext.details.map((d, i) => (
+                    <li key={i}>{d}</li>
+                  ))}
+                </ul>
+              )}
             </div>
           )}
         </div>
@@ -250,22 +196,13 @@ export default function DiscoveryLab() {
           Emerging Themes
           <span style={cadenceStyle()}>Structural · Slow cadence</span>
         </h3>
-
         {themes.length === 0 ? (
           <p style={{ opacity: 0.6 }}>No emerging structural themes detected.</p>
         ) : (
           themes.map((t) => (
-            <div
-              key={t.themeId}
-              style={{
-                background: "#0f172a",
-                padding: "1rem",
-                borderRadius: "10px",
-                marginBottom: "0.75rem",
-              }}
-            >
+            <div key={t.themeId} style={{ background: "#0f172a", padding: "1rem", borderRadius: "10px", marginBottom: "0.75rem" }}>
               <strong>{t.label}</strong>
-              <p style={{ marginTop: "0.4rem", opacity: 0.85 }}>{t.explanation}</p>
+              <p style={{ opacity: 0.85 }}>{t.explanation}</p>
             </div>
           ))
         )}
@@ -275,22 +212,13 @@ export default function DiscoveryLab() {
           Watchlist Candidates
           <span style={cadenceStyle()}>Observational · Medium cadence</span>
         </h3>
-
         {watchlistCandidates.length === 0 ? (
           <p style={{ opacity: 0.6 }}>No assets currently meet monitoring criteria.</p>
         ) : (
           watchlistCandidates.map((w) => (
-            <div
-              key={w.watchId}
-              style={{
-                background: "#0b1220",
-                padding: "0.9rem",
-                borderRadius: "10px",
-                marginBottom: "0.6rem",
-              }}
-            >
+            <div key={w.watchId} style={{ background: "#0b1220", padding: "0.9rem", borderRadius: "10px", marginBottom: "0.6rem" }}>
               <strong>{w.symbol}</strong>
-              <p style={{ opacity: 0.7, marginTop: "0.3rem" }}>{w.monitorReason}</p>
+              <p style={{ opacity: 0.7 }}>{w.monitorReason}</p>
             </div>
           ))
         )}
@@ -301,248 +229,116 @@ export default function DiscoveryLab() {
           <span style={cadenceStyle()}>Tactical · Fast cadence</span>
         </h3>
 
-        {rankedRows.length === 0 ? (
-          <p style={{ opacity: 0.6 }}>No assets passed discovery thresholds.</p>
-        ) : (
-          <table width="100%" cellPadding="10">
-            <thead>
-              <tr>
-                <th align="left">Rank</th>
-                <th align="left">Symbol</th>
-                <th align="left">Decision</th>
-                <th align="left">Regime</th>
-                <th align="left">Why It Surfaced</th>
-                <th align="right">Confidence</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rankedRows.map((r) => {
-                const sym = getSymbol(r);
-                const explanation = r.explanation || {};
-                const factors = r.factorAttribution || {};
-                const divergence = divergenceMap[sym];
+        <table width="100%" cellPadding="10">
+          <thead>
+            <tr>
+              <th>Rank</th>
+              <th>Symbol</th>
+              <th>Decision</th>
+              <th>Regime</th>
+              <th>Why It Surfaced</th>
+              <th>Confidence</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rankedRows.map((r) => {
+              const sym = getSymbol(r);
+              const factors = r.factorAttribution || {};
+              return (
+                <React.Fragment key={`${sym}-${r.rank}`}>
+                  <tr
+                    onClick={() => {
+                      setExpanded((p) => ({ ...p, [r.rank]: !p[r.rank] }));
+                      setSelectedInsight({ row: r });
+                      loadConfidenceHistory(sym);
+                    }}
+                  >
+                    <td>#{r.rank}</td>
+                    <td>{sym}</td>
+                    <td><span style={badgeStyle(r?.decision?.decision)}>{r?.decision?.decision}</span></td>
+                    <td>{r?.regime?.label}</td>
+                    <td>{r?.explanation?.plainEnglishSummary}</td>
+                    <td>{convictionLabelFromNormalized(r?.conviction?.normalized)}</td>
+                  </tr>
 
-                const convLabel = convictionLabelFromNormalized(r?.conviction?.normalized);
-                const decision = r?.decision?.decision || "NONE";
-                const regimeLabel = r?.regime?.label || "UNKNOWN";
-
-                return (
-                  <React.Fragment key={`${sym}-${r.rank}`}>
-                    <tr
-                      style={{ cursor: "pointer" }}
-                      onClick={() => {
-                        setExpanded((p) => ({ ...p, [r.rank]: !p[r.rank] }));
-                        setSelectedInsight({ row: r, divergence, factors });
-                        loadConfidenceHistory(sym);
-                      }}
-                    >
-                      <td>#{r.rank}</td>
-                      <td>{sym}</td>
-                      <td>
-                        <span style={badgeStyle(decision)}>{decision}</span>
-                      </td>
-                      <td>{regimeLabel}</td>
-                      <td style={{ opacity: 0.85 }}>
-                        {explanation.plainEnglishSummary || explanation.summary || "—"}
-                      </td>
-                      <td align="right">
-                        <span style={badgeStyle(convLabel)}>{convLabel}</span>
+                  {expanded[r.rank] && (
+                    <tr>
+                      <td colSpan={6} style={{ background: "#0f172a" }}>
+                        {Object.keys(factors).length === 0 ? (
+                          <p>No factor attribution available.</p>
+                        ) : (
+                          Object.entries(factors).map(([k, v]) => (
+                            <div key={k} style={{ display: "flex", justifyContent: "space-between" }}>
+                              <span>{k}</span>
+                              <span style={deltaStyle(v)}>{v.toFixed(2)}</span>
+                            </div>
+                          ))
+                        )}
                       </td>
                     </tr>
+                  )}
+                </React.Fragment>
+              );
+            })}
+          </tbody>
+        </table>
 
-                    {expanded[r.rank] && (
-                      <tr>
-                        <td colSpan={6} style={{ background: "#0f172a" }}>
-                          <div style={{ padding: "1rem" }}>
-                            {Object.keys(factors).length === 0 ? (
-                              <p style={{ opacity: 0.65, margin: 0 }}>
-                                No factor attribution available.
-                              </p>
-                            ) : (
-                              Object.entries(factors).map(([k, v]) => (
-                                <div
-                                  key={k}
-                                  style={{
-                                    display: "flex",
-                                    justifyContent: "space-between",
-                                    padding: "0.15rem 0",
-                                  }}
-                                >
-                                  <span style={{ opacity: 0.85 }}>{k}</span>
-                                  <span style={deltaStyle(Number(v || 0))}>
-                                    {Number(v || 0) > 0 ? "+" : ""}
-                                    {Number(v || 0).toFixed(2)}
-                                  </span>
-                                </div>
-                              ))
-                            )}
-                          </div>
-                        </td>
-                      </tr>
-                    )}
-                  </React.Fragment>
-                );
-              })}
-            </tbody>
-          </table>
-        )}
-
-        {/* ======================= */}
-        {/* APPENDED: TRAJECTORY WATCHLIST */}
-        {/* ======================= */}
+        {/* TRAJECTORY WATCHLIST */}
         <h3 style={{ marginTop: "2.5rem" }}>
           Trajectory Watchlist
           <span style={cadenceStyle()}>Structural · Long horizon</span>
         </h3>
 
         {rankedRows.filter((r) => r?.trajectoryMatch?.available).length === 0 ? (
-          <p style={{ opacity: 0.6 }}>
-            No early trajectory patterns currently flagged for observation.
-          </p>
+          <p style={{ opacity: 0.6 }}>No early trajectory patterns currently flagged.</p>
         ) : (
           rankedRows
             .filter((r) => r?.trajectoryMatch?.available)
             .map((r, i) => (
-              <div
-                key={`${getSymbol(r)}-trajectory-${i}`}
-                style={{
-                  background: "#0b1220",
-                  padding: "0.9rem",
-                  borderRadius: "10px",
-                  marginBottom: "0.6rem",
-                }}
-              >
+              <div key={`${getSymbol(r)}-trajectory-${i}`} style={{ background: "#0b1220", padding: "0.9rem", borderRadius: "10px", marginBottom: "0.6rem" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
                   <strong>{getSymbol(r)}</strong>
-                  <span style={badgeStyle("HOLD")}>
-                    {r.trajectoryMatch.label}
-                  </span>
+                  <span style={{ marginLeft: "0.5rem" }}>{r.trajectoryMatch.label}</span>
                   <span style={{ opacity: 0.75, fontWeight: 700 }}>
-                    {(Number(r.trajectoryMatch.score || 0) * 100).toFixed(1)}%
+                    {(Number(r.trajectoryMatch.confidence || 0) * 100).toFixed(1)}%
                   </span>
                 </div>
-                <p style={{ opacity: 0.75, marginTop: "0.35rem" }}>
-                  {r.trajectoryMatch.explanation}
-                </p>
+                <p style={{ opacity: 0.75 }}>{r.trajectoryMatch.explanation}</p>
               </div>
             ))
         )}
-
-        {/* ======================= */}
-        {/* APPENDED: DISCOVERY SNAPSHOT SUMMARY (READ-ONLY) */}
-        {/* ======================= */}
-        {telemetry?.snapshot && (
-          <>
-            <h3 style={{ marginTop: "2.5rem" }}>
-              Discovery Snapshot Summary
-              <span style={cadenceStyle()}>Engine · Observational</span>
-            </h3>
-            <div
-              style={{
-                background: "#0b1220",
-                padding: "0.9rem",
-                borderRadius: "10px",
-              }}
-            >
-              <p style={{ margin: 0, opacity: 0.8 }}>
-                Last run: {telemetry.snapshot.timestamp}
-              </p>
-              <p style={{ margin: 0, opacity: 0.8 }}>
-                Regime: {telemetry.snapshot.regime}
-              </p>
-              <p style={{ margin: 0, opacity: 0.8 }}>
-                Counts: {JSON.stringify(telemetry.snapshot.counts)}
-              </p>
-            </div>
-          </>
-        )}
       </div>
 
-      {/* RIGHT: INSIGHT PANEL */}
-      <div
-        style={{
-          flex: 1,
-          background: "#020617",
-          borderLeft: "1px solid rgba(255,255,255,0.08)",
-          padding: "1.25rem",
-          borderRadius: "12px",
-          height: "fit-content",
-        }}
-      >
+      {/* RIGHT */}
+      <div style={{ flex: 1, background: "#020617", padding: "1.25rem", borderRadius: "12px" }}>
         {!selectedInsight ? (
-          <p style={{ opacity: 0.55 }}>Select a row to view insight.</p>
+          <p>Select a row to view insight.</p>
         ) : (
           <>
-            <h2 style={{ marginTop: 0 }}>{getSymbol(selectedInsight.row)}</h2>
-            <p style={{ opacity: 0.7, marginTop: "0.25rem" }}>
-              Insight Panel · Read-only
-            </p>
+            <h2>{getSymbol(selectedInsight.row)}</h2>
 
-            <h4 style={{ marginTop: "1.25rem" }}>Interpretation</h4>
-            <p style={{ opacity: 0.85, marginTop: "0.25rem" }}>
-              {selectedInsight.divergence?.summary ||
-                selectedInsight.row?.explanation?.plainEnglishSummary ||
-                "No divergence summary available."}
-            </p>
-
-            <h4 style={{ marginTop: "1.25rem" }}>Decision</h4>
-            <div style={{ display: "flex", gap: "0.6rem", alignItems: "center" }}>
-              <span
-                style={badgeStyle(
-                  selectedInsight.row?.decision?.decision || "NONE"
-                )}
-              >
-                {selectedInsight.row?.decision?.decision || "NONE"}
-              </span>
-              <span style={{ opacity: 0.8, fontWeight: 700 }}>
-                Conviction{" "}
-                {(Number(selectedInsight.row?.conviction?.normalized ?? 0) * 100).toFixed(
-                  1
-                )}
-                %
-              </span>
-            </div>
-
-            {/* ======================= */}
-            {/* APPENDED: FUNDAMENTALS AUDIT (READ-ONLY) */}
-            {/* ======================= */}
-            {selectedInsight.row?.fundamentalsAudit && (
-              <>
-                <h4 style={{ marginTop: "1.25rem" }}>Fundamentals Audit</h4>
-                <div style={{ marginTop: "0.5rem" }}>
-                  {Object.entries(
-                    selectedInsight.row.fundamentalsAudit.categories || {}
-                  ).map(([k, v]) => (
-                    <div
-                      key={k}
-                      style={{
-                        display: "flex",
-                        justifyContent: "space-between",
-                        marginBottom: "0.25rem",
-                      }}
-                    >
-                      <span style={{ opacity: 0.8 }}>{k}</span>
-                      <span style={badgeStyle(v.status)}>{v.status}</span>
-                    </div>
-                  ))}
+            <h4>Factor Attribution</h4>
+            {Object.entries(selectedInsight.row.factorAttribution || {}).length === 0 ? (
+              <p>No factor attribution available.</p>
+            ) : (
+              Object.entries(selectedInsight.row.factorAttribution).map(([k, v]) => (
+                <div key={k} style={{ display: "flex", justifyContent: "space-between" }}>
+                  <span>{k}</span>
+                  <span style={deltaStyle(v)}>{v.toFixed(2)}</span>
                 </div>
-              </>
+              ))
             )}
 
-            <h4 style={{ marginTop: "1.25rem" }}>Confidence History</h4>
-            {confidenceHistory.length === 0 ? (
-              <p style={{ opacity: 0.5 }}>
-                No confidence history recorded (or IPC not wired).
-              </p>
-            ) : (
-              <ul style={{ paddingLeft: "1rem" }}>
-                {confidenceHistory.map((h, i) => (
-                  <li key={i}>
-                    <span style={badgeStyle(h.confidence)}>{h.confidence}</span>{" "}
-                    <span style={{ opacity: 0.6 }}>({h.regime})</span>
-                  </li>
+            {selectedInsight.row?.fundamentalsAudit && (
+              <>
+                <h4>Fundamentals Audit</h4>
+                {Object.entries(selectedInsight.row.fundamentalsAudit.categories).map(([k, v]) => (
+                  <div key={k} style={{ display: "flex", justifyContent: "space-between" }}>
+                    <span>{k}</span>
+                    <span style={badgeStyle(v.status)}>{v.status}</span>
+                  </div>
                 ))}
-              </ul>
+              </>
             )}
           </>
         )}

@@ -20,7 +20,6 @@ function matchGrowthTrajectory({ symbol, fundamentals, tactical, history }) {
   const quality = fundamentals.factors?.quality ?? 0;
   const momentum = tactical.breakdown?.momentum ?? 0;
 
-  // Simple first-pass archetype matcher (expand later)
   let label = "NO_MATCH";
   let score = 0;
 
@@ -36,6 +35,7 @@ function matchGrowthTrajectory({ symbol, fundamentals, tactical, history }) {
     available: true,
     label,
     score,
+    confidence: score, // 🔹 D21-C: promoted confidence (0–1)
     explanation:
       label === "EARLY_COMPOUNDER_LIKE"
         ? "Fundamentals and momentum resemble early-stage compounders before mainstream adoption."

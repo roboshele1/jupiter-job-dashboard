@@ -3,6 +3,7 @@
  * Deterministic, read-only execution path.
  * - Fundamentals audit layer (D21-A)
  * - Discovery snapshot history (D21-B)
+ * - Factor attribution (RESTORED)
  */
 
 const fs = require("fs");
@@ -177,6 +178,19 @@ async function runDiscoveryEngine(input) {
   const tactical = computeTacticalScore({});
   const regime = classifyRegime({});
 
+  // 🔹 RESTORED: Regime-adjusted factor attribution
+  const regimeAdjusted = applyRegimeAdjustments({
+    regime: regime.label,
+    factors: {
+      growth: fundamentals.factors?.growth ?? 0,
+      quality: fundamentals.factors?.quality ?? 0,
+      risk: fundamentals.factors?.risk ?? 0,
+      momentum: tactical.breakdown?.momentum ?? 0,
+    },
+  });
+
+  const factorAttribution = regimeAdjusted.adjustedFactors;
+
   const trajectoryMatch = matchGrowthTrajectory({
     symbol,
     fundamentals,
@@ -219,6 +233,7 @@ async function runDiscoveryEngine(input) {
     fundamentalsAudit,
     tactical,
     regime,
+    factorAttribution, // 🔹 RESTORED OUTPUT
     trajectoryMatch,
     explanation: explainDiscoveryResult({
       symbol,
