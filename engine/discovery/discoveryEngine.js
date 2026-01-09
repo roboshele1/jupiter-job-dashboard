@@ -1,8 +1,11 @@
 /**
- * DISCOVERY LAB — AUTHORITATIVE ORCHESTRATOR (D16.5)
- * -------------------------------------------------
+ * DISCOVERY LAB — AUTHORITATIVE ORCHESTRATOR (D20)
+ * ------------------------------------------------
  * Deterministic, read-only execution path.
- * Now wired with MULTI-PERIOD FUNDAMENTALS.
+ * Now wired with:
+ * - Multi-period fundamentals
+ * - Regime deltas
+ * - Growth trajectory matching (engine-only)
  */
 
 const { scoreFundamentals } = require("./scoring/fundamentalScore.js");
@@ -22,6 +25,11 @@ const {
 const {
   normalizeFundamentals,
 } = require("./scoring/normalizeFundamentals.js");
+
+// 🔹 NEW — Trajectory matcher (append-only)
+const {
+  matchGrowthTrajectory,
+} = require("./trajectory/trajectoryMatcher.js");
 
 // ==============================
 // HELPER — REGIME DELTA ANALYSIS
@@ -143,6 +151,14 @@ async function runDiscoveryEngine(input) {
     tactical,
   });
 
+  // 🔹 NEW — Growth trajectory matching (engine-only)
+  const trajectoryMatch = matchGrowthTrajectory({
+    symbol,
+    fundamentals,
+    tactical,
+    history,
+  });
+
   const conviction = {
     score: fundamentals.score,
     normalized: fundamentals.score / 10,
@@ -163,6 +179,10 @@ async function runDiscoveryEngine(input) {
     regime,
     factorAttribution: regimeAdjusted.adjustedFactors,
     regimeDeltaSummary,
+
+    // 🔹 APPENDED OUTPUT
+    trajectoryMatch,
+
     explanation: explainDiscoveryResult({
       symbol,
       decision: decision.decision,

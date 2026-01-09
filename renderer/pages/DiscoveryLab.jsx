@@ -218,7 +218,6 @@ export default function DiscoveryLab() {
                 </span>
               </div>
 
-              {/* FUNDAMENTALS EXPLANATION (DEDICATED) */}
               <div
                 style={{
                   marginTop: "0.75rem",
@@ -383,6 +382,47 @@ export default function DiscoveryLab() {
               })}
             </tbody>
           </table>
+        )}
+
+        {/* ======================= */}
+        {/* APPENDED: TRAJECTORY WATCHLIST */}
+        {/* ======================= */}
+        <h3 style={{ marginTop: "2.5rem" }}>
+          Trajectory Watchlist
+          <span style={cadenceStyle()}>Structural · Long horizon</span>
+        </h3>
+
+        {rankedRows.filter((r) => r?.trajectoryMatch?.available).length === 0 ? (
+          <p style={{ opacity: 0.6 }}>
+            No early trajectory patterns currently flagged for observation.
+          </p>
+        ) : (
+          rankedRows
+            .filter((r) => r?.trajectoryMatch?.available)
+            .map((r, i) => (
+              <div
+                key={`${getSymbol(r)}-trajectory-${i}`}
+                style={{
+                  background: "#0b1220",
+                  padding: "0.9rem",
+                  borderRadius: "10px",
+                  marginBottom: "0.6rem",
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
+                  <strong>{getSymbol(r)}</strong>
+                  <span style={badgeStyle("HOLD")}>
+                    {r.trajectoryMatch.label}
+                  </span>
+                  <span style={{ opacity: 0.75, fontWeight: 700 }}>
+                    {(Number(r.trajectoryMatch.score || 0) * 100).toFixed(1)}%
+                  </span>
+                </div>
+                <p style={{ opacity: 0.75, marginTop: "0.35rem" }}>
+                  {r.trajectoryMatch.explanation}
+                </p>
+              </div>
+            ))
         )}
       </div>
 
