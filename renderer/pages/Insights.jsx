@@ -1,28 +1,38 @@
 import { useEffect, useState } from "react";
-import { fetchInsightsData } from "../adapters/insightsIpcAdapter";
+import { fetchInsightsData } from "../adapters/insightsIpcAdapter.js";
+import { runGodModeInsights } from "../insights/godModeInsightsEngine.js";
 
 export default function Insights() {
-  const [snapshot, setSnapshot] = useState(null);
-  const [engineInsights, setEngineInsights] = useState(null);
+  const [data, setData] = useState(null);
+  const [godMode, setGodMode] = useState(null);
   const [error, setError] = useState(null);
 
   useEffect(() => {
     let mounted = true;
 
-    async function loadInsights() {
+    async function load() {
       try {
-        const result = await fetchInsightsData();
+        const base = await fetchInsightsData();
+
         if (!mounted) return;
 
-        setSnapshot(result.snapshot);
-        setEngineInsights(result.insights);
-      } catch (err) {
+        const god = runGodModeInsights({
+          ...base,
+          marketRegime: base.marketRegime || {
+            regime: "TRANSITION",
+            confidence: "LOW"
+          }
+        });
+
+        setData(base);
+        setGodMode(god);
+      } catch (e) {
         if (!mounted) return;
-        setError(err?.message || "Failed to load insights");
+        setError(e?.message || "Failed to load insights");
       }
     }
 
-    loadInsights();
+    load();
     return () => {
       mounted = false;
     };
@@ -37,93 +47,114 @@ export default function Insights() {
     );
   }
 
-  if (!snapshot || !engineInsights) {
+  if (!data || !godMode) {
     return (
       <div style={{ padding: 24 }}>
         <h2>Insights</h2>
-        <p>Loading insights…</p>
+        <p>Loading intelligence…</p>
       </div>
     );
   }
 
-  const positions = snapshot?.portfolio?.positions || [];
-  const totalValue = positions.reduce(
-    (sum, p) => sum + (p.liveValue || 0),
-    0
-  );
+  const {
+    exposure,
+    riskFlags,
+    scenarios,
+    invariants,
+    narrative,
+    regimeImpact
+  } = godMode;
 
-  const topHoldings = positions
-    .slice()
-    .sort((a, b) => b.liveValue - a.liveValue)
-    .slice(0, 5)
-    .map((p) => ({
-      symbol: p.symbol,
-      value: p.liveValue,
-      weight:
-        totalValue > 0 ? ((p.liveValue / totalValue) * 100).toFixed(1) : "0.0"
-    }));
+  const severityColor = (s) => {
+    if (s === "CRITICAL") return "#e74c3c";
+    if (s === "HIGH") return "#f39c12";
+    return "#aaa";
+  };
 
   return (
-    <div style={{ padding: 24 }}>
-      <h2>Insights (V1)</h2>
+    <div style={{ padding: 24, maxWidth: 1200 }}>
+      <h1>Insights — God Mode</h1>
 
-      <ul>
-        <li>
-          <strong>Snapshot available:</strong> Yes
-        </li>
-        <li>
-          <strong>Snapshot timestamp:</strong>{" "}
-          {snapshot.timestamp
-            ? new Date(snapshot.timestamp).toLocaleString()
-            : "N/A"}
-        </li>
-        <li>
-          <strong>Total portfolio value:</strong>{" "}
-          ${totalValue.toLocaleString()}
-        </li>
-        <li>
-          <strong>Total holdings:</strong> {positions.length}
-        </li>
-      </ul>
+      {/* EXPOSURE */}
+      <section>
+        <h2>Exposure</h2>
+        <ul>
+          <li>Total Value: ${exposure.totalValue.toLocaleString()}</li>
+          <li>Top Holding: {exposure.topHolding}</li>
+          <li>Top Weight: {exposure.topWeightPct}%</li>
+        </ul>
+      </section>
 
-      <h3 style={{ marginTop: 24 }}>Top Holdings</h3>
-
-      <ul>
-        {topHoldings.map((h) => (
-          <li key={h.symbol}>
-            <strong>{h.symbol}</strong> — $
-            {h.value.toLocaleString()} ({h.weight}%)
+      {/* STRUCTURAL RISK */}
+      <section>
+        <h2>Structural Risk</h2>
+        <ul>
+          <li>Fragility: {riskFlags.fragility}</li>
+          <li>Correlation Risk: {riskFlags.correlationRisk}</li>
+          <li>Conviction Drift: {riskFlags.convictionDrift}</li>
+          <li>
+            Regime Mismatch: {riskFlags.regimeMismatch} (
+            {regimeImpact.regime})
           </li>
+        </ul>
+      </section>
+
+      {/* INVARIANTS */}
+      <section>
+        <h2>Invariant Violations</h2>
+        {invariants.length === 0 ? (
+          <p>No violations detected.</p>
+        ) : (
+          invariants.map((inv, i) => (
+            <div
+              key={i}
+              style={{
+                borderLeft: `4px solid ${severityColor(inv.severity)}`,
+                padding: "8px 12px",
+                marginBottom: 8,
+                background: "#0b1220"
+              }}
+            >
+              <strong>{inv.rule}</strong>
+              <div>{inv.message}</div>
+              <div style={{ fontSize: 12, opacity: 0.7 }}>
+                Severity: {inv.severity}
+              </div>
+            </div>
+          ))
+        )}
+      </section>
+
+      {/* SCENARIOS */}
+      <section>
+        <h2>Scenario Stress</h2>
+        {scenarios.map((s, i) => (
+          <div
+            key={i}
+            style={{
+              padding: "8px 12px",
+              marginBottom: 8,
+              background: "#020617"
+            }}
+          >
+            <strong>{s.name}</strong> — {s.weight}
+            <div style={{ opacity: 0.8 }}>{s.assessment}</div>
+          </div>
         ))}
-      </ul>
+      </section>
 
-      <hr style={{ margin: "32px 0" }} />
+      {/* NARRATIVE */}
+      <section>
+        <h2>Executive Narrative</h2>
+        <ul>
+          {narrative.map((n, i) => (
+            <li key={i}>{n}</li>
+          ))}
+        </ul>
+      </section>
 
-      <h3>Insights (Engine)</h3>
-
-      <ul>
-        <li>
-          <strong>Risk posture:</strong> {engineInsights.riskPosture}
-        </li>
-        <li>
-          <strong>Diversification score:</strong>{" "}
-          {engineInsights.diversificationScore}
-        </li>
-        <li>
-          <strong>Growth tilt:</strong> {engineInsights.growthTilt}
-        </li>
-        <li>
-          <strong>Volatility proxy:</strong>{" "}
-          {engineInsights.volatilityProxy}
-        </li>
-        <li>
-          <strong>Confidence band:</strong>{" "}
-          {engineInsights.confidenceBand}
-        </li>
-      </ul>
-
-      <p style={{ marginTop: 12, opacity: 0.6 }}>
-        Engine-derived insights. Deterministic, read-only, and isolated via adapter.
+      <p style={{ marginTop: 24, opacity: 0.6 }}>
+        God-mode insights are deterministic, read-only, and judgment-oriented.
       </p>
     </div>
   );
