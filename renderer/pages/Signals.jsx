@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 
 /**
  * Phase 2A → 2C – Signals Activation + Context Rendering (ADD-ONLY)
+ * Phase D29.1 – Signal Detail Panel (APPEND-ONLY)
  * Rules honored:
  * - NO JSX removed
  * - Existing table + help text preserved
@@ -38,6 +39,9 @@ export default function Signals() {
   const [sortKey, setSortKey] = useState("portfolioImpact");
   const [ipcSnapshot, setIpcSnapshot] = useState(null);
   const [status, setStatus] = useState("idle");
+
+  // D29.1 — selected signal (append-only)
+  const [selectedSignal, setSelectedSignal] = useState(null);
 
   // ---- STATIC SNAPSHOT (UNCHANGED FALLBACK) ----
   const staticSnapshot = {
@@ -149,30 +153,25 @@ export default function Signals() {
             <th>Asset Class</th>
             <th>Momentum</th>
             <th>Mean Reversion</th>
-            <th
-              onClick={() => setSortKey("portfolioImpact")}
-              style={{ cursor: "pointer" }}
-            >
+            <th onClick={() => setSortKey("portfolioImpact")} style={{ cursor: "pointer" }}>
               Portfolio Impact
             </th>
-            <th
-              onClick={() => setSortKey("confidence")}
-              style={{ cursor: "pointer" }}
-            >
+            <th onClick={() => setSortKey("confidence")} style={{ cursor: "pointer" }}>
               Confidence
             </th>
             <th>Context</th>
-            <th
-              onClick={() => setSortKey("delta")}
-              style={{ cursor: "pointer" }}
-            >
+            <th onClick={() => setSortKey("delta")} style={{ cursor: "pointer" }}>
               Δ
             </th>
           </tr>
         </thead>
         <tbody>
           {sortedSignals.map((s) => (
-            <tr key={s.symbol}>
+            <tr
+              key={s.symbol}
+              onClick={() => setSelectedSignal(s)}
+              style={{ cursor: "pointer" }}
+            >
               <td>{s.symbol}</td>
               <td>{s.assetClass}</td>
               <td>{s.momentum}</td>
@@ -203,6 +202,48 @@ export default function Signals() {
           ))}
         </tbody>
       </table>
+
+      {/* ---- SIGNAL DETAIL PANEL (D29.1 APPENDED) ---- */}
+      {selectedSignal && (
+        <div
+          style={{
+            marginTop: 16,
+            padding: "1rem",
+            background: "#020617",
+            borderRadius: "10px",
+            border: "1px solid #0f172a",
+          }}
+        >
+          <h3>{selectedSignal.symbol} — Signal Insight</h3>
+
+          <p style={{ opacity: 0.85 }}>
+            This signal reflects the current structural posture derived from price behavior,
+            positioning, and relative stress — not a trading instruction.
+          </p>
+
+          <div style={{ marginTop: 8 }}>
+            <strong>Context:</strong>{" "}
+            <span style={contextStyle(selectedSignal.context)}>
+              {selectedSignal.context || "NEUTRAL"}
+            </span>
+          </div>
+
+          <div style={{ marginTop: 8 }}>
+            <strong>Δ (Change):</strong>{" "}
+            <span style={deltaStyle(selectedSignal.delta)}>
+              {selectedSignal.delta}
+            </span>{" "}
+            since the previous snapshot.
+          </div>
+
+          <ul style={{ marginTop: 12, opacity: 0.85 }}>
+            <li><b>Momentum:</b> {selectedSignal.momentum}</li>
+            <li><b>Mean Reversion:</b> {selectedSignal.meanReversion}</li>
+            <li><b>Portfolio Impact:</b> {selectedSignal.portfolioImpact}</li>
+            <li><b>Confidence:</b> {selectedSignal.confidence}</li>
+          </ul>
+        </div>
+      )}
 
       <div style={{ marginTop: 8, opacity: 0.5 }}>
         Snapshot time: {snapshot.timestamp}
