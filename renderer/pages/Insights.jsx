@@ -34,7 +34,8 @@ export default function Insights() {
             return {
               symbol: p.symbol,
               value: p.liveValue,
-              weight
+              weight,
+              assetClass: p.assetClass
             };
           });
 
@@ -43,7 +44,8 @@ export default function Insights() {
           timestamp: snapshot?.timestamp ?? null,
           totalValue,
           totalHoldings: positions.length,
-          topHoldings
+          topHoldings,
+          positions
         });
       })
       .catch(err => {
@@ -74,8 +76,79 @@ export default function Insights() {
     );
   }
 
+  /* ===============================
+     DERIVED DATA — EXPERIMENTAL
+     =============================== */
+
+  // 1. Risk posture (concentration + holding count)
+  const topWeight =
+    insights.topHoldings.length > 0
+      ? insights.topHoldings[0].weight
+      : 0;
+
+  let riskPosture = "LOW";
+  if (topWeight > 30 || insights.totalHoldings < 6) {
+    riskPosture = "HIGH";
+  } else if (topWeight > 20 || insights.totalHoldings < 10) {
+    riskPosture = "MODERATE";
+  }
+
+  // 2. Diversification score (simple heuristic)
+  let diversificationScore = "WEAK";
+  if (insights.totalHoldings >= 12 && topWeight < 25) {
+    diversificationScore = "STRONG";
+  } else if (insights.totalHoldings >= 8) {
+    diversificationScore = "MODERATE";
+  }
+
+  // 3. Growth tilt (symbol-based)
+  const growthSymbols = ["NVDA", "AVGO", "MSTR", "HOOD", "APLD"];
+  const growthValue = insights.positions
+    .filter(p => growthSymbols.includes(p.symbol))
+    .reduce((sum, p) => sum + (p.liveValue || 0), 0);
+
+  const growthWeight =
+    insights.totalValue > 0
+      ? (growthValue / insights.totalValue) * 100
+      : 0;
+
+  let growthTilt = "BALANCED";
+  if (growthWeight > 50) growthTilt = "GROWTH_HEAVY";
+  else if (growthWeight < 25) growthTilt = "DEFENSIVE";
+
+  // 4. Volatility proxy (crypto vs equity)
+  const cryptoValue = insights.positions
+    .filter(p => p.assetClass === "crypto")
+    .reduce((sum, p) => sum + (p.liveValue || 0), 0);
+
+  const cryptoWeight =
+    insights.totalValue > 0
+      ? (cryptoValue / insights.totalValue) * 100
+      : 0;
+
+  let volatilityProxy = "LOW";
+  if (cryptoWeight > 20) volatilityProxy = "HIGH";
+  else if (cryptoWeight > 10) volatilityProxy = "MODERATE";
+
+  // 5. Confidence band (aggregate)
+  let confidenceBand = "HIGH";
+  if (riskPosture === "HIGH" || volatilityProxy === "HIGH") {
+    confidenceBand = "LOW";
+  } else if (
+    riskPosture === "MODERATE" ||
+    volatilityProxy === "MODERATE"
+  ) {
+    confidenceBand = "MODERATE";
+  }
+
+  /* ===============================
+     RENDER
+     =============================== */
   return (
     <div style={{ padding: 24 }}>
+      {/* ===============================
+          INSIGHTS V1 (IMMUTABLE)
+         =============================== */}
       <h2>Insights (V1)</h2>
 
       <ul>
@@ -115,6 +188,40 @@ export default function Insights() {
 
       <p style={{ marginTop: 16, opacity: 0.7 }}>
         Read-only summary layer. No signals, alerts, or actions are generated in Insights V1.
+      </p>
+
+      {/* ===============================
+          INSIGHTS (EXPERIMENTAL)
+         =============================== */}
+      <hr style={{ margin: "32px 0", opacity: 0.3 }} />
+
+      <h2>Insights (Experimental)</h2>
+
+      <ul>
+        <li>
+          <strong>Risk posture:</strong> {riskPosture}
+        </li>
+
+        <li>
+          <strong>Diversification score:</strong> {diversificationScore}
+        </li>
+
+        <li>
+          <strong>Growth tilt:</strong> {growthTilt} ({growthWeight.toFixed(1)}%)
+        </li>
+
+        <li>
+          <strong>Volatility proxy:</strong> {volatilityProxy} ({cryptoWeight.toFixed(1)}% crypto)
+        </li>
+
+        <li>
+          <strong>Confidence band:</strong> {confidenceBand}
+        </li>
+      </ul>
+
+      <p style={{ marginTop: 16, opacity: 0.6 }}>
+        Experimental insights are renderer-only, deterministic, and strictly
+        read-only. They do not affect any other system component.
       </p>
     </div>
   );
