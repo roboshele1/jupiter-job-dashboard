@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { fetchInsightsData } from "../adapters/insightsIpcAdapter";
 
 export default function Insights() {
   const [snapshot, setSnapshot] = useState(null);
@@ -10,16 +11,11 @@ export default function Insights() {
 
     async function loadInsights() {
       try {
-        const portfolioSnapshot = await window.api.invoke(
-          "portfolio:getSnapshot"
-        );
-
-        const insights = await window.api.invoke("insights:compute");
-
+        const result = await fetchInsightsData();
         if (!mounted) return;
 
-        setSnapshot(portfolioSnapshot);
-        setEngineInsights(insights);
+        setSnapshot(result.snapshot);
+        setEngineInsights(result.insights);
       } catch (err) {
         if (!mounted) return;
         setError(err?.message || "Failed to load insights");
@@ -27,7 +23,6 @@ export default function Insights() {
     }
 
     loadInsights();
-
     return () => {
       mounted = false;
     };
@@ -61,7 +56,7 @@ export default function Insights() {
     .slice()
     .sort((a, b) => b.liveValue - a.liveValue)
     .slice(0, 5)
-    .map(p => ({
+    .map((p) => ({
       symbol: p.symbol,
       value: p.liveValue,
       weight:
@@ -78,7 +73,9 @@ export default function Insights() {
         </li>
         <li>
           <strong>Snapshot timestamp:</strong>{" "}
-          {new Date(snapshot.timestamp).toLocaleString()}
+          {snapshot.timestamp
+            ? new Date(snapshot.timestamp).toLocaleString()
+            : "N/A"}
         </li>
         <li>
           <strong>Total portfolio value:</strong>{" "}
@@ -92,18 +89,13 @@ export default function Insights() {
       <h3 style={{ marginTop: 24 }}>Top Holdings</h3>
 
       <ul>
-        {topHoldings.map(h => (
+        {topHoldings.map((h) => (
           <li key={h.symbol}>
             <strong>{h.symbol}</strong> — $
             {h.value.toLocaleString()} ({h.weight}%)
           </li>
         ))}
       </ul>
-
-      <p style={{ marginTop: 16, opacity: 0.7 }}>
-        Read-only summary layer. No signals, alerts, or actions are generated in
-        Insights V1.
-      </p>
 
       <hr style={{ margin: "32px 0" }} />
 
@@ -131,7 +123,7 @@ export default function Insights() {
       </ul>
 
       <p style={{ marginTop: 12, opacity: 0.6 }}>
-        Engine-derived insights. Deterministic, read-only, and authoritative.
+        Engine-derived insights. Deterministic, read-only, and isolated via adapter.
       </p>
     </div>
   );
