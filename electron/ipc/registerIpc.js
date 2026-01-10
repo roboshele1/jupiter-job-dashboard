@@ -2,6 +2,7 @@
 import { registerGrowthEngineIpc } from "./growthEngineIpc.js";
 import { registerSignalsIpc } from "./signalsIpc.js";
 import { valuePortfolio } from "../../engine/portfolio/portfolioValuation.js";
+import { computeInsights } from "../../engine/insights/insightsEngine.js";
 
 /**
  * IPC Registry — Authoritative
@@ -50,6 +51,14 @@ export function registerAllIpc(ipcMain) {
   ipcMain.handle("portfolio:getSnapshot", async () => {
     if (!cachedSnapshot) await computeSnapshot();
     return cachedSnapshot;
+  });
+
+  /* =========================
+     INSIGHTS (ENGINE V1)
+     ========================= */
+  ipcMain.handle("insights:compute", async () => {
+    if (!cachedSnapshot) await computeSnapshot();
+    return computeInsights(cachedSnapshot);
   });
 
   /* =========================
