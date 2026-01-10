@@ -48,6 +48,60 @@ export default function MarketMonitor() {
         Poll ticks: {tickCount}
       </div>
 
+      {/* ---- MARKET PULSE (D31.1 APPENDED) ---- */}
+      <div
+        style={{
+          background: "#020617",
+          border: "1px solid #0f172a",
+          borderRadius: "10px",
+          padding: "1rem",
+          marginBottom: 20,
+        }}
+      >
+        <h3 style={{ marginTop: 0 }}>Market Pulse</h3>
+        <p style={{ opacity: 0.8, marginBottom: 12 }}>
+          High-level snapshot of key markets for situational awareness.
+          This is read-only context, not a trading signal.
+        </p>
+
+        <table width="100%" cellPadding="6">
+          <thead>
+            <tr>
+              <th align="left">Market</th>
+              <th align="left">Posture</th>
+              <th align="left">Commentary</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>S&P 500</td>
+              <td>NEUTRAL</td>
+              <td>Broad equity benchmark, mixed momentum.</td>
+            </tr>
+            <tr>
+              <td>Nasdaq</td>
+              <td>STRONG</td>
+              <td>Growth-heavy index showing relative strength.</td>
+            </tr>
+            <tr>
+              <td>Bitcoin</td>
+              <td>VOLATILE</td>
+              <td>Crypto market reflecting elevated risk appetite.</td>
+            </tr>
+            <tr>
+              <td>Ethereum</td>
+              <td>VOLATILE</td>
+              <td>Tracking broader crypto sentiment.</td>
+            </tr>
+            <tr>
+              <td>US Dollar</td>
+              <td>FIRM</td>
+              <td>Dollar strength influencing risk assets.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
       {snapshot?.priceSnapshotMeta && (
         <div style={{ marginBottom: 12, fontSize: 13, opacity: 0.8 }}>
           Price Source: <b>{snapshot.priceSnapshotMeta.source}</b><br />
@@ -96,4 +150,3 @@ export default function MarketMonitor() {
     </div>
   );
 }
-
