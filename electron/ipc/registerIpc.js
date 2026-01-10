@@ -8,7 +8,8 @@ import { computeInsights } from "../../engine/insights/insightsEngine.js";
  * IPC Registry — Authoritative
  * -----------------------------
  * Registers all read-only IPC surfaces.
- * No mutation. No UI logic.
+ * No mutation.
+ * No UI logic.
  * No execution.
  */
 
@@ -93,7 +94,7 @@ export function registerAllIpc(ipcMain) {
   });
 
   /* =========================
-     DISCOVERY — MANUAL ANALYSIS (D15.1)
+     DISCOVERY — MANUAL ANALYSIS
      ========================= */
   ipcMain.handle("discovery:analyze:symbol", async (_event, payload) => {
     if (!payload || typeof payload.symbol !== "string") {
@@ -165,40 +166,30 @@ export function registerAllIpc(ipcMain) {
   });
 
   /* =========================
-     CONFIDENCE (SHADOW)
+     MARKET REGIME (REGISTRY V1)
      ========================= */
-  ipcMain.handle("confidence:evaluate", async (_event, payload) => {
-    const confidenceModule = await import(
-      "../../engine/confidence/orchestrator/confidenceEvaluationOrchestrator.js"
+  ipcMain.handle("marketRegime:get", async () => {
+    const regimeModule = await import(
+      "../../engine/marketRegime/marketRegimeEngine.js"
     );
 
-    const runConfidenceEvaluation =
-      confidenceModule.runConfidenceEvaluation ||
-      confidenceModule.default?.runConfidenceEvaluation;
+    const computeMarketRegime =
+      regimeModule.computeMarketRegime ||
+      regimeModule.default?.computeMarketRegime;
 
-    if (typeof runConfidenceEvaluation !== "function") {
-      throw new Error("CONFIDENCE_EVALUATION_ENGINE_INVALID");
+    if (typeof computeMarketRegime !== "function") {
+      throw new Error("MARKET_REGIME_ENGINE_INVALID");
     }
 
-    return runConfidenceEvaluation(payload);
-  });
+    const input = {
+      vixLevel: 22,
+      breadthPctAbove50DMA: 52,
+      indexTrend: "SIDEWAYS"
+    };
 
-  /* =========================
-     EXECUTION EXPOSURE (SHADOW)
-     ========================= */
-  ipcMain.handle("execution:exposure:evaluate", async (_event, payload) => {
-    const exposureModule = await import(
-      "../../engine/execution/executionExposureEngine.js"
-    );
-
-    const evaluateExecutionExposure =
-      exposureModule.evaluateExecutionExposure ||
-      exposureModule.default?.evaluateExecutionExposure;
-
-    if (typeof evaluateExecutionExposure !== "function") {
-      throw new Error("EXECUTION_EXPOSURE_ENGINE_INVALID");
-    }
-
-    return evaluateExecutionExposure(payload);
+    return {
+      timestamp: Date.now(),
+      regime: computeMarketRegime(input)
+    };
   });
 }
