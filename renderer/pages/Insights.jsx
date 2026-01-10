@@ -1,121 +1,91 @@
 import { useEffect, useState } from "react";
 
 export default function Insights() {
-  const [insights, setInsights] = useState(null);
-  const [error, setError] = useState(null);
+  const [state, setState] = useState({
+    loading: true,
+    error: null,
+    interpretations: []
+  });
 
   useEffect(() => {
     let mounted = true;
 
-    window.api
-      .invoke("portfolio:getSnapshot")
-      .then(snapshot => {
-        if (!mounted) return;
+    async function loadInsights() {
+      try {
+        // Pull authoritative snapshot already used elsewhere
+        const snapshot = await window.api.invoke("portfolio:getValuation");
 
-        const portfolio = snapshot?.portfolio;
-        const positions = Array.isArray(portfolio?.positions)
-          ? portfolio.positions
-          : [];
-
-        // ✅ Canonical total value derivation (single source of truth)
-        const totalValue = positions.reduce(
-          (sum, p) => sum + (typeof p.liveValue === "number" ? p.liveValue : 0),
-          0
+        const result = await window.api.invoke(
+          "insights:v2:get",
+          snapshot
         );
 
-        const topHoldings = positions
-          .slice()
-          .sort((a, b) => b.liveValue - a.liveValue)
-          .slice(0, 5)
-          .map(p => {
-            const weight =
-              totalValue > 0 ? (p.liveValue / totalValue) * 100 : 0;
-
-            return {
-              symbol: p.symbol,
-              value: p.liveValue,
-              weight
-            };
-          });
-
-        setInsights({
-          snapshotAvailable: true,
-          timestamp: snapshot?.timestamp ?? null,
-          totalValue,
-          totalHoldings: positions.length,
-          topHoldings
-        });
-      })
-      .catch(err => {
         if (!mounted) return;
-        setError(err.message || "Failed to load insights snapshot");
-      });
 
-    return () => {
-      mounted = false;
-    };
+        if (result.status !== "OK") {
+          setState({
+            loading: false,
+            error: result.message || "Insights unavailable",
+            interpretations: []
+          });
+          return;
+        }
+
+        setState({
+          loading: false,
+          error: null,
+          interpretations: result.interpretations || []
+        });
+      } catch (err) {
+        if (!mounted) return;
+        setState({
+          loading: false,
+          error: err.message,
+          interpretations: []
+        });
+      }
+    }
+
+    loadInsights();
+    return () => (mounted = false);
   }, []);
 
-  if (error) {
+  if (state.loading) {
     return (
       <div style={{ padding: 24 }}>
-        <h2>Insights</h2>
-        <p style={{ color: "red" }}>{error}</p>
+        <h2>Insights (V2)</h2>
+        <p>Loading qualitative interpretations…</p>
       </div>
     );
   }
 
-  if (!insights) {
+  if (state.error) {
     return (
       <div style={{ padding: 24 }}>
-        <h2>Insights</h2>
-        <p>Loading insights snapshot…</p>
+        <h2>Insights (V2)</h2>
+        <p style={{ color: "red" }}>{state.error}</p>
       </div>
     );
   }
 
   return (
     <div style={{ padding: 24 }}>
-      <h2>Insights (V1)</h2>
+      <h2>Insights (V2)</h2>
+      <p style={{ opacity: 0.7 }}>
+        Qualitative interpretations of portfolio structure. Read-only.
+      </p>
 
-      <ul>
-        <li>
-          <strong>Snapshot available:</strong> Yes
-        </li>
-
-        <li>
-          <strong>Snapshot timestamp:</strong>{" "}
-          {insights.timestamp
-            ? new Date(insights.timestamp).toLocaleString()
-            : "N/A"}
-        </li>
-
-        <li>
-          <strong>Total portfolio value:</strong>{" "}
-          ${insights.totalValue.toLocaleString()}
-        </li>
-
-        <li>
-          <strong>Total holdings:</strong>{" "}
-          {insights.totalHoldings}
-        </li>
-      </ul>
-
-      <h3 style={{ marginTop: 24 }}>Top Holdings</h3>
-
-      <ul>
-        {insights.topHoldings.map(h => (
-          <li key={h.symbol}>
-            <strong>{h.symbol}</strong> — $
-            {h.value.toLocaleString()} (
-            {h.weight.toFixed(1)}%)
+      <ul style={{ marginTop: 16 }}>
+        {state.interpretations.map((item, idx) => (
+          <li key={idx} style={{ marginBottom: 12 }}>
+            <strong>{item.type}</strong>{" "}
+            <span style={{ opacity: 0.7 }}>
+              ({item.severity})
+            </span>
+            <div>{item.message}</div>
           </li>
         ))}
       </ul>
-
-      <p style={{ marginTop: 16, opacity: 0.7 }}>
-        Read-only summary layer. No signals, alerts, or actions are generated in Insights V1.
-      </p>
     </div>
   );
 }
