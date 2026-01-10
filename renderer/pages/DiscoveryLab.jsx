@@ -317,6 +317,19 @@ export default function DiscoveryLab() {
           <>
             <h2>{getSymbol(selectedInsight.row)}</h2>
 
+            {/* INSIGHTS (APPENDED) */}
+            <div style={{ marginBottom: "1rem", paddingBottom: "0.75rem", borderBottom: "1px solid #0f172a" }}>
+              <h4>Insights</h4>
+              <p style={{ opacity: 0.85 }}>
+                {selectedInsight.row?.explanation?.plainEnglishSummary || "No synthesized insight available."}
+              </p>
+              {confidenceHistory.length > 0 && (
+                <p style={{ fontSize: "0.75rem", opacity: 0.7 }}>
+                  Confidence history points: {confidenceHistory.length}
+                </p>
+              )}
+            </div>
+
             <h4>Factor Attribution</h4>
             {Object.entries(selectedInsight.row.factorAttribution || {}).length === 0 ? (
               <p>No factor attribution available.</p>
