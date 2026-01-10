@@ -3,12 +3,7 @@ import React, { useEffect, useMemo, useState } from "react";
 /**
  * Phase 2A → 2C – Signals Activation + Context Rendering (ADD-ONLY)
  * Phase D29.1 – Signal Detail Panel (APPEND-ONLY)
- * Rules honored:
- * - NO JSX removed
- * - Existing table + help text preserved
- * - Static snapshot retained as fallback
- * - IPC snapshot consumed read-only
- * - Context rendered if present, ignored if absent
+ * Phase D30.1 – Signals × Portfolio Bridge (READ-ONLY, APPEND-ONLY)
  */
 
 const IMPACT_RANK = { High: 3, Moderate: 2, Low: 1 };
@@ -40,45 +35,17 @@ export default function Signals() {
   const [ipcSnapshot, setIpcSnapshot] = useState(null);
   const [status, setStatus] = useState("idle");
 
-  // D29.1 — selected signal (append-only)
+  // D29.1
   const [selectedSignal, setSelectedSignal] = useState(null);
+
+  // D30.1 — portfolio symbol bridge (read-only)
+  const [portfolioSymbols, setPortfolioSymbols] = useState(null);
 
   // ---- STATIC SNAPSHOT (UNCHANGED FALLBACK) ----
   const staticSnapshot = {
     timestamp: "2025-12-30T16:28:28.562Z",
     notifications: [],
-    signals: [
-      {
-        symbol: "BTC",
-        assetClass: "crypto",
-        momentum: "Strong",
-        meanReversion: "Overextended",
-        portfolioImpact: "High",
-        confidence: "High",
-        delta: "↑",
-        context: "NEUTRAL",
-      },
-      {
-        symbol: "ETH",
-        assetClass: "crypto",
-        momentum: "Weak",
-        meanReversion: "Oversold",
-        portfolioImpact: "Moderate",
-        confidence: "Medium",
-        delta: "↓",
-        context: "ACCUMULATION_ZONE",
-      },
-      {
-        symbol: "NVDA",
-        assetClass: "equity",
-        momentum: "Neutral",
-        meanReversion: "Neutral",
-        portfolioImpact: "Low",
-        confidence: "Medium",
-        delta: "→",
-        context: "NEUTRAL",
-      },
-    ],
+    signals: [],
   };
 
   // ---- IPC SNAPSHOT (READ-ONLY) ----
@@ -101,6 +68,22 @@ export default function Signals() {
     loadIpcSnapshot();
   }, []);
 
+  // ---- PORTFOLIO SYMBOL BRIDGE (READ-ONLY) ----
+  useEffect(() => {
+    async function loadPortfolioSymbols() {
+      try {
+        if (!window.jupiter?.getPortfolioValuation) return;
+        const data = await window.jupiter.getPortfolioValuation();
+        if (Array.isArray(data?.positions)) {
+          setPortfolioSymbols(new Set(data.positions.map(p => p.symbol)));
+        }
+      } catch {
+        // silent failure — non-critical context
+      }
+    }
+    loadPortfolioSymbols();
+  }, []);
+
   const snapshot = ipcSnapshot || staticSnapshot;
 
   const sortedSignals = useMemo(() => {
@@ -117,17 +100,19 @@ export default function Signals() {
   }, [snapshot, sortKey]);
 
   const notificationCount = snapshot.notifications?.length || 0;
+  const inPortfolio =
+    selectedSignal &&
+    portfolioSymbols &&
+    portfolioSymbols.has(selectedSignal.symbol);
 
   return (
     <div className="signals-page">
       <h2>Signals</h2>
 
-      {/* ---- NOTIFICATIONS ---- */}
       <div style={{ marginBottom: 8, opacity: 0.75 }}>
         Notifications: {notificationCount || "None"}
       </div>
 
-      {/* ---- HELP TEXT ---- */}
       <div className="signals-help">
         <strong>How to read this table:</strong>
         <ul>
@@ -140,12 +125,10 @@ export default function Signals() {
         </ul>
       </div>
 
-      {/* ---- SOURCE ---- */}
       <div style={{ opacity: 0.6, marginBottom: 8 }}>
         Source: {ipcSnapshot ? "Live IPC snapshot" : "Static snapshot"}
       </div>
 
-      {/* ---- TABLE ---- */}
       <table className="signals-table">
         <thead>
           <tr>
@@ -177,33 +160,15 @@ export default function Signals() {
               <td>{s.momentum}</td>
               <td>{s.meanReversion}</td>
               <td>{s.portfolioImpact}</td>
-              <td
-                style={{
-                  color:
-                    s.confidence === "High"
-                      ? "#2ecc71"
-                      : s.confidence === "Medium"
-                      ? "#f1c40f"
-                      : "#9ca3af",
-                  fontWeight: 700,
-                }}
-              >
-                {s.confidence}
-              </td>
-              <td>
-                <span style={contextStyle(s.context)}>
-                  {s.context || "—"}
-                </span>
-              </td>
-              <td>
-                <span style={deltaStyle(s.delta)}>{s.delta}</span>
-              </td>
+              <td style={{ fontWeight: 700 }}>{s.confidence}</td>
+              <td><span style={contextStyle(s.context)}>{s.context || "—"}</span></td>
+              <td><span style={deltaStyle(s.delta)}>{s.delta}</span></td>
             </tr>
           ))}
         </tbody>
       </table>
 
-      {/* ---- SIGNAL DETAIL PANEL (D29.1 APPENDED) ---- */}
+      {/* ---- SIGNAL DETAIL PANEL (EXTENDED D30.1) ---- */}
       {selectedSignal && (
         <div
           style={{
@@ -216,10 +181,21 @@ export default function Signals() {
         >
           <h3>{selectedSignal.symbol} — Signal Insight</h3>
 
-          <p style={{ opacity: 0.85 }}>
-            This signal reflects the current structural posture derived from price behavior,
-            positioning, and relative stress — not a trading instruction.
-          </p>
+          <div style={{ marginTop: 8 }}>
+            <strong>Portfolio Exposure:</strong>{" "}
+            <span
+              style={{
+                fontWeight: 700,
+                color: inPortfolio ? "#2ecc71" : "#9ca3af",
+              }}
+            >
+              {portfolioSymbols
+                ? inPortfolio
+                  ? "IN PORTFOLIO"
+                  : "NOT IN PORTFOLIO"
+                : "UNKNOWN"}
+            </span>
+          </div>
 
           <div style={{ marginTop: 8 }}>
             <strong>Context:</strong>{" "}
