@@ -5,7 +5,7 @@ import { semanticColor } from "../insights/semanticColorMap.js";
 
 export default function Insights() {
   const [data, setData] = useState(null);
-  const [godMode, setGodMode] = useState(null);
+  const [insights, setInsights] = useState(null);
   const [error, setError] = useState(null);
 
   useEffect(() => {
@@ -14,10 +14,9 @@ export default function Insights() {
     async function load() {
       try {
         const base = await fetchInsightsData();
-
         if (!mounted) return;
 
-        const god = runGodModeInsights({
+        const evaluated = runGodModeInsights({
           ...base,
           marketRegime: base.marketRegime || {
             regime: "TRANSITION",
@@ -26,7 +25,7 @@ export default function Insights() {
         });
 
         setData(base);
-        setGodMode(god);
+        setInsights(evaluated);
       } catch (e) {
         if (!mounted) return;
         setError(e?.message || "Failed to load insights");
@@ -41,7 +40,7 @@ export default function Insights() {
     return <div style={{ padding: 24, color: "#ef4444" }}>{error}</div>;
   }
 
-  if (!data || !godMode) {
+  if (!data || !insights) {
     return <div style={{ padding: 24 }}>Loading insights…</div>;
   }
 
@@ -51,19 +50,43 @@ export default function Insights() {
     scenarios,
     invariants,
     narrative,
-    regimeImpact
-  } = godMode;
+    regimeImpact,
+    capital
+  } = insights;
+
+  const explanations = {
+    fragility: {
+      LOW: "Well-balanced structure with limited concentration risk.",
+      MODERATE: "Some concentration present but still manageable.",
+      HIGH: "Portfolio heavily concentrated and vulnerable to shocks.",
+      EXTREME: "Severe concentration creates high drawdown risk."
+    },
+    correlationRisk: {
+      LOW: "Holdings behave independently across market conditions.",
+      MODERATE: "Partial overlap in asset behavior.",
+      HIGH: "Assets likely move together during stress."
+    },
+    convictionDrift: {
+      ALIGNED: "Capital allocation matches confidence signals.",
+      "OVER-ALLOCATED RELATIVE TO CONFIDENCE":
+        "More capital deployed than confidence supports."
+    },
+    regimeMismatch: {
+      LOW: "Portfolio aligned with current market regime.",
+      HIGH: "Portfolio structure conflicts with regime conditions."
+    }
+  };
 
   return (
     <div style={{ padding: 24, maxWidth: 1200 }}>
-      <h1>Insights — God Mode</h1>
+      <h1>Insights</h1>
 
-      {/* BADGES */}
-      <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
+      {/* STATUS BADGES */}
+      <div style={{ display: "flex", gap: 8, marginBottom: 20, flexWrap: "wrap" }}>
         {[
           ["Fragility", riskFlags.fragility],
           ["Correlation", riskFlags.correlationRisk],
-          ["Readiness", godMode.capital?.readinessState || "UNKNOWN"],
+          ["Readiness", capital?.readinessState || "UNKNOWN"],
           ["Regime", regimeImpact?.regime || "UNKNOWN"],
           ["Violations", invariants.length]
         ].map(([label, value]) => (
@@ -97,9 +120,16 @@ export default function Insights() {
       <section>
         <h2>Structural Risk</h2>
         <ul>
-          {Object.entries(riskFlags).map(([k, v]) => (
-            <li key={k} style={{ color: semanticColor(v) }}>
-              {k}: {v}
+          {Object.entries(riskFlags).map(([key, value]) => (
+            <li key={key} style={{ marginBottom: 6 }}>
+              <strong style={{ color: semanticColor(value) }}>
+                {key}: {value}
+              </strong>
+              {explanations[key]?.[value] && (
+                <div style={{ fontSize: 13, opacity: 0.75 }}>
+                  {explanations[key][value]}
+                </div>
+              )}
             </li>
           ))}
         </ul>
@@ -108,37 +138,33 @@ export default function Insights() {
       {/* CAPITAL READINESS */}
       <section
         style={{
-          border: `2px solid ${semanticColor(
-            godMode.capital?.readinessState
-          )}`,
+          border: `2px solid ${semanticColor(capital?.readinessState)}`,
           borderRadius: 12,
           padding: 16,
-          marginTop: 16
+          marginTop: 20
         }}
       >
-        <h2>
-          Capital Readiness — {godMode.capital?.readinessState || "UNKNOWN"}
-        </h2>
-        <p>
-          Confidence, regime alignment, and structural posture determine capital
-          deployability.
+        <h2>Capital Readiness — {capital?.readinessState || "UNKNOWN"}</h2>
+        <p style={{ opacity: 0.8 }}>
+          This reflects whether current confidence, regime alignment, and
+          portfolio structure support deploying additional capital.
         </p>
       </section>
 
-      {/* SCENARIOS */}
+      {/* SCENARIO STRESS */}
       <section>
         <h2>Scenario Stress</h2>
         {scenarios.map((s, i) => (
           <div
             key={i}
             style={{
-              marginBottom: 8,
-              padding: 8,
+              marginBottom: 10,
+              padding: 10,
               borderLeft: `4px solid ${semanticColor(s.weight)}`
             }}
           >
             <strong>{s.name}</strong> — {s.weight}
-            <div>{s.assessment}</div>
+            <div style={{ opacity: 0.85 }}>{s.assessment}</div>
           </div>
         ))}
       </section>
@@ -165,7 +191,7 @@ export default function Insights() {
 
       {/* NARRATIVE */}
       <section>
-        <h2>Executive Narrative</h2>
+        <h2>Executive Summary</h2>
         <ul>
           {narrative.slice(0, 5).map((n, i) => (
             <li key={i}>{n}</li>
