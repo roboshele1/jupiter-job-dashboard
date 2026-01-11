@@ -1,10 +1,9 @@
 import { useEffect, useState } from "react";
 import { fetchInsightsData } from "../adapters/insightsIpcAdapter.js";
-import { runGodModeInsights } from "../insights/godModeInsightsEngine.js";
+import { buildInsightsIntelligence } from "../insights/insightsAuthorityEngine.js";
 import { semanticColor } from "../insights/semanticColorMap.js";
 
 export default function Insights() {
-  const [data, setData] = useState(null);
   const [insights, setInsights] = useState(null);
   const [error, setError] = useState(null);
 
@@ -16,7 +15,7 @@ export default function Insights() {
         const base = await fetchInsightsData();
         if (!mounted) return;
 
-        const evaluated = runGodModeInsights({
+        const authority = buildInsightsIntelligence({
           ...base,
           marketRegime: base.marketRegime || {
             regime: "TRANSITION",
@@ -24,8 +23,7 @@ export default function Insights() {
           }
         });
 
-        setData(base);
-        setInsights(evaluated);
+        setInsights(authority);
       } catch (e) {
         if (!mounted) return;
         setError(e?.message || "Failed to load insights");
@@ -40,7 +38,7 @@ export default function Insights() {
     return <div style={{ padding: 24, color: "#ef4444" }}>{error}</div>;
   }
 
-  if (!data || !insights) {
+  if (!insights) {
     return <div style={{ padding: 24 }}>Loading insights…</div>;
   }
 
@@ -56,24 +54,24 @@ export default function Insights() {
 
   const explanations = {
     fragility: {
-      LOW: "Well-balanced structure with limited concentration risk.",
-      MODERATE: "Some concentration present but still manageable.",
-      HIGH: "Portfolio heavily concentrated and vulnerable to shocks.",
-      EXTREME: "Severe concentration creates high drawdown risk."
+      LOW: "Portfolio structure is well diversified with limited concentration risk.",
+      MODERATE: "Some concentration exists, but risk remains manageable.",
+      HIGH: "Portfolio is concentrated and more vulnerable to shocks.",
+      EXTREME: "Severe concentration creates elevated drawdown risk."
     },
     correlationRisk: {
       LOW: "Holdings behave independently across market conditions.",
-      MODERATE: "Partial overlap in asset behavior.",
-      HIGH: "Assets likely move together during stress."
+      MODERATE: "Some overlap in asset behavior during stress.",
+      HIGH: "Assets are likely to move together during market stress."
     },
     convictionDrift: {
-      ALIGNED: "Capital allocation matches confidence signals.",
+      ALIGNED: "Position sizing reflects current confidence signals.",
       "OVER-ALLOCATED RELATIVE TO CONFIDENCE":
-        "More capital deployed than confidence supports."
+        "Capital exposure exceeds what confidence signals justify."
     },
     regimeMismatch: {
-      LOW: "Portfolio aligned with current market regime.",
-      HIGH: "Portfolio structure conflicts with regime conditions."
+      LOW: "Portfolio structure aligns with the current market regime.",
+      HIGH: "Portfolio positioning conflicts with prevailing market conditions."
     }
   };
 
@@ -121,7 +119,7 @@ export default function Insights() {
         <h2>Structural Risk</h2>
         <ul>
           {Object.entries(riskFlags).map(([key, value]) => (
-            <li key={key} style={{ marginBottom: 6 }}>
+            <li key={key} style={{ marginBottom: 10 }}>
               <strong style={{ color: semanticColor(value) }}>
                 {key}: {value}
               </strong>
@@ -145,10 +143,7 @@ export default function Insights() {
         }}
       >
         <h2>Capital Readiness — {capital?.readinessState || "UNKNOWN"}</h2>
-        <p style={{ opacity: 0.8 }}>
-          This reflects whether current confidence, regime alignment, and
-          portfolio structure support deploying additional capital.
-        </p>
+        <p style={{ opacity: 0.8 }}>{capital?.summary}</p>
       </section>
 
       {/* SCENARIO STRESS */}
@@ -178,10 +173,7 @@ export default function Insights() {
           invariants.map((inv, i) => (
             <div
               key={i}
-              style={{
-                color: semanticColor(inv.severity),
-                marginBottom: 6
-              }}
+              style={{ color: semanticColor(inv.severity), marginBottom: 6 }}
             >
               {inv.rule}: {inv.message}
             </div>
