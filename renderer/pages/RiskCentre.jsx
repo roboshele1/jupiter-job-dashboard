@@ -195,6 +195,7 @@ export default function RiskCentre() {
           gap: "24px",
         }}
       >
+        {/* LEFT COLUMN */}
         <div>
           <section
             style={{
@@ -261,6 +262,7 @@ export default function RiskCentre() {
           </section>
         </div>
 
+        {/* RIGHT COLUMN */}
         <div>
           <section
             style={{
@@ -466,6 +468,55 @@ export default function RiskCentre() {
           </ul>
         </section>
       </div>
+
+      {/* =========================
+         V9.1 — RISK DRIVERS SUMMARY
+         (READ-ONLY, EXPLANATORY)
+         ========================= */}
+
+      <section
+        style={{
+          background: COLORS.panelAlt,
+          border: `1px solid ${COLORS.border}`,
+          borderRadius: "12px",
+          padding: "24px",
+          marginTop: "32px",
+        }}
+      >
+        <h2 title="Plain-English explanation of what is driving portfolio risk">
+          Risk Drivers Summary
+        </h2>
+
+        <ul style={{ lineHeight: "1.8" }}>
+          <li>
+            <strong>Concentration risk:</strong>{" "}
+            Your largest holding (
+            <strong>{largestHolding.symbol}</strong>) makes up{" "}
+            <strong>{largestPct.toFixed(1)}%</strong> of the portfolio.
+            Higher concentration increases downside impact if this asset falls.
+          </li>
+
+          <li>
+            <strong>Equity exposure:</strong>{" "}
+            Equities account for{" "}
+            <strong>{equityExposure.toFixed(1)}%</strong> of total value.
+            This makes the portfolio more sensitive to stock market moves.
+          </li>
+
+          <li>
+            <strong>Crypto exposure:</strong>{" "}
+            Crypto accounts for{" "}
+            <strong>{cryptoExposure.toFixed(1)}%</strong> of total value.
+            Crypto typically adds higher volatility.
+          </li>
+
+          <li>
+            <strong>Diversification:</strong>{" "}
+            The portfolio holds <strong>{positions.length}</strong> assets.
+            Fewer holdings generally mean higher risk from individual moves.
+          </li>
+        </ul>
+      </section>
     </div>
   );
 }
