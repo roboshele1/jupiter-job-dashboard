@@ -1,4 +1,3 @@
-// renderer/pages/RiskCentre.jsx
 import React from "react";
 import { usePortfolioSnapshotStore } from "../state/portfolioSnapshotStore";
 
@@ -196,6 +195,29 @@ export default function RiskCentre() {
       impact: -equityDrawdown20,
     },
   ].sort((a, b) => b.impact - a.impact);
+
+  /* =========================
+     V3 — PARITY DIAGNOSTICS (ADDITIVE ONLY)
+     - DEV ONLY
+     - NO UI CONSUMPTION
+     ========================= */
+  if (process.env.NODE_ENV === "development" && riskCentreIntelligence) {
+    console.groupCollapsed("[RiskCentreParity]");
+    console.log("legacy", {
+      posture,
+      postureColor,
+      equityExposure,
+      cryptoExposure,
+      largestPct,
+    });
+    console.log("engine", {
+      posture: riskCentreIntelligence.posture,
+      postureColor: riskCentreIntelligence.postureColor,
+      exposures: riskCentreIntelligence.exposures,
+      largestPct: riskCentreIntelligence.largestPct,
+    });
+    console.groupEnd();
+  }
 
   /* =========================
      UI — FROZEN CONTRACT
