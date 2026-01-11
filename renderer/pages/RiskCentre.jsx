@@ -4,11 +4,12 @@ import { buildRiskCentre } from "../engine/riskCentreEngine";
 
 /**
  * RISK CENTRE — READ ONLY
- * V7 — PORTFOLIO VALUATION AUTHORITY (FULL BIND)
+ * V8 — UX ENHANCEMENTS (TOOLTIPS ONLY)
  * ------------------------------------------------
- * - Single source of truth: Portfolio Valuation
+ * - V7 logic preserved 100%
  * - No UI removed
- * - No legacy logic stripped
+ * - No calculations changed
+ * - Tooltips are additive only
  * - Deterministic, renderer-safe
  */
 
@@ -143,7 +144,7 @@ export default function RiskCentre() {
   ];
 
   /* =========================
-     UI — FROZEN CONTRACT
+     UI — FROZEN CONTRACT (V8 TOOLTIP ADDITIONS)
      ========================= */
 
   return (
@@ -170,13 +171,13 @@ export default function RiskCentre() {
           justifyContent: "space-between",
         }}
       >
-        <p>
+        <p title="Timestamp of the latest portfolio snapshot used for risk calculations">
           <strong>Snapshot timestamp:</strong>{" "}
           <span style={{ color: COLORS.textSecondary }}>
             {snapshot.timestamp ?? "N/A"}
           </span>
         </p>
-        <p>
+        <p title="Live portfolio market value sourced from the Portfolio Valuation engine">
           <strong>Total portfolio value:</strong>{" "}
           <span style={{ color: COLORS.accentBlue }}>
             $
@@ -186,8 +187,6 @@ export default function RiskCentre() {
           </span>
         </p>
       </div>
-
-      {/* -------- REST OF ORIGINAL UI (UNCHANGED) -------- */}
 
       <div
         style={{
@@ -206,14 +205,25 @@ export default function RiskCentre() {
               marginBottom: "24px",
             }}
           >
-            <h2>Risk Posture</h2>
+            <h2 title="Overall portfolio risk assessment based on concentration and exposure">
+              Risk Posture
+            </h2>
             <p>
               <strong>Overall posture:</strong>{" "}
-              <span style={{ color: postureColor }}>{posture}</span>
+              <span
+                style={{ color: postureColor }}
+                title="Derived from largest position concentration and asset class balance"
+              >
+                {posture}
+              </span>
             </p>
             <ul>
-              <li>Elevated single-asset concentration.</li>
-              <li>Equity exposure dominates portfolio risk.</li>
+              <li title="Measures dependency on a single asset">
+                Elevated single-asset concentration.
+              </li>
+              <li title="Equity exposure relative to total portfolio value">
+                Equity exposure dominates portfolio risk.
+              </li>
             </ul>
           </section>
 
@@ -225,23 +235,25 @@ export default function RiskCentre() {
               padding: "24px",
             }}
           >
-            <h2>Posture Support Metrics</h2>
+            <h2 title="Supporting metrics used to justify the current risk posture">
+              Posture Support Metrics
+            </h2>
             <ul>
-              <li>
+              <li title="Largest position as a percentage of total portfolio value">
                 Largest position: <strong>{largestHolding.symbol}</strong>{" "}
                 <span style={{ color: COLORS.textSecondary }}>
                   ({largestPct.toFixed(1)}%)
                 </span>
               </li>
-              <li>
+              <li title="Percentage of portfolio allocated to equities">
                 Equity exposure:{" "}
                 <strong>{equityExposure.toFixed(1)}%</strong>
               </li>
-              <li>
+              <li title="Percentage of portfolio allocated to crypto assets">
                 Crypto exposure:{" "}
                 <strong>{cryptoExposure.toFixed(1)}%</strong>
               </li>
-              <li>
+              <li title="Total number of distinct holdings in the portfolio">
                 Number of holdings:{" "}
                 <strong>{positions.length}</strong>
               </li>
@@ -259,9 +271,12 @@ export default function RiskCentre() {
               marginBottom: "24px",
             }}
           >
-            <h2>Holding Concentration</h2>
+            <h2 title="Visual representation of portfolio concentration by holding">
+              Holding Concentration
+            </h2>
 
             <div
+              title="Each segment represents a holding's percentage of total portfolio value"
               style={{
                 width: "200px",
                 height: "200px",
@@ -290,7 +305,9 @@ export default function RiskCentre() {
                   alignItems: "center",
                   justifyContent: "center",
                   fontWeight: "bold",
+                  textAlign: "center",
                 }}
+                title="Largest holding by portfolio weight"
               >
                 {largestHolding.symbol}
                 <br />
@@ -300,7 +317,12 @@ export default function RiskCentre() {
 
             <ul>
               {donutData.slice(0, 5).map((h, i) => (
-                <li key={h.symbol}>
+                <li
+                  key={h.symbol}
+                  title={`${h.symbol} represents ${h.pct.toFixed(
+                    1
+                  )}% of total portfolio value`}
+                >
                   <span
                     style={{
                       display: "inline-block",
@@ -335,7 +357,9 @@ export default function RiskCentre() {
             padding: "24px",
           }}
         >
-          <h2>Exposure Distribution</h2>
+          <h2 title="Portfolio allocation by asset class">
+            Exposure Distribution
+          </h2>
 
           <div style={{ marginBottom: "16px" }}>
             <div
@@ -345,7 +369,9 @@ export default function RiskCentre() {
                 marginBottom: "6px",
               }}
             >
-              <span>Equity exposure</span>
+              <span title="Percentage of portfolio invested in equities">
+                Equity exposure
+              </span>
               <strong>{equityExposure.toFixed(1)}%</strong>
             </div>
             <div
@@ -374,7 +400,9 @@ export default function RiskCentre() {
                 marginBottom: "6px",
               }}
             >
-              <span>Crypto exposure</span>
+              <span title="Percentage of portfolio invested in crypto assets">
+                Crypto exposure
+              </span>
               <strong>{cryptoExposure.toFixed(1)}%</strong>
             </div>
             <div
@@ -404,9 +432,11 @@ export default function RiskCentre() {
             padding: "24px",
           }}
         >
-          <h2>Stress Scenarios</h2>
+          <h2 title="Hypothetical stress scenarios applied to current portfolio">
+            Stress Scenarios
+          </h2>
           <ul>
-            <li>
+            <li title="Impact if equity holdings decline by 20%">
               Equity drawdown (-20%):{" "}
               <span style={{ color: COLORS.accentRed }}>
                 -$
@@ -415,7 +445,7 @@ export default function RiskCentre() {
                 })}
               </span>
             </li>
-            <li>
+            <li title="Impact if crypto holdings decline by 40%">
               Crypto drawdown (-40%):{" "}
               <span style={{ color: COLORS.accentRed }}>
                 -$
@@ -424,7 +454,7 @@ export default function RiskCentre() {
                 })}
               </span>
             </li>
-            <li>
+            <li title="Impact if the largest holding declines by 30%">
               Top holding shock (-30% on {largestHolding.symbol}):{" "}
               <span style={{ color: COLORS.accentRed }}>
                 -$
