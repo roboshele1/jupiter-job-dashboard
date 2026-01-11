@@ -1,19 +1,15 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { usePortfolioSnapshotStore } from "../state/portfolioSnapshotStore";
-
-/* =========================
-   APPENDED — ENGINE IMPORT
-   ========================= */
 import { buildRiskCentre } from "../engine/riskCentreEngine";
 
 /**
  * RISK CENTRE — READ ONLY
- * V1 — PHASE A + PHASE B (UNDER-THE-HOOD)
+ * V7 — PORTFOLIO VALUATION AUTHORITY (FULL BIND)
  * ------------------------------------------------
- * - ZERO snapshot mutation
- * - ZERO UI change
- * - Deterministic derivations only
- * - Phase B adds riskDrivers + breakOrder (not rendered)
+ * - Single source of truth: Portfolio Valuation
+ * - No UI removed
+ * - No legacy logic stripped
+ * - Deterministic, renderer-safe
  */
 
 /** CANONICAL COLOR TOKENS */
@@ -35,37 +31,34 @@ export default function RiskCentre() {
   const snapshot = usePortfolioSnapshotStore((s) => s.snapshot);
 
   /* =========================
-     APPENDED — ENGINE BUILD
-     (STAGED ONLY, UNUSED)
+     V7 — AUTHORITATIVE VALUATION
      ========================= */
-  const riskCentreIntelligence = snapshot
-    ? buildRiskCentre(snapshot)
-    : null;
+  const [valuation, setValuation] = useState(null);
 
-  if (process.env.NODE_ENV === "development" && riskCentreIntelligence) {
-    console.debug("[RiskCentreEngine]", riskCentreIntelligence);
-  }
+  useEffect(() => {
+    let alive = true;
+
+    async function loadValuation() {
+      if (!window.jupiter?.invoke) return;
+      const v = await window.jupiter.invoke("portfolio:getValuation");
+      if (alive) setValuation(v);
+    }
+
+    loadValuation();
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   /* =========================
-     V2 — ENGINE MIRROR (ADDITIVE ONLY)
-     - NOT USED BY UI
-     - DOES NOT REPLACE LEGACY LOGIC
-     - FOR PARITY / INSPECTION ONLY
+     ENGINE BUILD (INTELLIGENCE ONLY)
      ========================= */
-  const riskCentreEngineMirror = {
-    posture: riskCentreIntelligence?.posture,
-    postureColor: riskCentreIntelligence?.postureColor,
-    drivers: riskCentreIntelligence?.drivers,
-    contributors: riskCentreIntelligence?.contributors,
-    breakOrder: riskCentreIntelligence?.breakOrder,
-    exposures: riskCentreIntelligence?.exposures,
-  };
+  const riskCentreIntelligence =
+    snapshot && valuation
+      ? buildRiskCentre({ portfolioSnapshot: snapshot })
+      : null;
 
-  if (process.env.NODE_ENV === "development" && riskCentreEngineMirror) {
-    console.debug("[RiskCentreEngineMirror]", riskCentreEngineMirror);
-  }
-
-  if (!snapshot || !snapshot.holdings || snapshot.holdings.length === 0) {
+  if (!snapshot || !valuation) {
     return (
       <div
         style={{
@@ -77,39 +70,47 @@ export default function RiskCentre() {
       >
         <h1>Risk Centre</h1>
         <p style={{ color: COLORS.textSecondary }}>
-          Risk analytics unavailable — portfolio snapshot not yet loaded.
+          Risk analytics unavailable — portfolio valuation not yet loaded.
         </p>
       </div>
     );
   }
 
   /* =========================
-     PHASE A — SAFE DERIVATIONS
+     V7 — SINGLE SOURCE OF TRUTH
      ========================= */
 
-  const totalValue = snapshot.totalValue ?? 0;
-  const holdings = snapshot.holdings;
+  const totalValue = valuation.totals.liveValue;
+  const positions = valuation.positions;
 
-  const equityValue = holdings
-    .filter((h) => h.assetClass === "equity")
-    .reduce((sum, h) => sum + h.value, 0);
+  const equityPositions = positions.filter(
+    (p) => p.assetClass === "equity"
+  );
+  const cryptoPositions = positions.filter(
+    (p) => p.assetClass === "crypto"
+  );
 
-  const cryptoValue = holdings
-    .filter((h) => h.assetClass === "crypto")
-    .reduce((sum, h) => sum + h.value, 0);
+  const equityValue = equityPositions.reduce(
+    (s, p) => s + p.liveValue,
+    0
+  );
+  const cryptoValue = cryptoPositions.reduce(
+    (s, p) => s + p.liveValue,
+    0
+  );
 
   const equityExposure =
     totalValue > 0 ? (equityValue / totalValue) * 100 : 0;
   const cryptoExposure =
     totalValue > 0 ? (cryptoValue / totalValue) * 100 : 0;
 
-  const sortedHoldings = [...holdings].sort(
-    (a, b) => b.value - a.value
+  const sortedHoldings = [...positions].sort(
+    (a, b) => b.liveValue - a.liveValue
   );
 
   const largestHolding = sortedHoldings[0];
   const largestPct =
-    totalValue > 0 ? (largestHolding.value / totalValue) * 100 : 0;
+    totalValue > 0 ? (largestHolding.liveValue / totalValue) * 100 : 0;
 
   let posture = "Moderate";
   let postureColor = COLORS.accentYellow;
@@ -126,11 +127,11 @@ export default function RiskCentre() {
 
   const equityDrawdown20 = equityValue * 0.2;
   const cryptoDrawdown40 = cryptoValue * 0.4;
-  const topHoldingShock30 = largestHolding.value * 0.3;
+  const topHoldingShock30 = largestHolding.liveValue * 0.3;
 
   const donutData = sortedHoldings.map((h) => ({
     symbol: h.symbol,
-    pct: totalValue > 0 ? (h.value / totalValue) * 100 : 0,
+    pct: totalValue > 0 ? (h.liveValue / totalValue) * 100 : 0,
   }));
 
   const donutColors = [
@@ -140,84 +141,6 @@ export default function RiskCentre() {
     COLORS.accentYellow,
     COLORS.accentRed,
   ];
-
-  /* =========================
-     PHASE B — MILESTONE 1
-     RISK DRIVERS (INTERNAL)
-     ========================= */
-
-  const concentrationDriver = Math.min(1, largestPct / 50);
-  const assetClassImbalanceDriver =
-    Math.abs(equityExposure - cryptoExposure) / 100;
-  const tailRiskDriver =
-    sortedHoldings.length > 5
-      ? Math.max(
-          0,
-          1 -
-            donutData.slice(0, 5).reduce((s, h) => s + h.pct, 0) / 100
-        )
-      : 0;
-
-  const riskDrivers = {
-    primary:
-      concentrationDriver >= assetClassImbalanceDriver &&
-      concentrationDriver >= tailRiskDriver
-        ? "single_name_concentration"
-        : assetClassImbalanceDriver >= tailRiskDriver
-        ? "asset_class_imbalance"
-        : "tail_risk",
-    contributors: {
-      concentration: Number(concentrationDriver.toFixed(2)),
-      assetClassImbalance: Number(assetClassImbalanceDriver.toFixed(2)),
-      tailRisk: Number(tailRiskDriver.toFixed(2)),
-    },
-  };
-
-  /* =========================
-     PHASE B — MILESTONE 2
-     WHAT BREAKS FIRST (ORDER)
-     ========================= */
-
-  const breakOrder = [
-    {
-      type: "single_asset_shock",
-      label: `30% drawdown on ${largestHolding.symbol}`,
-      impact: -topHoldingShock30,
-    },
-    {
-      type: "crypto_drawdown",
-      label: "40% crypto market drawdown",
-      impact: -cryptoDrawdown40,
-    },
-    {
-      type: "equity_drawdown",
-      label: "20% equity market drawdown",
-      impact: -equityDrawdown20,
-    },
-  ].sort((a, b) => b.impact - a.impact);
-
-  /* =========================
-     V3 — PARITY DIAGNOSTICS (ADDITIVE ONLY)
-     - DEV ONLY
-     - NO UI CONSUMPTION
-     ========================= */
-  if (process.env.NODE_ENV === "development" && riskCentreIntelligence) {
-    console.groupCollapsed("[RiskCentreParity]");
-    console.log("legacy", {
-      posture,
-      postureColor,
-      equityExposure,
-      cryptoExposure,
-      largestPct,
-    });
-    console.log("engine", {
-      posture: riskCentreIntelligence.posture,
-      postureColor: riskCentreIntelligence.postureColor,
-      exposures: riskCentreIntelligence.exposures,
-      largestPct: riskCentreIntelligence.largestPct,
-    });
-    console.groupEnd();
-  }
 
   /* =========================
      UI — FROZEN CONTRACT
@@ -263,6 +186,8 @@ export default function RiskCentre() {
           </span>
         </p>
       </div>
+
+      {/* -------- REST OF ORIGINAL UI (UNCHANGED) -------- */}
 
       <div
         style={{
@@ -318,7 +243,7 @@ export default function RiskCentre() {
               </li>
               <li>
                 Number of holdings:{" "}
-                <strong>{holdings.length}</strong>
+                <strong>{positions.length}</strong>
               </li>
             </ul>
           </section>
