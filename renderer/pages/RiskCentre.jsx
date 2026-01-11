@@ -2,6 +2,11 @@
 import React from "react";
 import { usePortfolioSnapshotStore } from "../state/portfolioSnapshotStore";
 
+/* =========================
+   APPENDED — ENGINE IMPORT
+   ========================= */
+import { buildRiskCentre } from "../engine/riskCentreEngine";
+
 /**
  * RISK CENTRE — READ ONLY
  * V1 — PHASE A + PHASE B (UNDER-THE-HOOD)
@@ -29,6 +34,18 @@ const COLORS = {
 
 export default function RiskCentre() {
   const snapshot = usePortfolioSnapshotStore((s) => s.snapshot);
+
+  /* =========================
+     APPENDED — ENGINE BUILD
+     (STAGED ONLY, UNUSED)
+     ========================= */
+  const riskCentreIntelligence = snapshot
+    ? buildRiskCentre(snapshot)
+    : null;
+
+  if (process.env.NODE_ENV === "development" && riskCentreIntelligence) {
+    console.debug("[RiskCentreEngine]", riskCentreIntelligence);
+  }
 
   if (!snapshot || !snapshot.holdings || snapshot.holdings.length === 0) {
     return (
@@ -116,7 +133,11 @@ export default function RiskCentre() {
     Math.abs(equityExposure - cryptoExposure) / 100;
   const tailRiskDriver =
     sortedHoldings.length > 5
-      ? Math.max(0, 1 - donutData.slice(0, 5).reduce((s, h) => s + h.pct, 0) / 100)
+      ? Math.max(
+          0,
+          1 -
+            donutData.slice(0, 5).reduce((s, h) => s + h.pct, 0) / 100
+        )
       : 0;
 
   const riskDrivers = {
@@ -452,4 +473,3 @@ export default function RiskCentre() {
     </div>
   );
 }
-
