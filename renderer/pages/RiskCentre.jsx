@@ -47,6 +47,25 @@ export default function RiskCentre() {
     console.debug("[RiskCentreEngine]", riskCentreIntelligence);
   }
 
+  /* =========================
+     V2 — ENGINE MIRROR (ADDITIVE ONLY)
+     - NOT USED BY UI
+     - DOES NOT REPLACE LEGACY LOGIC
+     - FOR PARITY / INSPECTION ONLY
+     ========================= */
+  const riskCentreEngineMirror = {
+    posture: riskCentreIntelligence?.posture,
+    postureColor: riskCentreIntelligence?.postureColor,
+    drivers: riskCentreIntelligence?.drivers,
+    contributors: riskCentreIntelligence?.contributors,
+    breakOrder: riskCentreIntelligence?.breakOrder,
+    exposures: riskCentreIntelligence?.exposures,
+  };
+
+  if (process.env.NODE_ENV === "development" && riskCentreEngineMirror) {
+    console.debug("[RiskCentreEngineMirror]", riskCentreEngineMirror);
+  }
+
   if (!snapshot || !snapshot.holdings || snapshot.holdings.length === 0) {
     return (
       <div
