@@ -1,133 +1,160 @@
-/**
- * Confidence Trend Engine — V1
- * --------------------------------
- * Institutional-grade confidence trend analysis.
- * Deterministic. Read-only. Engine-only.
- *
- * Inputs:
- *  - history: Array of confidence snapshots ordered oldest → newest
- *
- * Snapshot shape:
- *  {
- *    timestamp: number,
- *    confidenceBand: "HIGH" | "MODERATE" | "LOW"
- *  }
- */
+// Confidence Trend Engine — V1.1
+// Institutional-grade confidence deterioration & persistence analysis
+// Deterministic, read-only, append-only
 
-const CONFIDENCE_SCORE = {
-  HIGH: 3,
-  MODERATE: 2,
-  LOW: 1
-};
+const CONFIDENCE_ORDER = ["LOW", "MODERATE", "HIGH"];
 
-function normalizeHistory(history = []) {
-  return history
-    .filter(h => h && CONFIDENCE_SCORE[h.confidenceBand])
-    .sort((a, b) => a.timestamp - b.timestamp);
+function confidenceRank(level) {
+  return CONFIDENCE_ORDER.indexOf(level ?? "LOW");
 }
 
-function computeDirection(scores) {
-  if (scores.length < 2) return "STABLE";
-  const delta = scores[scores.length - 1] - scores[0];
-  if (delta > 0) return "IMPROVING";
-  if (delta < 0) return "DETERIORATING";
-  return "STABLE";
-}
-
-function computeVelocity(scores, timestamps) {
-  if (scores.length < 3) return "SLOW";
-
-  const timeSpanDays =
-    (timestamps[timestamps.length - 1] - timestamps[0]) /
-    (1000 * 60 * 60 * 24);
-
-  if (timeSpanDays === 0) return "SLOW";
-
-  const magnitude = Math.abs(scores[scores.length - 1] - scores[0]);
-
-  if (magnitude >= 2 && timeSpanDays <= 7) return "FAST";
-  if (magnitude >= 1 && timeSpanDays <= 14) return "MODERATE";
-  return "SLOW";
-}
-
-function computeTimeInState(history) {
-  if (history.length === 0) return null;
-
-  const current = history[history.length - 1].confidenceBand;
-  let days = 0;
-
-  for (let i = history.length - 1; i >= 0; i--) {
-    if (history[i].confidenceBand !== current) break;
-    if (i > 0) {
-      const delta =
-        (history[i].timestamp - history[i - 1].timestamp) /
-        (1000 * 60 * 60 * 24);
-      days += delta;
-    }
-  }
-
-  return {
-    confidenceBand: current,
-    days: Math.round(days)
-  };
-}
-
-function computeReadiness(direction, currentBand) {
-  if (currentBand === "LOW" && direction === "DETERIORATING") {
-    return "NOT_READY";
-  }
-  if (currentBand === "LOW" && direction === "STABLE") {
-    return "WAIT";
-  }
-  if (currentBand === "MODERATE" && direction === "IMPROVING") {
-    return "EARLY_SIGNAL";
-  }
-  if (currentBand === "HIGH" && direction === "IMPROVING") {
-    return "FAVORABLE";
-  }
-  return "NEUTRAL";
+function daysBetween(tsA, tsB) {
+  return Math.floor(Math.abs(tsA - tsB) / 86400000);
 }
 
 export function runConfidenceTrendEngine(history = []) {
-  const normalized = normalizeHistory(history);
+  const now = Date.now();
 
-  if (normalized.length === 0) {
+  if (!Array.isArray(history) || history.length === 0) {
     return {
       meta: {
-        engine: "CONFIDENCE_TRENDS_V1",
-        generatedAt: Date.now()
+        engine: "CONFIDENCE_TRENDS_V1.1",
+        generatedAt: now
       },
-      status: "INSUFFICIENT_DATA"
+      current: null,
+      trend: null,
+      readiness: "UNKNOWN",
+      alerts: []
     };
   }
 
-  const scores = normalized.map(h => CONFIDENCE_SCORE[h.confidenceBand]);
-  const timestamps = normalized.map(h => h.timestamp);
+  const sorted = history
+    .slice()
+    .sort((a, b) => a.timestamp - b.timestamp);
 
-  const direction = computeDirection(scores);
-  const velocity = computeVelocity(scores, timestamps);
-  const timeInState = computeTimeInState(normalized);
-  const readiness = computeReadiness(direction, timeInState?.confidenceBand);
+  const latest = sorted[sorted.length - 1];
+  const previous = sorted[sorted.length - 2] || null;
 
+  // ─────────────────────────────────────────
+  // CURRENT STATE
+  // ─────────────────────────────────────────
+  let timeInCurrentState = 0;
+  for (let i = sorted.length - 1; i >= 0; i--) {
+    if (sorted[i].confidenceBand !== latest.confidenceBand) break;
+    timeInCurrentState = daysBetween(sorted[i].timestamp, now);
+  }
+
+  const current = {
+    confidenceBand: latest.confidenceBand,
+    days: timeInCurrentState
+  };
+
+  // ─────────────────────────────────────────
+  // TREND DIRECTION & VELOCITY
+  // ─────────────────────────────────────────
+  let direction = "STABLE";
+  let velocity = "LOW";
+
+  if (previous) {
+    const delta =
+      confidenceRank(latest.confidenceBand) -
+      confidenceRank(previous.confidenceBand);
+
+    if (delta < 0) direction = "DETERIORATING";
+    if (delta > 0) direction = "IMPROVING";
+
+    const daysDelta = Math.max(
+      1,
+      daysBetween(previous.timestamp, latest.timestamp)
+    );
+
+    if (Math.abs(delta) / daysDelta > 0.15) velocity = "HIGH";
+    else if (Math.abs(delta) / daysDelta > 0.05) velocity = "MODERATE";
+  }
+
+  const trend = { direction, velocity };
+
+  // ─────────────────────────────────────────
+  // DETERIORATION ALERTS (NEW)
+  // ─────────────────────────────────────────
   const alerts = [];
-  if (timeInState && timeInState.days >= 7 && timeInState.confidenceBand === "LOW") {
+
+  // 1. Prolonged LOW confidence
+  if (current.confidenceBand === "LOW" && current.days >= 7) {
     alerts.push({
       type: "PERSISTENT_LOW_CONFIDENCE",
-      severity: "HIGH",
-      message: `${timeInState.days} days in LOW confidence.`
+      severity: current.days >= 14 ? "CRITICAL" : "HIGH",
+      durationDays: current.days,
+      message: `${current.days} days in LOW confidence.`
     });
+  }
+
+  // 2. Prolonged deterioration trend
+  if (trend.direction === "DETERIORATING" && current.days >= 10) {
+    alerts.push({
+      type: "PROLONGED_DETERIORATION",
+      severity: current.days >= 21 ? "CRITICAL" : "HIGH",
+      durationDays: current.days,
+      message: `Confidence deteriorating for ${current.days} consecutive days.`
+    });
+  }
+
+  // 3. Confidence stagnation
+  if (
+    current.confidenceBand !== "HIGH" &&
+    current.days >= 21 &&
+    trend.direction === "STABLE"
+  ) {
+    alerts.push({
+      type: "CONFIDENCE_STAGNATION",
+      severity: "MEDIUM",
+      durationDays: current.days,
+      message: `Confidence stalled in ${current.confidenceBand} for ${current.days} days.`
+    });
+  }
+
+  // 4. Whipsaw instability (too many flips)
+  let flips = 0;
+  for (let i = 1; i < sorted.length; i++) {
+    if (sorted[i].confidenceBand !== sorted[i - 1].confidenceBand) {
+      flips++;
+    }
+  }
+
+  if (flips >= 4 && daysBetween(sorted[0].timestamp, now) <= 30) {
+    alerts.push({
+      type: "CONFIDENCE_WHIPSAW",
+      severity: "MEDIUM",
+      durationDays: daysBetween(sorted[0].timestamp, now),
+      message: "Confidence is unstable and flipping frequently."
+    });
+  }
+
+  // ─────────────────────────────────────────
+  // READINESS SIGNAL (NOT ADVICE)
+  // ─────────────────────────────────────────
+  let readiness = "NOT_READY";
+
+  if (
+    current.confidenceBand === "HIGH" &&
+    trend.direction !== "DETERIORATING" &&
+    alerts.length === 0
+  ) {
+    readiness = "READY";
+  } else if (
+    current.confidenceBand === "MODERATE" &&
+    trend.direction === "IMPROVING"
+  ) {
+    readiness = "WATCH";
   }
 
   return {
     meta: {
-      engine: "CONFIDENCE_TRENDS_V1",
-      generatedAt: Date.now()
+      engine: "CONFIDENCE_TRENDS_V1.1",
+      generatedAt: now
     },
-    current: timeInState,
-    trend: {
-      direction,
-      velocity
-    },
+    current,
+    trend,
     readiness,
     alerts
   };
