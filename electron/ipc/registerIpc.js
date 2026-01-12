@@ -3,15 +3,15 @@ import { registerGrowthEngineIpc } from "./growthEngineIpc.js";
 import { registerSignalsIpc } from "./signalsIpc.js";
 import { valuePortfolio } from "../../engine/portfolio/portfolioValuation.js";
 import { computeInsights } from "../../engine/insights/insightsEngine.js";
-import { isValidSymbol } from "../../engine/symbolUniverse/symbolUniverse.js";
+import { resolveInvestableSymbol } from "../../engine/symbolUniverse/resolveInvestableSymbol.js";
 
 /**
  * IPC Registry — Authoritative
  * -----------------------------
  * Registers all read-only IPC surfaces.
+ * Resolver-gated.
  * No mutation.
  * No UI logic.
- * No execution.
  */
 
 let cachedSnapshot = null;
@@ -95,17 +95,19 @@ export function registerAllIpc(ipcMain) {
   });
 
   /* =========================
-     DISCOVERY — MANUAL ANALYSIS (SYMBOL-VALIDATED)
+     DISCOVERY — MANUAL ANALYSIS (RESOLVER-GATED)
      ========================= */
   ipcMain.handle("discovery:analyze:symbol", async (_event, payload) => {
     if (!payload || typeof payload.symbol !== "string") {
       throw new Error("INVALID_PAYLOAD: symbol required");
     }
 
-    const symbol = payload.symbol.trim().toUpperCase();
+    const resolution = await resolveInvestableSymbol(payload.symbol);
 
-    if (!isValidSymbol(symbol)) {
-      throw new Error(`INVALID_SYMBOL: ${symbol}`);
+    if (!resolution?.valid) {
+      const err = new Error("INVALID_SYMBOL");
+      err.code = "INVALID_SYMBOL";
+      throw err;
     }
 
     const discoveryEngineModule = await import(
@@ -121,13 +123,14 @@ export function registerAllIpc(ipcMain) {
     }
 
     const result = await runDiscoveryEngine({
-      symbol,
+      symbol: resolution.canonicalSymbol,
+      assetType: resolution.assetType,
       ownership: payload.ownership === true
     });
 
     return Object.freeze({
       mode: "MANUAL_RESEARCH",
-      input: payload,
+      resolution,
       result
     });
   });
