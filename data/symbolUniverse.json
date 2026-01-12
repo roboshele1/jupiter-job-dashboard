@@ -1,0 +1,51 @@
+{
+  "AAPL": {
+    "symbol": "AAPL",
+    "name": "Apple Inc.",
+    "assetClass": "equity",
+    "exchange": "NASDAQ",
+    "active": true
+  },
+  "NVDA": {
+    "symbol": "NVDA",
+    "name": "NVIDIA Corporation",
+    "assetClass": "equity",
+    "exchange": "NASDAQ",
+    "active": true
+  },
+  "VOO": {
+    "symbol": "VOO",
+    "name": "Vanguard S&P 500 ETF",
+    "assetClass": "etf",
+    "exchange": "NYSEARCA",
+    "active": true
+  },
+  "SCHD": {
+    "symbol": "SCHD",
+    "name": "Schwab U.S. Dividend Equity ETF",
+    "assetClass": "etf",
+    "exchange": "NYSEARCA",
+    "active": true
+  },
+  "BTC": {
+    "symbol": "BTC",
+    "name": "Bitcoin",
+    "assetClass": "crypto",
+    "exchange": "CRYPTO",
+    "active": true
+  },
+  "ETH": {
+    "symbol": "ETH",
+    "name": "Ethereum",
+    "assetClass": "crypto",
+    "exchange": "CRYPTO",
+    "active": true
+  },
+  "SPX": {
+    "symbol": "SPX",
+    "name": "S&P 500 Index",
+    "assetClass": "index",
+    "exchange": "INDEX",
+    "active": true
+  }
+}
