@@ -161,13 +161,13 @@ export default function RiskCentre() {
           justifyContent: "space-between",
         }}
       >
-        <p title="Timestamp of the latest portfolio snapshot used for risk calculations">
+        <p>
           <strong>Snapshot timestamp:</strong>{" "}
           <span style={{ color: COLORS.textSecondary }}>
             {snapshot.timestamp ?? "N/A"}
           </span>
         </p>
-        <p title="Live portfolio market value sourced from the Portfolio Valuation engine">
+        <p>
           <strong>Total portfolio value:</strong>{" "}
           <span style={{ color: COLORS.accentBlue }}>
             $
@@ -178,6 +178,7 @@ export default function RiskCentre() {
         </p>
       </div>
 
+      {/* GRID: POSTURE + CONCENTRATION */}
       <div
         style={{
           display: "grid",
@@ -278,7 +279,7 @@ export default function RiskCentre() {
             </div>
 
             <ul>
-              {donutData.slice(0, 5).map((h, i) => (
+              {donutData.slice(0, 5).map((h) => (
                 <li key={h.symbol}>
                   {h.symbol}: {h.pct.toFixed(1)}%
                 </li>
@@ -288,6 +289,7 @@ export default function RiskCentre() {
         </div>
       </div>
 
+      {/* GRID: EXPOSURE + STRESS */}
       <div
         style={{
           display: "grid",
@@ -307,7 +309,12 @@ export default function RiskCentre() {
           <h2>Exposure Distribution</h2>
 
           <div style={{ marginBottom: "16px" }}>
-            <div style={{ display: "flex", justifyContent: "space-between" }}>
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+              }}
+            >
               <span>Equity exposure</span>
               <strong>{equityExposure.toFixed(1)}%</strong>
             </div>
@@ -329,7 +336,12 @@ export default function RiskCentre() {
           </div>
 
           <div>
-            <div style={{ display: "flex", justifyContent: "space-between" }}>
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+              }}
+            >
               <span>Crypto exposure</span>
               <strong>{cryptoExposure.toFixed(1)}%</strong>
             </div>
@@ -361,16 +373,29 @@ export default function RiskCentre() {
         >
           <h2>Stress Scenarios</h2>
           <ul>
-            <li>Equity drawdown (-20%): -${equityDrawdown20.toLocaleString()}</li>
-            <li>Crypto drawdown (-40%): -${cryptoDrawdown40.toLocaleString()}</li>
             <li>
-              Top holding shock (-30% on {largestHolding.symbol}): -$
-              {topHoldingShock30.toLocaleString()}
+              Equity drawdown (-20%):{" "}
+              <span style={{ color: COLORS.accentRed }}>
+                -${equityDrawdown20.toLocaleString()}
+              </span>
+            </li>
+            <li>
+              Crypto drawdown (-40%):{" "}
+              <span style={{ color: COLORS.accentRed }}>
+                -${cryptoDrawdown40.toLocaleString()}
+              </span>
+            </li>
+            <li>
+              Top holding shock (-30% on {largestHolding.symbol}):{" "}
+              <span style={{ color: COLORS.accentRed }}>
+                -${topHoldingShock30.toLocaleString()}
+              </span>
             </li>
           </ul>
         </section>
       </div>
 
+      {/* V9.1 — RISK DRIVERS SUMMARY */}
       <section
         style={{
           background: COLORS.panelAlt,
@@ -392,6 +417,7 @@ export default function RiskCentre() {
         </ul>
       </section>
 
+      {/* V9.2 — PORTFOLIO SENSITIVITY */}
       <section
         style={{
           background: COLORS.panel,
@@ -411,10 +437,7 @@ export default function RiskCentre() {
         </ul>
       </section>
 
-      {/* =========================
-         V9.3 — REGIME CONTEXT
-         ========================= */}
-
+      {/* V9.3 — REGIME CONTEXT */}
       <section
         style={{
           marginTop: "24px",
