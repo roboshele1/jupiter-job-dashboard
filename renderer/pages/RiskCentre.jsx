@@ -84,21 +84,11 @@ export default function RiskCentre() {
   const totalValue = valuation.totals.liveValue;
   const positions = valuation.positions;
 
-  const equityPositions = positions.filter(
-    (p) => p.assetClass === "equity"
-  );
-  const cryptoPositions = positions.filter(
-    (p) => p.assetClass === "crypto"
-  );
+  const equityPositions = positions.filter((p) => p.assetClass === "equity");
+  const cryptoPositions = positions.filter((p) => p.assetClass === "crypto");
 
-  const equityValue = equityPositions.reduce(
-    (s, p) => s + p.liveValue,
-    0
-  );
-  const cryptoValue = cryptoPositions.reduce(
-    (s, p) => s + p.liveValue,
-    0
-  );
+  const equityValue = equityPositions.reduce((s, p) => s + p.liveValue, 0);
+  const cryptoValue = cryptoPositions.reduce((s, p) => s + p.liveValue, 0);
 
   const equityExposure =
     totalValue > 0 ? (equityValue / totalValue) * 100 : 0;
@@ -247,16 +237,13 @@ export default function RiskCentre() {
                 </span>
               </li>
               <li title="Percentage of portfolio allocated to equities">
-                Equity exposure:{" "}
-                <strong>{equityExposure.toFixed(1)}%</strong>
+                Equity exposure: <strong>{equityExposure.toFixed(1)}%</strong>
               </li>
               <li title="Percentage of portfolio allocated to crypto assets">
-                Crypto exposure:{" "}
-                <strong>{cryptoExposure.toFixed(1)}%</strong>
+                Crypto exposure: <strong>{cryptoExposure.toFixed(1)}%</strong>
               </li>
               <li title="Total number of distinct holdings in the portfolio">
-                Number of holdings:{" "}
-                <strong>{positions.length}</strong>
+                Number of holdings: <strong>{positions.length}</strong>
               </li>
             </ul>
           </section>
@@ -359,9 +346,7 @@ export default function RiskCentre() {
             padding: "24px",
           }}
         >
-          <h2 title="Portfolio allocation by asset class">
-            Exposure Distribution
-          </h2>
+          <h2 title="Portfolio allocation by asset class">Exposure Distribution</h2>
 
           <div style={{ marginBottom: "16px" }}>
             <div
@@ -514,6 +499,50 @@ export default function RiskCentre() {
             <strong>Diversification:</strong>{" "}
             The portfolio holds <strong>{positions.length}</strong> assets.
             Fewer holdings generally mean higher risk from individual moves.
+          </li>
+        </ul>
+      </section>
+
+      {/* =========================
+         V9.2 — PORTFOLIO SENSITIVITY
+         (CONFIDENCE / SENSITIVITY BAND — TEXTUAL)
+         ========================= */}
+
+      <section
+        style={{
+          background: COLORS.panel,
+          border: `1px solid ${COLORS.border}`,
+          borderRadius: "12px",
+          padding: "24px",
+          marginTop: "32px",
+        }}
+      >
+        <h2>Portfolio Sensitivity</h2>
+
+        <ul style={{ lineHeight: "1.8", color: COLORS.textSecondary }}>
+          <li>
+            Because your largest holding represents a meaningful share of the
+            portfolio, overall performance will move largely with that single asset.
+          </li>
+
+          <li>
+            With a limited number of holdings, each position has a noticeable impact
+            on total results, both positive and negative.
+          </li>
+
+          <li>
+            Most downside risk comes from concentration in the top one or two
+            positions rather than from many small positions acting together.
+          </li>
+
+          <li>
+            Diversification mainly reduces risk by lowering reliance on the largest
+            holdings, not by removing market exposure entirely.
+          </li>
+
+          <li>
+            Day-to-day portfolio movement is driven more by individual asset changes
+            than by broad market averages.
           </li>
         </ul>
       </section>
