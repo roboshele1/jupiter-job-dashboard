@@ -202,4 +202,51 @@ export function registerAllIpc(ipcMain) {
       regime: computeMarketRegime(input)
     };
   });
+
+  /* =========================
+     DISCOVERY — EVALUATION (REJECTED EXPOSURE, READ-ONLY)
+     ========================= */
+  ipcMain.handle("discovery:evaluation:rejected", async () => {
+    const discoveryModule = await import(
+      "../../engine/discovery/runDiscoveryScan.js"
+    );
+
+    const runDiscoveryScan =
+      discoveryModule.runDiscoveryScan ||
+      discoveryModule.default?.runDiscoveryScan;
+
+    if (typeof runDiscoveryScan !== "function") {
+      throw new Error("DISCOVERY_PIPELINE_INVALID");
+    }
+
+    const results = await runDiscoveryScan();
+
+    const canonicalSymbols = new Set(
+      (results.canonical || []).map(r => r.symbol)
+    );
+
+    const rejected = (results.preview || [])
+      .concat(
+        (results.comparativeByRegime?.canonical || []).filter(
+          r => !canonicalSymbols.has(r.symbol)
+        )
+      )
+      .map(r => ({
+        symbol: r.symbol,
+        rank: r.rank,
+        conviction: r.conviction,
+        decision: r.decision,
+        rejectionReason:
+          r.previewReason ||
+          r.rejectionReason ||
+          "Did not pass final surfacing gate"
+      }));
+
+    return Object.freeze({
+      evaluated: results.telemetry?.evaluatedCount ?? 0,
+      surfaced: results.telemetry?.surfacedCount ?? 0,
+      rejectedCount: rejected.length,
+      rejected
+    });
+  });
 }

@@ -66,15 +66,23 @@ export default function DiscoveryLab() {
 
   const [confidenceHistory, setConfidenceHistory] = useState([]);
 
+  /* ===== ADDITIVE BLOCK 1: evaluation filter ===== */
+  const [evalFilter, setEvalFilter] = useState("ALL"); // ALL | SURFACED | REJECTED
+
+  /* ===== ADDITIVE BLOCK 2: rejected rows ===== */
+  const [rejectedRows, setRejectedRows] = useState([]);
+
   useEffect(() => {
     let mounted = true;
 
     async function loadAll() {
       try {
-        const [discovery, watchlist, divergence] = await Promise.all([
+        const [discovery, watchlist, divergence, rejected] = await Promise.all([
           window.jupiter.invoke("discovery:run"),
           window.jupiter.invoke("watchlist:candidates"),
           window.jupiter.invoke("discovery:divergence:explanations").catch(() => null),
+          /* ===== ADDITIVE BLOCK 3: rejected exposure ===== */
+          window.jupiter.invoke("discovery:evaluation:rejected").catch(() => null),
         ]);
 
         if (!mounted) return;
@@ -83,6 +91,7 @@ export default function DiscoveryLab() {
         setThemes(discovery?.emergingThemes?.themes || []);
         setTelemetry(discovery?.telemetry || null);
         setWatchlistCandidates(watchlist?.candidates || []);
+        setRejectedRows(Array.isArray(rejected?.rejected) ? rejected.rejected : []);
 
         const map = {};
         (divergence?.explanations || []).forEach((e) => {
@@ -140,6 +149,13 @@ export default function DiscoveryLab() {
   const fundamentalContext = manual?.explanation?.fundamentalContext || null;
 
   const rankedRows = useMemo(() => (Array.isArray(rows) ? rows : []), [rows]);
+
+  /* ===== ADDITIVE BLOCK 4: filtered evaluation rows ===== */
+  const evaluationRows = useMemo(() => {
+    if (evalFilter === "SURFACED") return rankedRows;
+    if (evalFilter === "REJECTED") return rejectedRows;
+    return [...rankedRows, ...rejectedRows];
+  }, [evalFilter, rankedRows, rejectedRows]);
 
   if (loading) {
     return <div style={{ padding: "2rem" }}>Loading discovery intelligence…</div>;
@@ -209,9 +225,15 @@ export default function DiscoveryLab() {
           </h3>
 
           <div style={{ display: "flex", gap: "1rem", marginTop: "0.75rem", fontSize: "0.8rem" }}>
-            <span>Evaluated: <strong>{evaluatedCount}</strong></span>
-            <span>Surfaced: <strong>{surfacedCount}</strong></span>
-            <span>Rejected: <strong>{rejectedCount}</strong></span>
+            <span style={{ cursor: "pointer" }} onClick={() => setEvalFilter("ALL")}>
+              Evaluated: <strong>{evaluatedCount}</strong>
+            </span>
+            <span style={{ cursor: "pointer", color: "#22c55e" }} onClick={() => setEvalFilter("SURFACED")}>
+              Surfaced: <strong>{surfacedCount}</strong>
+            </span>
+            <span style={{ cursor: "pointer", color: "#ef4444" }} onClick={() => setEvalFilter("REJECTED")}>
+              Rejected: <strong>{rejectedCount}</strong>
+            </span>
           </div>
 
           <table width="100%" cellPadding="8" style={{ marginTop: "0.75rem", fontSize: "0.75rem" }}>
@@ -223,22 +245,17 @@ export default function DiscoveryLab() {
               </tr>
             </thead>
             <tbody>
-              {rankedRows.map((r) => {
-                const decision = r?.decision?.decision;
-                const surfaced = decision && decision !== "NONE";
+              {evaluationRows.map((r, i) => {
+                const isRejected = !!r?.rejectionReason;
                 return (
-                  <tr key={`eval-${getSymbol(r)}`}>
+                  <tr key={`eval-${getSymbol(r)}-${i}`}>
                     <td>{getSymbol(r)}</td>
                     <td>
-                      <span style={badgeStyle(surfaced ? "SURFACED" : "REJECTED")}>
-                        {surfaced ? "SURFACED" : "REJECTED"}
+                      <span style={badgeStyle(isRejected ? "REJECTED" : "SURFACED")}>
+                        {isRejected ? "REJECTED" : "SURFACED"}
                       </span>
                     </td>
-                    <td>
-                      {surfaced
-                        ? "Met discovery thresholds"
-                        : "Rejected — reason not exposed by engine"}
-                    </td>
+                    <td>{isRejected ? r.rejectionReason : "Met discovery thresholds"}</td>
                   </tr>
                 );
               })}

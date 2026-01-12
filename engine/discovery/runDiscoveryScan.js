@@ -1,23 +1,20 @@
 /**
- * DISCOVERY LAB — AUTONOMOUS SCAN (D14.3)
+ * DISCOVERY LAB — AUTONOMOUS SCAN (D14.4)
  * -------------------------------------
- * Adds FULL TELEMETRY VISIBILITY
+ * Adds FULL TELEMETRY VISIBILITY + REJECTION EXPOSURE (READ-ONLY)
  *
- * GOAL:
- * - Explain WHY nothing surfaced (not just that nothing surfaced)
- * - Preserve strict gates
- * - No execution, no mutation, no silent loosening
+ * RULES:
+ * - No execution
+ * - No mutation
+ * - No silent loosening
+ * - Append-only
  */
 
 const { buildDiscoveryUniverse } = require("./universe/buildDiscoveryUniverse.js");
 const { runDiscoveryEngine } = require("./discoveryEngine.js");
 const { rankDiscoveryResults } = require("./ranking/rankDiscoveryResults.js");
-const {
-  compareRegimeRankings,
-} = require("./ranking/compareRegimeRankings.js");
-const {
-  analyzeRegimeDeltas,
-} = require("./ranking/regimeDeltaAnalysis.js");
+const { compareRegimeRankings } = require("./ranking/compareRegimeRankings.js");
+const { analyzeRegimeDeltas } = require("./ranking/regimeDeltaAnalysis.js");
 
 // -------------------------------
 // CONFIG — CONTROLLED + PREVIEW
@@ -40,6 +37,7 @@ async function runDiscoveryScan() {
     rankedCount: 0,
     surfacedCount: 0,
     previewCount: 0,
+    rejectedCount: 0,
     gating: {},
     notes: [],
   };
@@ -156,10 +154,29 @@ async function runDiscoveryScan() {
   telemetry.previewCount = preview.length;
 
   if (canonicalRanked.length > 0 && preview.length === 0) {
-    telemetry.notes.push(
-      "No near-miss candidates met preview criteria."
-    );
+    telemetry.notes.push("No near-miss candidates met preview criteria.");
   }
+
+  // ---- REJECTION EXPOSURE (APPEND-ONLY) ----
+  const rejected = canonicalRanked
+    .filter((r) => !surfaced.includes(r))
+    .map((r) =>
+      Object.freeze({
+        symbol: r.symbol,
+        rank: r.rank,
+        conviction: r.conviction,
+        decision: r.decision,
+        rejectionReason:
+          r.decision?.decision === "AVOID"
+            ? "Explicit AVOID decision"
+            : r.conviction?.normalized <
+              SURFACING_CONFIG.SURFACE_MIN_CONVICTION
+            ? "Conviction below surfacing threshold"
+            : "Did not pass final surfacing gate",
+      })
+    );
+
+  telemetry.rejectedCount = rejected.length;
 
   // ---- REGIME COMPARISON ----
   const comparativeByRegime = compareRegimeRankings(evaluated);
@@ -171,6 +188,7 @@ async function runDiscoveryScan() {
   return Object.freeze({
     canonical: surfaced,
     preview,
+    rejected,
     comparativeByRegime,
     regimeDeltas: deltas,
     telemetry,
