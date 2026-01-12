@@ -3,6 +3,7 @@ import { registerGrowthEngineIpc } from "./growthEngineIpc.js";
 import { registerSignalsIpc } from "./signalsIpc.js";
 import { valuePortfolio } from "../../engine/portfolio/portfolioValuation.js";
 import { computeInsights } from "../../engine/insights/insightsEngine.js";
+import { isValidSymbol } from "../../engine/symbolUniverse/symbolUniverse.js";
 
 /**
  * IPC Registry — Authoritative
@@ -94,11 +95,17 @@ export function registerAllIpc(ipcMain) {
   });
 
   /* =========================
-     DISCOVERY — MANUAL ANALYSIS
+     DISCOVERY — MANUAL ANALYSIS (SYMBOL-VALIDATED)
      ========================= */
   ipcMain.handle("discovery:analyze:symbol", async (_event, payload) => {
     if (!payload || typeof payload.symbol !== "string") {
       throw new Error("INVALID_PAYLOAD: symbol required");
+    }
+
+    const symbol = payload.symbol.trim().toUpperCase();
+
+    if (!isValidSymbol(symbol)) {
+      throw new Error(`INVALID_SYMBOL: ${symbol}`);
     }
 
     const discoveryEngineModule = await import(
@@ -114,7 +121,7 @@ export function registerAllIpc(ipcMain) {
     }
 
     const result = await runDiscoveryEngine({
-      symbol: payload.symbol.toUpperCase(),
+      symbol,
       ownership: payload.ownership === true
     });
 
