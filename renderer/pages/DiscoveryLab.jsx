@@ -13,6 +13,8 @@ const badgeStyle = (level) => {
     PASS: "#2ecc71",
     WARN: "#f1c40f",
     FAIL: "#e74c3c",
+    SURFACED: "#22c55e",
+    REJECTED: "#ef4444",
   };
   return {
     display: "inline-block",
@@ -125,7 +127,7 @@ export default function DiscoveryLab() {
       setManualResult(r || null);
     } catch (e) {
       console.error("Manual research failed:", e);
-      setManualError("Manual analysis failed.");
+      setManualError("Invalid or non-investable symbol.");
     } finally {
       setManualLoading(false);
     }
@@ -142,6 +144,10 @@ export default function DiscoveryLab() {
   if (loading) {
     return <div style={{ padding: "2rem" }}>Loading discovery intelligence…</div>;
   }
+
+  const evaluatedCount = telemetry?.evaluatedCount ?? 0;
+  const surfacedCount = telemetry?.surfacedCount ?? rankedRows.length;
+  const rejectedCount = Math.max(evaluatedCount - surfacedCount, 0);
 
   return (
     <div style={{ display: "flex", height: "100%", padding: "2rem", gap: "1.5rem" }}>
@@ -172,7 +178,11 @@ export default function DiscoveryLab() {
             </button>
           </div>
 
-          {manual && (
+          {manualError && (
+            <p style={{ color: "#ef4444", marginTop: "0.5rem" }}>{manualError}</p>
+          )}
+
+          {manual && !manualError && (
             <div style={{ marginTop: "0.9rem" }}>
               <h3>{manual.symbol}</h3>
               <span style={badgeStyle(manualDecision)}>{manualDecision}</span>
@@ -189,6 +199,51 @@ export default function DiscoveryLab() {
               )}
             </div>
           )}
+        </div>
+
+        {/* DISCOVERY EVALUATION CONSOLE */}
+        <div style={{ background: "#0f172a", padding: "1rem", borderRadius: "10px", marginTop: "1.5rem" }}>
+          <h3 style={{ margin: 0 }}>
+            Discovery Evaluation Console
+            <span style={cadenceStyle()}>Autonomous · Diagnostic · Read-only</span>
+          </h3>
+
+          <div style={{ display: "flex", gap: "1rem", marginTop: "0.75rem", fontSize: "0.8rem" }}>
+            <span>Evaluated: <strong>{evaluatedCount}</strong></span>
+            <span>Surfaced: <strong>{surfacedCount}</strong></span>
+            <span>Rejected: <strong>{rejectedCount}</strong></span>
+          </div>
+
+          <table width="100%" cellPadding="8" style={{ marginTop: "0.75rem", fontSize: "0.75rem" }}>
+            <thead>
+              <tr style={{ opacity: 0.7 }}>
+                <th align="left">Symbol</th>
+                <th align="left">Outcome</th>
+                <th align="left">Reason</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rankedRows.map((r) => {
+                const decision = r?.decision?.decision;
+                const surfaced = decision && decision !== "NONE";
+                return (
+                  <tr key={`eval-${getSymbol(r)}`}>
+                    <td>{getSymbol(r)}</td>
+                    <td>
+                      <span style={badgeStyle(surfaced ? "SURFACED" : "REJECTED")}>
+                        {surfaced ? "SURFACED" : "REJECTED"}
+                      </span>
+                    </td>
+                    <td>
+                      {surfaced
+                        ? "Met discovery thresholds"
+                        : "Rejected — reason not exposed by engine"}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
         </div>
 
         {/* EMERGING THEMES */}
@@ -317,7 +372,6 @@ export default function DiscoveryLab() {
           <>
             <h2>{getSymbol(selectedInsight.row)}</h2>
 
-            {/* INSIGHTS (APPENDED) */}
             <div style={{ marginBottom: "1rem", paddingBottom: "0.75rem", borderBottom: "1px solid #0f172a" }}>
               <h4>Insights</h4>
               <p style={{ opacity: 0.85 }}>
