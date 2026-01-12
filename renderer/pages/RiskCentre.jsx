@@ -185,7 +185,6 @@ export default function RiskCentre() {
           gap: "24px",
         }}
       >
-        {/* LEFT COLUMN */}
         <div>
           <section
             style={{
@@ -196,25 +195,14 @@ export default function RiskCentre() {
               marginBottom: "24px",
             }}
           >
-            <h2 title="Overall portfolio risk assessment based on concentration and exposure">
-              Risk Posture
-            </h2>
+            <h2>Risk Posture</h2>
             <p>
               <strong>Overall posture:</strong>{" "}
-              <span
-                style={{ color: postureColor }}
-                title="Derived from largest position concentration and asset class balance"
-              >
-                {posture}
-              </span>
+              <span style={{ color: postureColor }}>{posture}</span>
             </p>
             <ul>
-              <li title="Measures dependency on a single asset">
-                Elevated single-asset concentration.
-              </li>
-              <li title="Equity exposure relative to total portfolio value">
-                Equity exposure dominates portfolio risk.
-              </li>
+              <li>Elevated single-asset concentration.</li>
+              <li>Equity exposure dominates portfolio risk.</li>
             </ul>
           </section>
 
@@ -226,30 +214,19 @@ export default function RiskCentre() {
               padding: "24px",
             }}
           >
-            <h2 title="Supporting metrics used to justify the current risk posture">
-              Posture Support Metrics
-            </h2>
+            <h2>Posture Support Metrics</h2>
             <ul>
-              <li title="Largest position as a percentage of total portfolio value">
+              <li>
                 Largest position: <strong>{largestHolding.symbol}</strong>{" "}
-                <span style={{ color: COLORS.textSecondary }}>
-                  ({largestPct.toFixed(1)}%)
-                </span>
+                ({largestPct.toFixed(1)}%)
               </li>
-              <li title="Percentage of portfolio allocated to equities">
-                Equity exposure: <strong>{equityExposure.toFixed(1)}%</strong>
-              </li>
-              <li title="Percentage of portfolio allocated to crypto assets">
-                Crypto exposure: <strong>{cryptoExposure.toFixed(1)}%</strong>
-              </li>
-              <li title="Total number of distinct holdings in the portfolio">
-                Number of holdings: <strong>{positions.length}</strong>
-              </li>
+              <li>Equity exposure: {equityExposure.toFixed(1)}%</li>
+              <li>Crypto exposure: {cryptoExposure.toFixed(1)}%</li>
+              <li>Number of holdings: {positions.length}</li>
             </ul>
           </section>
         </div>
 
-        {/* RIGHT COLUMN */}
         <div>
           <section
             style={{
@@ -260,12 +237,9 @@ export default function RiskCentre() {
               marginBottom: "24px",
             }}
           >
-            <h2 title="Visual representation of portfolio concentration by holding">
-              Holding Concentration
-            </h2>
+            <h2>Holding Concentration</h2>
 
             <div
-              title="Each segment represents a holding's percentage of total portfolio value"
               style={{
                 width: "200px",
                 height: "200px",
@@ -296,7 +270,6 @@ export default function RiskCentre() {
                   fontWeight: "bold",
                   textAlign: "center",
                 }}
-                title="Largest holding by portfolio weight"
               >
                 {largestHolding.symbol}
                 <br />
@@ -306,22 +279,7 @@ export default function RiskCentre() {
 
             <ul>
               {donutData.slice(0, 5).map((h, i) => (
-                <li
-                  key={h.symbol}
-                  title={`${h.symbol} represents ${h.pct.toFixed(
-                    1
-                  )}% of total portfolio value`}
-                >
-                  <span
-                    style={{
-                      display: "inline-block",
-                      width: "10px",
-                      height: "10px",
-                      borderRadius: "50%",
-                      background: donutColors[i % donutColors.length],
-                      marginRight: "8px",
-                    }}
-                  />
+                <li key={h.symbol}>
                   {h.symbol}: {h.pct.toFixed(1)}%
                 </li>
               ))}
@@ -346,19 +304,11 @@ export default function RiskCentre() {
             padding: "24px",
           }}
         >
-          <h2 title="Portfolio allocation by asset class">Exposure Distribution</h2>
+          <h2>Exposure Distribution</h2>
 
           <div style={{ marginBottom: "16px" }}>
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                marginBottom: "6px",
-              }}
-            >
-              <span title="Percentage of portfolio invested in equities">
-                Equity exposure
-              </span>
+            <div style={{ display: "flex", justifyContent: "space-between" }}>
+              <span>Equity exposure</span>
               <strong>{equityExposure.toFixed(1)}%</strong>
             </div>
             <div
@@ -373,23 +323,14 @@ export default function RiskCentre() {
                   width: `${equityExposure}%`,
                   height: "100%",
                   background: COLORS.accentBlue,
-                  borderRadius: "4px",
                 }}
               />
             </div>
           </div>
 
           <div>
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                marginBottom: "6px",
-              }}
-            >
-              <span title="Percentage of portfolio invested in crypto assets">
-                Crypto exposure
-              </span>
+            <div style={{ display: "flex", justifyContent: "space-between" }}>
+              <span>Crypto exposure</span>
               <strong>{cryptoExposure.toFixed(1)}%</strong>
             </div>
             <div
@@ -404,7 +345,6 @@ export default function RiskCentre() {
                   width: `${cryptoExposure}%`,
                   height: "100%",
                   background: COLORS.accentPurple,
-                  borderRadius: "4px",
                 }}
               />
             </div>
@@ -419,45 +359,17 @@ export default function RiskCentre() {
             padding: "24px",
           }}
         >
-          <h2 title="Hypothetical stress scenarios applied to current portfolio">
-            Stress Scenarios
-          </h2>
+          <h2>Stress Scenarios</h2>
           <ul>
-            <li title="Impact if equity holdings decline by 20%">
-              Equity drawdown (-20%):{" "}
-              <span style={{ color: COLORS.accentRed }}>
-                -$
-                {equityDrawdown20.toLocaleString(undefined, {
-                  maximumFractionDigits: 0,
-                })}
-              </span>
-            </li>
-            <li title="Impact if crypto holdings decline by 40%">
-              Crypto drawdown (-40%):{" "}
-              <span style={{ color: COLORS.accentRed }}>
-                -$
-                {cryptoDrawdown40.toLocaleString(undefined, {
-                  maximumFractionDigits: 0,
-                })}
-              </span>
-            </li>
-            <li title="Impact if the largest holding declines by 30%">
-              Top holding shock (-30% on {largestHolding.symbol}):{" "}
-              <span style={{ color: COLORS.accentRed }}>
-                -$
-                {topHoldingShock30.toLocaleString(undefined, {
-                  maximumFractionDigits: 0,
-                })}
-              </span>
+            <li>Equity drawdown (-20%): -${equityDrawdown20.toLocaleString()}</li>
+            <li>Crypto drawdown (-40%): -${cryptoDrawdown40.toLocaleString()}</li>
+            <li>
+              Top holding shock (-30% on {largestHolding.symbol}): -$
+              {topHoldingShock30.toLocaleString()}
             </li>
           </ul>
         </section>
       </div>
-
-      {/* =========================
-         V9.1 — RISK DRIVERS SUMMARY
-         (READ-ONLY, EXPLANATORY)
-         ========================= */}
 
       <section
         style={{
@@ -468,45 +380,17 @@ export default function RiskCentre() {
           marginTop: "32px",
         }}
       >
-        <h2 title="Plain-English explanation of what is driving portfolio risk">
-          Risk Drivers Summary
-        </h2>
-
-        <ul style={{ lineHeight: "1.8" }}>
+        <h2>Risk Drivers Summary</h2>
+        <ul>
           <li>
-            <strong>Concentration risk:</strong>{" "}
-            Your largest holding (
-            <strong>{largestHolding.symbol}</strong>) makes up{" "}
-            <strong>{largestPct.toFixed(1)}%</strong> of the portfolio.
-            Higher concentration increases downside impact if this asset falls.
+            Concentration risk: {largestHolding.symbol} makes up{" "}
+            {largestPct.toFixed(1)}% of the portfolio.
           </li>
-
-          <li>
-            <strong>Equity exposure:</strong>{" "}
-            Equities account for{" "}
-            <strong>{equityExposure.toFixed(1)}%</strong> of total value.
-            This makes the portfolio more sensitive to stock market moves.
-          </li>
-
-          <li>
-            <strong>Crypto exposure:</strong>{" "}
-            Crypto accounts for{" "}
-            <strong>{cryptoExposure.toFixed(1)}%</strong> of total value.
-            Crypto typically adds higher volatility.
-          </li>
-
-          <li>
-            <strong>Diversification:</strong>{" "}
-            The portfolio holds <strong>{positions.length}</strong> assets.
-            Fewer holdings generally mean higher risk from individual moves.
-          </li>
+          <li>Equity exposure: {equityExposure.toFixed(1)}%</li>
+          <li>Crypto exposure: {cryptoExposure.toFixed(1)}%</li>
+          <li>Diversification: {positions.length} assets.</li>
         </ul>
       </section>
-
-      {/* =========================
-         V9.2 — PORTFOLIO SENSITIVITY
-         (CONFIDENCE / SENSITIVITY BAND — TEXTUAL)
-         ========================= */}
 
       <section
         style={{
@@ -518,33 +402,47 @@ export default function RiskCentre() {
         }}
       >
         <h2>Portfolio Sensitivity</h2>
-
-        <ul style={{ lineHeight: "1.8", color: COLORS.textSecondary }}>
-          <li>
-            Because your largest holding represents a meaningful share of the
-            portfolio, overall performance will move largely with that single asset.
-          </li>
-
-          <li>
-            With a limited number of holdings, each position has a noticeable impact
-            on total results, both positive and negative.
-          </li>
-
-          <li>
-            Most downside risk comes from concentration in the top one or two
-            positions rather than from many small positions acting together.
-          </li>
-
-          <li>
-            Diversification mainly reduces risk by lowering reliance on the largest
-            holdings, not by removing market exposure entirely.
-          </li>
-
-          <li>
-            Day-to-day portfolio movement is driven more by individual asset changes
-            than by broad market averages.
-          </li>
+        <ul>
+          <li>Performance is driven by the largest holding.</li>
+          <li>Each position has a noticeable impact.</li>
+          <li>Risk is concentrated in top positions.</li>
+          <li>Diversification reduces reliance on top holdings.</li>
+          <li>Daily movement driven by individual assets.</li>
         </ul>
+      </section>
+
+      {/* =========================
+         V9.3 — REGIME CONTEXT
+         ========================= */}
+
+      <section
+        style={{
+          marginTop: "24px",
+          display: "flex",
+          justifyContent: "flex-start",
+        }}
+      >
+        <span
+          style={{
+            padding: "6px 12px",
+            borderRadius: "999px",
+            fontSize: "13px",
+            fontWeight: "600",
+            background:
+              equityExposure >= 70
+                ? COLORS.accentBlue
+                : cryptoExposure >= 40
+                ? COLORS.accentPurple
+                : COLORS.accentGreen,
+            color: "#000",
+          }}
+        >
+          {equityExposure >= 70
+            ? "Equity-Dominant Regime"
+            : cryptoExposure >= 40
+            ? "Crypto-Heavy Regime"
+            : "Balanced Risk Regime"}
+        </span>
       </section>
     </div>
   );
