@@ -24,7 +24,10 @@ let cachedValuation = null;
 async function computeAndCache() {
   cachedValuation = await valuePortfolio(HOLDINGS);
   cachedValuation._asOf = Date.now();
-  console.log("[AUTHORITATIVE PORTFOLIO CACHED]", JSON.stringify(cachedValuation, null, 2));
+  console.log(
+    "[AUTHORITATIVE PORTFOLIO CACHED]",
+    JSON.stringify(cachedValuation, null, 2)
+  );
   return cachedValuation;
 }
 
@@ -43,7 +46,7 @@ function createWindow() {
 }
 
 app.whenReady().then(async () => {
-  registerAllIpc(ipcMain); // ← THIS WAS MISSING (ROOT CAUSE)
+  registerAllIpc(ipcMain); // ← REQUIRED, DO NOT MOVE
   await computeAndCache();
   createWindow();
 });
@@ -57,3 +60,27 @@ ipcMain.handle("portfolio:refreshValuation", async () => {
   return await computeAndCache();
 });
 
+/* =====================================================
+   JUPITER RUNTIME LOOP — SINGLE-BOOT (V1)
+   ===================================================== */
+
+import { startRuntimeLoop } from "../engine/runtime/runtimeLoop.js";
+
+let runtimeStarted = false;
+
+function startJupiterRuntimeOnce() {
+  if (runtimeStarted) {
+    console.log("[RUNTIME] Already started — skipping");
+    return;
+  }
+
+  runtimeStarted = true;
+  console.log("[RUNTIME] Starting Jupiter autonomous loop");
+
+  startRuntimeLoop();
+}
+
+// Ensure runtime starts exactly once when app is ready
+app.whenReady().then(() => {
+  startJupiterRuntimeOnce();
+});
