@@ -1,6 +1,8 @@
 // electron/ipc/registerIpc.js
 import { registerGrowthEngineIpc } from "./growthEngineIpc.js";
 import { registerSignalsIpc } from "./signalsIpc.js";
+import { registerGrowthCapitalTrajectoryV2Ipc } from "./growthCapitalTrajectoryV2Ipc.js";
+
 import { valuePortfolio } from "../../engine/portfolio/portfolioValuation.js";
 import { computeInsights } from "../../engine/insights/insightsEngine.js";
 import { resolveInvestableSymbol } from "../../engine/symbolUniverse/resolveInvestableSymbol.js";
@@ -31,41 +33,55 @@ async function computeSnapshot() {
 
   const valuation = await valuePortfolio(HOLDINGS);
 
-  cachedSnapshot = {
+  cachedSnapshot = Object.freeze({
     timestamp: Date.now(),
     portfolio: valuation
-  };
+  });
 
   return cachedSnapshot;
 }
 
 export function registerAllIpc(ipcMain) {
+  // =========================
+  // GROWTH ENGINE (V1)
+  // =========================
   registerGrowthEngineIpc(ipcMain);
 
+  // =========================
+  // GROWTH — CAPITAL TRAJECTORY V2 (AUTHORITATIVE)
+  // =========================
+  registerGrowthCapitalTrajectoryV2Ipc(ipcMain, async () => {
+    if (!cachedSnapshot) await computeSnapshot();
+    return cachedSnapshot;
+  });
+
+  // =========================
+  // SIGNALS
+  // =========================
   registerSignalsIpc(ipcMain, async () => {
     if (!cachedSnapshot) await computeSnapshot();
     return cachedSnapshot;
   });
 
-  /* =========================
-     PORTFOLIO
-     ========================= */
+  // =========================
+  // PORTFOLIO
+  // =========================
   ipcMain.handle("portfolio:getSnapshot", async () => {
     if (!cachedSnapshot) await computeSnapshot();
     return cachedSnapshot;
   });
 
-  /* =========================
-     INSIGHTS (ENGINE V1)
-     ========================= */
+  // =========================
+  // INSIGHTS
+  // =========================
   ipcMain.handle("insights:compute", async () => {
     if (!cachedSnapshot) await computeSnapshot();
     return computeInsights(cachedSnapshot);
   });
 
-  /* =========================
-     DISCOVERY — AUTONOMOUS
-     ========================= */
+  // =========================
+  // DISCOVERY — AUTONOMOUS
+  // =========================
   ipcMain.handle("discovery:run", async () => {
     const discoveryModule = await import(
       "../../engine/discovery/runDiscoveryScan.js"
@@ -94,9 +110,9 @@ export function registerAllIpc(ipcMain) {
     });
   });
 
-  /* =========================
-     DISCOVERY — MANUAL ANALYSIS (RESOLVER-GATED)
-     ========================= */
+  // =========================
+  // DISCOVERY — MANUAL ANALYSIS
+  // =========================
   ipcMain.handle("discovery:analyze:symbol", async (_event, payload) => {
     if (!payload || typeof payload.symbol !== "string") {
       throw new Error("INVALID_PAYLOAD: symbol required");
@@ -135,49 +151,9 @@ export function registerAllIpc(ipcMain) {
     });
   });
 
-  /* =========================
-     WATCHLIST
-     ========================= */
-  ipcMain.handle("watchlist:candidates", async () => {
-    const watchlistModule = await import(
-      "../../engine/watchlist/runWatchlistScan.js"
-    );
-    const orchestratorModule = await import(
-      "../../engine/watchlist/orchestrator/watchlistCandidatesOrchestrator.js"
-    );
-    const discoveryModule = await import(
-      "../../engine/discovery/runDiscoveryScan.js"
-    );
-
-    const runWatchlistScan =
-      watchlistModule.runWatchlistScan ||
-      watchlistModule.default?.runWatchlistScan;
-
-    const buildWatchlistCandidates =
-      orchestratorModule.buildWatchlistCandidates ||
-      orchestratorModule.default?.buildWatchlistCandidates;
-
-    const runDiscoveryScan =
-      discoveryModule.runDiscoveryScan ||
-      discoveryModule.default?.runDiscoveryScan;
-
-    if (!runWatchlistScan || !buildWatchlistCandidates || !runDiscoveryScan) {
-      throw new Error("WATCHLIST_PIPELINE_INVALID");
-    }
-
-    const discoveryResults = (await runDiscoveryScan()).canonical;
-
-    return Object.freeze(
-      buildWatchlistCandidates({
-        watchlistResult: runWatchlistScan({ discoveryResults }),
-        discoveryResults
-      })
-    );
-  });
-
-  /* =========================
-     MARKET REGIME (REGISTRY V1)
-     ========================= */
+  // =========================
+  // MARKET REGIME
+  // =========================
   ipcMain.handle("marketRegime:get", async () => {
     const regimeModule = await import(
       "../../engine/marketRegime/marketRegimeEngine.js"
@@ -201,52 +177,5 @@ export function registerAllIpc(ipcMain) {
       timestamp: Date.now(),
       regime: computeMarketRegime(input)
     };
-  });
-
-  /* =========================
-     DISCOVERY — EVALUATION (REJECTED EXPOSURE, READ-ONLY)
-     ========================= */
-  ipcMain.handle("discovery:evaluation:rejected", async () => {
-    const discoveryModule = await import(
-      "../../engine/discovery/runDiscoveryScan.js"
-    );
-
-    const runDiscoveryScan =
-      discoveryModule.runDiscoveryScan ||
-      discoveryModule.default?.runDiscoveryScan;
-
-    if (typeof runDiscoveryScan !== "function") {
-      throw new Error("DISCOVERY_PIPELINE_INVALID");
-    }
-
-    const results = await runDiscoveryScan();
-
-    const canonicalSymbols = new Set(
-      (results.canonical || []).map(r => r.symbol)
-    );
-
-    const rejected = (results.preview || [])
-      .concat(
-        (results.comparativeByRegime?.canonical || []).filter(
-          r => !canonicalSymbols.has(r.symbol)
-        )
-      )
-      .map(r => ({
-        symbol: r.symbol,
-        rank: r.rank,
-        conviction: r.conviction,
-        decision: r.decision,
-        rejectionReason:
-          r.previewReason ||
-          r.rejectionReason ||
-          "Did not pass final surfacing gate"
-      }));
-
-    return Object.freeze({
-      evaluated: results.telemetry?.evaluatedCount ?? 0,
-      surfaced: results.telemetry?.surfacedCount ?? 0,
-      rejectedCount: rejected.length,
-      rejected
-    });
   });
 }
