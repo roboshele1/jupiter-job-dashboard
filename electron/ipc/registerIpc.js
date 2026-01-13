@@ -105,21 +105,21 @@ export function registerAllIpc(ipcMain) {
   registerGrowthEngineIpc(ipcMain);
 
   // =========================
-  // SIGNALS (V1) — MUST BE WIRED WITH SNAPSHOT GETTER
+  // SIGNALS (V1)
   // =========================
   registerSignalsIpc(ipcMain, async () => {
     return await getCachedSnapshot();
   });
 
   // =========================
-  // GROWTH — CAPITAL TRAJECTORY V2 (AUTHORITATIVE IPC)
+  // GROWTH — CAPITAL TRAJECTORY V2
   // =========================
   registerGrowthCapitalTrajectoryV2Ipc(ipcMain, async () => {
     return await getCachedSnapshot();
   });
 
   // =========================
-  // SIGNALS V2 — ENGINE-BUILT (NO IPC CHAINING)
+  // SIGNALS V2
   // =========================
   ipcMain.handle("signals:getSnapshot:v2", async () => {
     const cached = await getCachedSnapshot();
@@ -127,24 +127,21 @@ export function registerAllIpc(ipcMain) {
     const growthTrajectory = await runCapitalTrajectoryV2({
       portfolioSnapshot: buildGrowthV2PortfolioSnapshotFromCached(cached),
       horizonMonths: 60,
-      assumptions: {
-        expectedReturn: 0.10,
-        aggressiveReturn: 0.18
-      }
+      assumptions: { expectedReturn: 0.10, aggressiveReturn: 0.18 }
     });
 
-    const signalsV2 = buildSignalsV2Snapshot({
-      portfolioSnapshot: buildSignalsV2PortfolioSnapshotFromCached(cached),
-      growthTrajectory,
-      riskSnapshot: null,
-      confidenceEvaluations: cached?.confidenceEvaluations || []
-    });
-
-    return Object.freeze(signalsV2);
+    return Object.freeze(
+      buildSignalsV2Snapshot({
+        portfolioSnapshot: buildSignalsV2PortfolioSnapshotFromCached(cached),
+        growthTrajectory,
+        riskSnapshot: null,
+        confidenceEvaluations: cached?.confidenceEvaluations || []
+      })
+    );
   });
 
   // =========================
-  // RISK CENTRE — INTELLIGENCE V2 (PURE DEPENDENCY CONSUMER)
+  // RISK CENTRE — INTELLIGENCE V2
   // =========================
   ipcMain.handle("riskCentre:intelligence:v2", async () => {
     const cached = await getCachedSnapshot();
@@ -152,10 +149,7 @@ export function registerAllIpc(ipcMain) {
     const growthTrajectory = await runCapitalTrajectoryV2({
       portfolioSnapshot: buildGrowthV2PortfolioSnapshotFromCached(cached),
       horizonMonths: 60,
-      assumptions: {
-        expectedReturn: 0.10,
-        aggressiveReturn: 0.18
-      }
+      assumptions: { expectedReturn: 0.10, aggressiveReturn: 0.18 }
     });
 
     const signalsSnapshot = buildSignalsV2Snapshot({
@@ -183,7 +177,7 @@ export function registerAllIpc(ipcMain) {
   });
 
   // =========================
-  // INSIGHTS (ENGINE V1)
+  // INSIGHTS
   // =========================
   ipcMain.handle("insights:compute", async () => {
     const snap = await getCachedSnapshot();
@@ -194,20 +188,14 @@ export function registerAllIpc(ipcMain) {
   // DISCOVERY — AUTONOMOUS
   // =========================
   ipcMain.handle("discovery:run", async () => {
-    const discoveryModule = await import(
-      "../../engine/discovery/runDiscoveryScan.js"
-    );
-    const themeModule = await import(
-      "../../engine/discovery/orchestrator/discoveryThemeOrchestrator.js"
-    );
+    const discoveryModule = await import("../../engine/discovery/runDiscoveryScan.js");
+    const themeModule = await import("../../engine/discovery/orchestrator/discoveryThemeOrchestrator.js");
 
     const runDiscoveryScan =
-      discoveryModule.runDiscoveryScan ||
-      discoveryModule.default?.runDiscoveryScan;
+      discoveryModule.runDiscoveryScan || discoveryModule.default?.runDiscoveryScan;
 
     const buildThemes =
-      themeModule.buildThemes ||
-      themeModule.default?.buildThemes;
+      themeModule.buildThemes || themeModule.default?.buildThemes;
 
     if (!runDiscoveryScan || !buildThemes) {
       throw new Error("DISCOVERY_PIPELINE_INVALID");
@@ -222,43 +210,44 @@ export function registerAllIpc(ipcMain) {
   });
 
   // =========================
-  // DISCOVERY — MANUAL ANALYSIS (RESOLVER-GATED)
+  // DISCOVERY — MANUAL
   // =========================
   ipcMain.handle("discovery:analyze:symbol", async (_event, payload) => {
     if (!payload || typeof payload.symbol !== "string") {
-      throw new Error("INVALID_PAYLOAD: symbol required");
+      throw new Error("INVALID_PAYLOAD");
     }
 
     const resolution = await resolveInvestableSymbol(payload.symbol);
+    if (!resolution?.valid) throw new Error("INVALID_SYMBOL");
 
-    if (!resolution?.valid) {
-      const err = new Error("INVALID_SYMBOL");
-      err.code = "INVALID_SYMBOL";
-      throw err;
-    }
-
-    const discoveryEngineModule = await import(
-      "../../engine/discovery/discoveryEngine.js"
-    );
-
+    const engineModule = await import("../../engine/discovery/discoveryEngine.js");
     const runDiscoveryEngine =
-      discoveryEngineModule.runDiscoveryEngine ||
-      discoveryEngineModule.default?.runDiscoveryEngine;
+      engineModule.runDiscoveryEngine || engineModule.default?.runDiscoveryEngine;
 
     if (typeof runDiscoveryEngine !== "function") {
       throw new Error("DISCOVERY_ENGINE_INVALID");
     }
 
-    const result = await runDiscoveryEngine({
-      symbol: resolution.canonicalSymbol,
-      assetType: resolution.assetType,
-      ownership: payload.ownership === true
-    });
-
     return Object.freeze({
       mode: "MANUAL_RESEARCH",
       resolution,
-      result
+      result: await runDiscoveryEngine({
+        symbol: resolution.canonicalSymbol,
+        assetType: resolution.assetType,
+        ownership: payload.ownership === true
+      })
+    });
+  });
+
+  /* =====================================================
+     APPEND-ONLY FIX — WATCHLIST (BOOT-SAFE STUB)
+     ===================================================== */
+  ipcMain.handle("watchlist:candidates", async () => {
+    return Object.freeze({
+      contract: "WATCHLIST_CANDIDATES_V0_STUB",
+      timestamp: Date.now(),
+      candidates: [],
+      note: "Stubbed — engine to be wired in Phase D2.3"
     });
   });
 }
