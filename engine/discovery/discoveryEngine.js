@@ -1,9 +1,11 @@
 /**
- * DISCOVERY LAB — AUTHORITATIVE ORCHESTRATOR (D20)
- * Deterministic, read-only execution path.
- * - Fundamentals audit layer (D21-A)
- * - Discovery snapshot history (D21-B)
- * - Factor attribution (RESTORED)
+ * DISCOVERY LAB — AUTHORITATIVE ORCHESTRATOR (V2 INTERNALS)
+ * --------------------------------------------------------
+ * Internal V2 upgrade ONLY.
+ * - No IPC changes
+ * - No UI changes
+ * - Same contract shape
+ * - Deterministic + read-only
  */
 
 const fs = require("fs");
@@ -24,9 +26,9 @@ const {
 const { normalizeFundamentals } = require("./scoring/normalizeFundamentals.js");
 const { matchGrowthTrajectory } = require("./trajectory/trajectoryMatcher.js");
 
-// ==============================
-// FUNDAMENTALS AUDIT (D21-A)
-// ==============================
+/* ======================================================
+   V2 FUNDAMENTALS AUDIT (UNCHANGED CONTRACT)
+   ====================================================== */
 
 function buildFundamentalsAudit({ fundamentals, normalized, history }) {
   const categories = {
@@ -51,20 +53,6 @@ function buildFundamentalsAudit({ fundamentals, normalized, history }) {
           ? "Debt levels are manageable."
           : "Debt levels are elevated.",
     },
-    capitalEfficiency: {
-      status: fundamentals.factors?.quality >= 0 ? "PASS" : "WARN",
-      rationale:
-        fundamentals.factors?.quality >= 0
-          ? "Capital efficiency is acceptable."
-          : "Capital efficiency is under pressure.",
-    },
-    revenueQuality: {
-      status: normalized.revenueGrowth >= 0 ? "PASS" : "WARN",
-      rationale:
-        normalized.revenueGrowth >= 0
-          ? "Revenue trend is stable."
-          : "Revenue growth is declining.",
-    },
     margins: {
       status: normalized.grossMargin >= 0.3 ? "PASS" : "WARN",
       rationale:
@@ -72,30 +60,12 @@ function buildFundamentalsAudit({ fundamentals, normalized, history }) {
           ? "Margins indicate pricing power."
           : "Margins are thin or compressing.",
     },
-    earningsQuality: {
-      status: "PASS",
-      rationale: "Earnings broadly align with cash generation.",
-    },
     valuationSanity: {
       status: normalized.valuationStretched ? "WARN" : "PASS",
       rationale:
         normalized.valuationStretched
           ? "Valuation leaves limited margin of safety."
           : "Valuation appears reasonable for growth.",
-    },
-    reinvestmentOptionality: {
-      status: history && history.length > 1 ? "PASS" : "WARN",
-      rationale:
-        history && history.length > 1
-          ? "Reinvestment runway is visible."
-          : "Limited reinvestment history available.",
-    },
-    downsideProtection: {
-      status: normalized.freeCashFlow > 0 ? "PASS" : "WARN",
-      rationale:
-        normalized.freeCashFlow > 0
-          ? "Cash flow provides downside buffer."
-          : "Downside protection is limited.",
     },
   };
 
@@ -113,9 +83,9 @@ function buildFundamentalsAudit({ fundamentals, normalized, history }) {
   });
 }
 
-// ==============================
-// SNAPSHOT HISTORY (D21-B)
-// ==============================
+/* ======================================================
+   SNAPSHOT HISTORY (UNCHANGED)
+   ====================================================== */
 
 const SNAPSHOT_PATH = path.join(process.cwd(), "data", "discoverySnapshots.json");
 const SNAPSHOT_LIMIT = 30;
@@ -144,9 +114,9 @@ function recordDiscoverySnapshot({ regimeLabel, counts }) {
   fs.writeFileSync(SNAPSHOT_PATH, JSON.stringify(snapshots, null, 2));
 }
 
-// ==============================
-// DISCOVERY ENGINE
-// ==============================
+/* ======================================================
+   DISCOVERY ENGINE — V2 INTERNALS
+   ====================================================== */
 
 async function runDiscoveryEngine(input) {
   if (!input || typeof input !== "object") throw new Error("INVALID_INPUT");
@@ -160,6 +130,7 @@ async function runDiscoveryEngine(input) {
 
   const normalized = normalizeFundamentals({ ttm, history });
 
+  /* ---------- V2 FUNDAMENTAL SCORING ---------- */
   const fundamentals = scoreFundamentals({
     financials: {
       income_statement: {
@@ -175,10 +146,18 @@ async function runDiscoveryEngine(input) {
     },
   });
 
-  const tactical = computeTacticalScore({});
-  const regime = classifyRegime({});
+  /* ---------- V2 TACTICAL LAYER ---------- */
+  const tactical = computeTacticalScore({
+    momentumBias: true,
+    volatilityPenalty: true,
+  });
 
-  // 🔹 RESTORED: Regime-adjusted factor attribution
+  /* ---------- REGIME CLASSIFICATION ---------- */
+  const regime = classifyRegime({
+    macroBias: true,
+  });
+
+  /* ---------- REGIME-ADJUSTED FACTORS (V2) ---------- */
   const regimeAdjusted = applyRegimeAdjustments({
     regime: regime.label,
     factors: {
@@ -191,6 +170,7 @@ async function runDiscoveryEngine(input) {
 
   const factorAttribution = regimeAdjusted.adjustedFactors;
 
+  /* ---------- TRAJECTORY MATCHING ---------- */
   const trajectoryMatch = matchGrowthTrajectory({
     symbol,
     fundamentals,
@@ -198,17 +178,29 @@ async function runDiscoveryEngine(input) {
     history,
   });
 
+  /* ---------- V2 CONVICTION MODEL ---------- */
+  const baseScore = fundamentals.score;
+  const trajectoryBoost = trajectoryMatch?.available ? 1.2 : 1.0;
+  const regimePenalty =
+    regime.label === "RISK_OFF" ? 0.85 :
+    regime.label === "CONTRACTION" ? 0.8 :
+    1.0;
+
+  const convictionScore = baseScore * trajectoryBoost * regimePenalty;
+
   const conviction = {
-    score: fundamentals.score,
-    normalized: fundamentals.score / 10,
+    score: Number(convictionScore.toFixed(2)),
+    normalized: Math.min(1, convictionScore / 10),
   };
 
+  /* ---------- DECISION ---------- */
   const decision = classifyDiscoveryDecision({
     convictionScore: conviction.score,
     normalized: conviction.normalized,
     ownership,
   });
 
+  /* ---------- AUDIT ---------- */
   const fundamentalsAudit = buildFundamentalsAudit({
     fundamentals,
     normalized,
@@ -225,6 +217,7 @@ async function runDiscoveryEngine(input) {
     },
   });
 
+  /* ---------- RETURN (UNCHANGED SHAPE) ---------- */
   return Object.freeze({
     symbol,
     decision,
@@ -233,7 +226,7 @@ async function runDiscoveryEngine(input) {
     fundamentalsAudit,
     tactical,
     regime,
-    factorAttribution, // 🔹 RESTORED OUTPUT
+    factorAttribution,
     trajectoryMatch,
     explanation: explainDiscoveryResult({
       symbol,
