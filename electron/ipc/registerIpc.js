@@ -2,6 +2,7 @@
 import { registerGrowthEngineIpc } from "./growthEngineIpc.js";
 import { registerSignalsIpc } from "./signalsIpc.js";
 import { registerGrowthCapitalTrajectoryV2Ipc } from "./growthCapitalTrajectoryV2Ipc.js";
+import { registerSignalsV2Ipc } from "./signalsV2Ipc.js";
 
 import { valuePortfolio } from "../../engine/portfolio/portfolioValuation.js";
 import { computeInsights } from "../../engine/insights/insightsEngine.js";
@@ -48,7 +49,7 @@ export function registerAllIpc(ipcMain) {
   registerGrowthEngineIpc(ipcMain);
 
   // =========================
-  // GROWTH — CAPITAL TRAJECTORY V2 (AUTHORITATIVE)
+  // GROWTH — CAPITAL TRAJECTORY V2
   // =========================
   registerGrowthCapitalTrajectoryV2Ipc(ipcMain, async () => {
     if (!cachedSnapshot) await computeSnapshot();
@@ -56,9 +57,17 @@ export function registerAllIpc(ipcMain) {
   });
 
   // =========================
-  // SIGNALS
+  // SIGNALS (V1)
   // =========================
   registerSignalsIpc(ipcMain, async () => {
+    if (!cachedSnapshot) await computeSnapshot();
+    return cachedSnapshot;
+  });
+
+  // =========================
+  // SIGNALS (V2 — GROWTH + RISK AWARE)
+  // =========================
+  registerSignalsV2Ipc(ipcMain, async () => {
     if (!cachedSnapshot) await computeSnapshot();
     return cachedSnapshot;
   });
