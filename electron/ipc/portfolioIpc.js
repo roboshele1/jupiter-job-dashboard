@@ -1,25 +1,33 @@
 /**
- * electron/ipc/portfolioIpc.js
+ * Portfolio IPC — Mutation Layer V1
  * --------------------------------
- * IPC Authority — Portfolio (Editable V1)
+ * Engine-first, disk-backed, deterministic.
  *
- * Rules:
- * - Engine-first mutation
- * - IPC is a thin transport layer
- * - No analytics ownership here
- * - Deterministic, boot-safe
+ * RULES:
+ * - Engine owns all mutation
+ * - IPC performs validation + delegation
+ * - No pricing, no analytics
  */
 
-const { ipcMain } = require("electron");
-const path = require("path");
+import electronPkg from "electron";
+import path from "path";
+import { fileURLToPath } from "url";
 
-/**
- * IMPORTANT:
- * Use absolute path resolution to avoid ESM/CJS ambiguity
- */
-const portfolioEnginePath = path.resolve(
-  __dirname,
-  "../../engine/portfolio/portfolioEngine.js"
+/* =========================
+   ELECTRON (CJS SAFE)
+   ========================= */
+
+const { ipcMain } = electronPkg;
+
+/* =========================
+   RESOLVE ENGINE PATH SAFELY
+   ========================= */
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+const portfolioEngine = await import(
+  path.resolve(__dirname, "../../engine/portfolio/portfolioEngine.js")
 );
 
 const {
@@ -27,58 +35,30 @@ const {
   addHolding,
   updateHolding,
   removeHolding
-} = require(portfolioEnginePath);
+} = portfolioEngine;
 
 /* =========================
-   READ — SNAPSHOT
+   IPC REGISTRATION
    ========================= */
 
-function registerPortfolioIpc() {
+export function registerPortfolioIpc() {
+  // READ
   ipcMain.handle("portfolio:getSnapshot", async () => {
-    const snapshot = getPortfolioSnapshot();
-
-    return Object.freeze({
-      ...snapshot,
-      authority: "PORTFOLIO_ENGINE_V1_IPC"
-    });
+    return getPortfolioSnapshot();
   });
 
-  ipcMain.handle("portfolio:refreshNow", async () => {
-    const snapshot = getPortfolioSnapshot();
-
-    return Object.freeze({
-      ...snapshot,
-      authority: "PORTFOLIO_ENGINE_V1_IPC"
-    });
+  // MUTATIONS
+  ipcMain.handle("portfolio:add", async (_e, { symbol, qty }) => {
+    return addHolding(symbol, qty);
   });
 
-  /* =========================
-     MUTATION — ENGINE FIRST
-     ========================= */
-
-  ipcMain.handle("portfolio:addHolding", async (_event, payload) => {
-    if (!payload || typeof payload.symbol !== "string") {
-      throw new Error("INVALID_PAYLOAD");
-    }
-
-    return addHolding(payload.symbol, payload.qty);
+  ipcMain.handle("portfolio:update", async (_e, { symbol, qty }) => {
+    return updateHolding(symbol, qty);
   });
 
-  ipcMain.handle("portfolio:updateHolding", async (_event, payload) => {
-    if (!payload || typeof payload.symbol !== "string") {
-      throw new Error("INVALID_PAYLOAD");
-    }
-
-    return updateHolding(payload.symbol, payload.qty);
+  ipcMain.handle("portfolio:remove", async (_e, { symbol }) => {
+    return removeHolding(symbol);
   });
 
-  ipcMain.handle("portfolio:removeHolding", async (_event, payload) => {
-    if (!payload || typeof payload.symbol !== "string") {
-      throw new Error("INVALID_PAYLOAD");
-    }
-
-    return removeHolding(payload.symbol);
-  });
+  console.log("[IPC] Portfolio mutation layer V1 registered");
 }
-
-module.exports = { registerPortfolioIpc };
