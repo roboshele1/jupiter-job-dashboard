@@ -18,7 +18,7 @@ module.exports = [
   },
   {
     "symbol": "MSTR",
-    "qty": 40
+    "qty": 45
   },
   {
     "symbol": "HOOD",
@@ -26,7 +26,7 @@ module.exports = [
   },
   {
     "symbol": "APLD",
-    "qty": 150
+    "qty": 151
   },
   {
     "symbol": "BMNR",
