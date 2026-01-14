@@ -7,12 +7,12 @@ export default function Portfolio() {
   useEffect(() => {
     async function load() {
       try {
-        if (!window.jupiter || !window.jupiter.getPortfolioValuation) {
-          throw new Error("Portfolio API not available");
+        if (!window.jupiter?.invoke) {
+          throw new Error("IPC bridge not available");
         }
 
-        const data = await window.jupiter.getPortfolioValuation();
-        setSnapshot(data);
+        const snap = await window.jupiter.invoke("portfolio:getSnapshot");
+        setSnapshot(snap);
       } catch (err) {
         console.error("[PORTFOLIO_RENDER_ERROR]", err);
         setError(err.message);
@@ -25,16 +25,21 @@ export default function Portfolio() {
   if (error) return <div style={{ color: "red" }}>{error}</div>;
   if (!snapshot) return <div>Loading portfolio…</div>;
 
+  const portfolio = snapshot.portfolio;
+  const positions = Array.isArray(portfolio?.positions)
+    ? portfolio.positions
+    : [];
+
   return (
     <div>
       <h1>Portfolio</h1>
 
       <div style={{ marginBottom: 12 }}>
-        Currency: {snapshot.currency}<br />
-        As-Of: {new Date(snapshot._asOf).toLocaleString()}<br />
-        Total Snapshot: ${snapshot.totals.snapshotValue.toFixed(2)}<br />
-        Total Live: ${snapshot.totals.liveValue.toFixed(2)}<br />
-        Δ: ${snapshot.totals.delta.toFixed(2)} ({snapshot.totals.deltaPct.toFixed(2)}%)
+        Currency: {portfolio.currency}<br />
+        As-Of: {new Date(portfolio._asOf).toLocaleString()}<br />
+        Total Snapshot: ${portfolio.totals.snapshotValue.toFixed(2)}<br />
+        Total Live: ${portfolio.totals.liveValue.toFixed(2)}<br />
+        Δ: ${portfolio.totals.delta.toFixed(2)} ({portfolio.totals.deltaPct.toFixed(2)}%)
       </div>
 
       <table border="1" cellPadding="6" style={{ marginTop: 20 }}>
@@ -52,7 +57,7 @@ export default function Portfolio() {
           </tr>
         </thead>
         <tbody>
-          {snapshot.positions.map(p => (
+          {positions.map(p => (
             <tr key={p.symbol}>
               <td>{p.symbol}</td>
               <td>{p.qty}</td>
@@ -74,4 +79,3 @@ export default function Portfolio() {
     </div>
   );
 }
-
