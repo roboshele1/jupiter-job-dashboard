@@ -1,4 +1,8 @@
 // electron/ipc/registerIpc.js
+// =====================================================
+// SNAPSHOT AUTHORITY — READ-ONLY + INVALIDATION SUPPORT
+// =====================================================
+
 import { registerGrowthEngineIpc } from "./growthEngineIpc.js";
 import { registerSignalsIpc } from "./signalsIpc.js";
 import { registerGrowthCapitalTrajectoryV2Ipc } from "./growthCapitalTrajectoryV2Ipc.js";
@@ -11,20 +15,25 @@ import { valuePortfolio } from "../../engine/portfolio/portfolioValuation.js";
 import { computeInsights } from "../../engine/insights/insightsEngine.js";
 import { resolveInvestableSymbol } from "../../engine/symbolUniverse/resolveInvestableSymbol.js";
 
-/**
- * IPC Registry — Authoritative
- * -----------------------------
- * Registers all read-only IPC surfaces.
- * Resolver-gated.
- * No mutation.
- * No UI logic.
- */
+// =====================================================
+// SNAPSHOT CACHE (SINGLE SOURCE OF TRUTH)
+// =====================================================
 
 let cachedSnapshot = null;
 
-/* =========================
-   SNAPSHOT AUTHORITY
-   ========================= */
+// =====================================================
+// SNAPSHOT INVALIDATION HOOK (MUTATION SAFE)
+// =====================================================
+
+export function invalidateSnapshotCache() {
+  cachedSnapshot = null;
+  console.log("[SNAPSHOT] Cache invalidated");
+}
+
+// =====================================================
+// SNAPSHOT COMPUTATION
+// =====================================================
+
 async function computeSnapshot() {
   const HOLDINGS = [
     { symbol: "NVDA", qty: 73, assetClass: "equity", totalCostBasis: 12881.13, currency: "CAD" },
@@ -49,23 +58,26 @@ async function computeSnapshot() {
 }
 
 async function getCachedSnapshot() {
-  if (!cachedSnapshot) await computeSnapshot();
+  if (!cachedSnapshot) {
+    await computeSnapshot();
+  }
   return cachedSnapshot;
 }
 
-/* =========================
-   NORMALIZERS (V2 CONSUMERS)
-   ========================= */
+// =====================================================
+// NORMALIZERS (V2 CONSUMERS)
+// =====================================================
+
 function buildGrowthV2PortfolioSnapshotFromCached(cached) {
+  const positions = Array.isArray(cached?.portfolio?.positions)
+    ? cached.portfolio.positions
+    : [];
+
   const totalValue = cached?.portfolio?.totals?.liveValue;
 
   if (!totalValue) {
     throw new Error("PORTFOLIO_SNAPSHOT_INVALID");
   }
-
-  const positions = Array.isArray(cached?.portfolio?.positions)
-    ? cached.portfolio.positions
-    : [];
 
   return Object.freeze({
     contract: "PORTFOLIO_SNAPSHOT_V1",
@@ -95,32 +107,25 @@ function buildSignalsV2PortfolioSnapshotFromCached(cached) {
   });
 }
 
-/* =========================
-   REGISTER ALL IPC
-   ========================= */
-export function registerAllIpc(ipcMain) {
-  // =========================
-  // GROWTH ENGINE (V1)
-  // =========================
+// =====================================================
+// REGISTER ALL READ-ONLY IPC (SINGLE AUTHORITY)
+// =====================================================
+
+export async function registerAllIpc(ipcMain) {
+  // Growth Engine (V1)
   registerGrowthEngineIpc(ipcMain);
 
-  // =========================
-  // SIGNALS (V1)
-  // =========================
+  // Signals (V1)
   registerSignalsIpc(ipcMain, async () => {
     return await getCachedSnapshot();
   });
 
-  // =========================
-  // GROWTH — CAPITAL TRAJECTORY V2
-  // =========================
+  // Growth Capital Trajectory (V2)
   registerGrowthCapitalTrajectoryV2Ipc(ipcMain, async () => {
     return await getCachedSnapshot();
   });
 
-  // =========================
-  // SIGNALS V2
-  // =========================
+  // Signals Snapshot (V2)
   ipcMain.handle("signals:getSnapshot:v2", async () => {
     const cached = await getCachedSnapshot();
 
@@ -135,14 +140,12 @@ export function registerAllIpc(ipcMain) {
         portfolioSnapshot: buildSignalsV2PortfolioSnapshotFromCached(cached),
         growthTrajectory,
         riskSnapshot: null,
-        confidenceEvaluations: cached?.confidenceEvaluations || []
+        confidenceEvaluations: []
       })
     );
   });
 
-  // =========================
-  // RISK CENTRE — INTELLIGENCE V2
-  // =========================
+  // Risk Centre (V2)
   ipcMain.handle("riskCentre:intelligence:v2", async () => {
     const cached = await getCachedSnapshot();
 
@@ -156,7 +159,7 @@ export function registerAllIpc(ipcMain) {
       portfolioSnapshot: buildSignalsV2PortfolioSnapshotFromCached(cached),
       growthTrajectory,
       riskSnapshot: null,
-      confidenceEvaluations: cached?.confidenceEvaluations || []
+      confidenceEvaluations: []
     });
 
     return Object.freeze(
@@ -169,31 +172,30 @@ export function registerAllIpc(ipcMain) {
     );
   });
 
-  // =========================
-  // PORTFOLIO
-  // =========================
+  // Portfolio Snapshot (READ-ONLY)
   ipcMain.handle("portfolio:getSnapshot", async () => {
     return await getCachedSnapshot();
   });
 
-  // =========================
-  // INSIGHTS
-  // =========================
+  // Portfolio Valuation (Dashboard / Market Monitor)
+  ipcMain.handle("portfolio:getValuation", async () => {
+    const snap = await getCachedSnapshot();
+    return snap.portfolio;
+  });
+
+  // Insights
   ipcMain.handle("insights:compute", async () => {
     const snap = await getCachedSnapshot();
     return computeInsights(snap);
   });
 
-  // =========================
-  // DISCOVERY — AUTONOMOUS
-  // =========================
+  // Discovery — Autonomous
   ipcMain.handle("discovery:run", async () => {
     const discoveryModule = await import("../../engine/discovery/runDiscoveryScan.js");
     const themeModule = await import("../../engine/discovery/orchestrator/discoveryThemeOrchestrator.js");
 
     const runDiscoveryScan =
       discoveryModule.runDiscoveryScan || discoveryModule.default?.runDiscoveryScan;
-
     const buildThemes =
       themeModule.buildThemes || themeModule.default?.buildThemes;
 
@@ -209,9 +211,7 @@ export function registerAllIpc(ipcMain) {
     });
   });
 
-  // =========================
-  // DISCOVERY — MANUAL
-  // =========================
+  // Discovery — Manual
   ipcMain.handle("discovery:analyze:symbol", async (_event, payload) => {
     if (!payload || typeof payload.symbol !== "string") {
       throw new Error("INVALID_PAYLOAD");
@@ -239,15 +239,14 @@ export function registerAllIpc(ipcMain) {
     });
   });
 
-  /* =====================================================
-     APPEND-ONLY FIX — WATCHLIST (BOOT-SAFE STUB)
-     ===================================================== */
+  // Watchlist (Stub)
   ipcMain.handle("watchlist:candidates", async () => {
     return Object.freeze({
       contract: "WATCHLIST_CANDIDATES_V0_STUB",
       timestamp: Date.now(),
-      candidates: [],
-      note: "Stubbed — engine to be wired in Phase D2.3"
+      candidates: []
     });
   });
+
+  console.log("✅ registerAllIpc loaded — snapshot authority intact");
 }
