@@ -18,7 +18,7 @@ module.exports = [
   },
   {
     "symbol": "MSTR",
-    "qty": 24
+    "qty": 40
   },
   {
     "symbol": "HOOD",

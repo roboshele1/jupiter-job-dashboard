@@ -3,10 +3,14 @@ import path from "path";
 import "dotenv/config";
 
 import { valuePortfolio } from "../engine/portfolio/portfolioValuation.js";
-import { registerAllIpc } from "./ipc/registerIpc.js"; // ← ADDITIVE, REQUIRED
+import { registerAllIpc } from "./ipc/registerIpc.js";
+import { registerPortfolioMutationIpc } from "./ipc/portfolioMutationIpc.js"; // ✅ ADDITIVE (ONLY CHANGE)
 
 let mainWindow;
 
+/* =========================
+   STATIC HOLDINGS (AUTHORITATIVE READ-ONLY)
+   ========================= */
 const HOLDINGS = [
   { symbol: "NVDA", qty: 73, assetClass: "equity", totalCostBasis: 12881.13, currency: "CAD" },
   { symbol: "ASML", qty: 10, assetClass: "equity", totalCostBasis: 8649.52, currency: "CAD" },
@@ -21,16 +25,24 @@ const HOLDINGS = [
 
 let cachedValuation = null;
 
+/* =========================
+   VALUATION CACHE
+   ========================= */
 async function computeAndCache() {
   cachedValuation = await valuePortfolio(HOLDINGS);
   cachedValuation._asOf = Date.now();
+
   console.log(
     "[AUTHORITATIVE PORTFOLIO CACHED]",
     JSON.stringify(cachedValuation, null, 2)
   );
+
   return cachedValuation;
 }
 
+/* =========================
+   WINDOW
+   ========================= */
 function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1400,
@@ -45,12 +57,20 @@ function createWindow() {
   mainWindow.loadURL(process.env.VITE_DEV_SERVER_URL);
 }
 
+/* =========================
+   APP BOOT (ORDER IS SACRED)
+   ========================= */
 app.whenReady().then(async () => {
-  registerAllIpc(ipcMain); // ← REQUIRED, DO NOT MOVE
+  registerAllIpc(ipcMain);                 // READ-ONLY SNAPSHOT AUTHORITY
+  registerPortfolioMutationIpc(ipcMain);  // ✅ MUTATION LAYER (ADDITIVE)
+
   await computeAndCache();
   createWindow();
 });
 
+/* =========================
+   LEGACY READ-ONLY PORTFOLIO
+   ========================= */
 ipcMain.handle("portfolio:getValuation", async () => {
   if (!cachedValuation) await computeAndCache();
   return cachedValuation;
@@ -60,10 +80,9 @@ ipcMain.handle("portfolio:refreshValuation", async () => {
   return await computeAndCache();
 });
 
-/* =====================================================
-   JUPITER RUNTIME LOOP — SINGLE-BOOT (V1)
-   ===================================================== */
-
+/* =========================
+   RUNTIME LOOP (UNCHANGED)
+   ========================= */
 import { startRuntimeLoop } from "../engine/runtime/runtimeLoop.js";
 
 let runtimeStarted = false;
@@ -76,11 +95,9 @@ function startJupiterRuntimeOnce() {
 
   runtimeStarted = true;
   console.log("[RUNTIME] Starting Jupiter autonomous loop");
-
   startRuntimeLoop();
 }
 
-// Ensure runtime starts exactly once when app is ready
 app.whenReady().then(() => {
   startJupiterRuntimeOnce();
 });
