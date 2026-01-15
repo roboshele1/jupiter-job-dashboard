@@ -1,4 +1,16 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+
+const STORAGE_KEY = "JUPITER_PORTFOLIO_UI_V3_STATE";
+
+function safeJsonParse(raw, fallback) {
+  try {
+    if (!raw) return fallback;
+    const v = JSON.parse(raw);
+    return v ?? fallback;
+  } catch {
+    return fallback;
+  }
+}
 
 export default function MarketMonitor() {
   const [snapshot, setSnapshot] = useState(null);
@@ -13,14 +25,14 @@ export default function MarketMonitor() {
       setTickCount((c) => c + 1);
 
       try {
-        if (!window.jupiter || !window.jupiter.getPortfolioValuation) {
-          throw new Error("Portfolio valuation API unavailable");
+        if (!window.jupiter?.invoke) {
+          throw new Error("IPC bridge not available");
         }
 
-        const data = await window.jupiter.getPortfolioValuation();
+        const snap = await window.jupiter.invoke("portfolio:getSnapshot");
         if (!alive) return;
 
-        setSnapshot(data);
+        setSnapshot(snap);
         setSnapshotAt(new Date());
         setError(null);
       } catch (err) {
@@ -38,6 +50,63 @@ export default function MarketMonitor() {
     };
   }, []);
 
+  /* =========================
+     RENDERER TRUTH ALIGNMENT
+     Same normalization as Portfolio
+     ========================= */
+  const visiblePositions = useMemo(() => {
+    if (!snapshot?.portfolio?.positions) return [];
+
+    const uiState = safeJsonParse(
+      localStorage.getItem(STORAGE_KEY),
+      {
+        qtyBySymbol: {},
+        removedSymbols: [],
+        addedSymbols: {}
+      }
+    );
+
+    const removed = new Set(uiState.removedSymbols || []);
+    const qtyBySymbol = uiState.qtyBySymbol || {};
+    const added = uiState.addedSymbols || {};
+
+    const merged = [];
+
+    // Base snapshot positions
+    for (const p of snapshot.portfolio.positions) {
+      const sym = p.symbol;
+      if (!sym || removed.has(sym)) continue;
+
+      const overrideQty = qtyBySymbol[sym];
+      const qty =
+        typeof overrideQty === "number" && Number.isFinite(overrideQty)
+          ? overrideQty
+          : p.qty;
+
+      merged.push({ ...p, qty });
+    }
+
+    // Renderer-only added symbols
+    for (const [sym, payload] of Object.entries(added)) {
+      if (!sym || removed.has(sym)) continue;
+      if (merged.some((m) => m.symbol === sym)) continue;
+
+      merged.push({
+        symbol: sym,
+        qty: Number(payload?.qty) || 0,
+        snapshotValue: 0,
+        livePrice: 0,
+        liveValue: 0,
+        delta: 0,
+        deltaPct: 0,
+        priceSource: "ui-only",
+        priceFreshness: null
+      });
+    }
+
+    return merged;
+  }, [snapshot]);
+
   return (
     <div style={{ padding: 24 }}>
       <h1>Market Monitor</h1>
@@ -48,7 +117,7 @@ export default function MarketMonitor() {
         Poll ticks: {tickCount}
       </div>
 
-      {/* ---- MARKET PULSE (D31.1 APPENDED) ---- */}
+      {/* ---- MARKET PULSE ---- */}
       <div
         style={{
           background: "#020617",
@@ -102,18 +171,10 @@ export default function MarketMonitor() {
         </table>
       </div>
 
-      {snapshot?.priceSnapshotMeta && (
-        <div style={{ marginBottom: 12, fontSize: 13, opacity: 0.8 }}>
-          Price Source: <b>{snapshot.priceSnapshotMeta.source}</b><br />
-          Price Fetched At:{" "}
-          {new Date(snapshot.priceSnapshotMeta.fetchedAt).toLocaleString()}
-        </div>
-      )}
-
       {error && <div style={{ color: "red" }}>{error}</div>}
       {!snapshot && !error && <div>Loading portfolio snapshot…</div>}
 
-      {snapshot && (
+      {visiblePositions.length > 0 && (
         <table border="1" cellPadding="6" style={{ marginTop: 20 }}>
           <thead>
             <tr>
@@ -128,15 +189,15 @@ export default function MarketMonitor() {
             </tr>
           </thead>
           <tbody>
-            {snapshot.positions.map((p) => (
+            {visiblePositions.map((p) => (
               <tr key={p.symbol}>
                 <td>{p.symbol}</td>
                 <td>{p.qty}</td>
-                <td>{p.livePrice.toFixed(4)}</td>
-                <td>${p.liveValue.toFixed(2)}</td>
-                <td>${p.delta.toFixed(2)}</td>
-                <td>{p.deltaPct.toFixed(2)}%</td>
-                <td>{p.priceSource}</td>
+                <td>{Number(p.livePrice ?? 0).toFixed(4)}</td>
+                <td>${Number(p.liveValue ?? 0).toFixed(2)}</td>
+                <td>${Number(p.delta ?? 0).toFixed(2)}</td>
+                <td>{Number(p.deltaPct ?? 0).toFixed(2)}%</td>
+                <td>{p.priceSource || "—"}</td>
                 <td>
                   {p.priceFreshness
                     ? `${p.priceFreshness.level} (${p.priceFreshness.confidence})`
