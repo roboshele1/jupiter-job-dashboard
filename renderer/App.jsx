@@ -12,7 +12,6 @@ import GrowthEngine from "./pages/GrowthEngine";
 import Insights from "./pages/Insights";
 import RiskCentre from "./pages/RiskCentre";
 import MarketMonitor from "./pages/MarketMonitor";
-import Chat from "./pages/Chat";
 
 import Sidebar from "./components/Sidebar";
 import { usePortfolioSnapshotStore } from "./state/portfolioSnapshotStore";
@@ -80,7 +79,6 @@ export default function App() {
             <Route path="/insights" element={<Insights />} />
             <Route path="/risk" element={<RiskCentre />} />
             <Route path="/market" element={<MarketMonitor />} />
-            <Route path="/chat" element={<Chat />} />
           </Routes>
         </main>
       </div>
