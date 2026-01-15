@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import "../styles/dashboard.css";
 
+const STORAGE_KEY = "JUPITER_PORTFOLIO_UI_V3_STATE";
+
 const BUCKET_COLORS = {
   Semiconductors: "#4cc9f0",
   Software: "#8b5cf6",
@@ -16,6 +18,16 @@ function fmtMoney(n) {
 function safeNum(n) {
   const num = Number(n);
   return Number.isFinite(num) ? num : 0;
+}
+
+function readPortfolioUiState() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return null;
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
 }
 
 export default function Dashboard() {
@@ -34,40 +46,69 @@ export default function Dashboard() {
     return () => (mounted = false);
   }, []);
 
-  const timestamp = valuation?._asOf
-    ? new Date(valuation._asOf).toISOString()
-    : "—";
+  const uiState = useMemo(() => readPortfolioUiState(), []);
 
-  const positions = Array.isArray(valuation?.positions) ? valuation.positions : [];
+  const positions = useMemo(() => {
+    const base = Array.isArray(valuation?.positions) ? valuation.positions : [];
+    if (!uiState) return base;
 
-  // ✅ FIX: derive totals from positions (same math as Portfolio)
-  const totalLive = positions.reduce(
-    (acc, p) => acc + safeNum(p.liveValue),
-    0
-  );
+    const removed = new Set(uiState.removedSymbols || []);
+    const overrides = uiState.qtyBySymbol || {};
+    const added = uiState.addedSymbols || {};
 
-  const totalSnapshot = positions.reduce(
-    (acc, p) => acc + safeNum(p.snapshotValue),
-    0
-  );
+    const merged = [];
 
+    for (const p of base) {
+      if (!p?.symbol) continue;
+      if (removed.has(p.symbol)) continue;
+
+      const overrideQty = overrides[p.symbol];
+      merged.push({
+        ...p,
+        qty:
+          typeof overrideQty === "number" && Number.isFinite(overrideQty)
+            ? overrideQty
+            : p.qty
+      });
+    }
+
+    for (const [symbol, payload] of Object.entries(added)) {
+      if (removed.has(symbol)) continue;
+      if (merged.some(m => m.symbol === symbol)) continue;
+
+      merged.push({
+        symbol,
+        qty: Number(payload?.qty) || 0,
+        snapshotValue: 0,
+        livePrice: 0,
+        liveValue: 0,
+        delta: 0,
+        deltaPct: 0,
+        priceSource: "ui-only",
+        priceFreshness: null
+      });
+    }
+
+    return merged;
+  }, [valuation, uiState]);
+
+  const totalLive = positions.reduce((a, p) => a + safeNum(p.liveValue), 0);
+  const totalSnapshot = positions.reduce((a, p) => a + safeNum(p.snapshotValue), 0);
   const dailyPL = totalLive - totalSnapshot;
-  const dailyPLPct =
-    totalSnapshot > 0 ? (dailyPL / totalSnapshot) * 100 : 0;
+  const dailyPLPct = totalSnapshot > 0 ? (dailyPL / totalSnapshot) * 100 : 0;
 
   const plClass =
     dailyPL > 0 ? "pl-positive" : dailyPL < 0 ? "pl-negative" : "pl-neutral";
 
-  const topHoldings = useMemo(() => {
-    return positions
-      .slice()
-      .sort((a, b) => safeNum(b.liveValue) - safeNum(a.liveValue))
-      .slice(0, 5)
-      .map((p) => ({
-        symbol: p.symbol,
-        qty: p.qty
-      }));
-  }, [positions]);
+  const topHoldings = useMemo(
+    () =>
+      positions
+        .slice()
+        .sort((a, b) => safeNum(b.liveValue) - safeNum(a.liveValue))
+        .slice(0, 5)
+        .map(p => ({ symbol: p.symbol, qty: p.qty })),
+    [positions]
+  );
 
   const allocationBands = useMemo(() => {
     if (!positions.length || totalLive <= 0) {
@@ -108,33 +149,22 @@ export default function Dashboard() {
       <h1>Dashboard</h1>
 
       <div className="card wide">
-        <div className="label">SNAPSHOT TIME</div>
-        <div className="value">{timestamp}</div>
+        <div className="label">TOTAL PORTFOLIO VALUE</div>
+        <div className="value">{fmtMoney(totalLive)}</div>
       </div>
 
-      <div className="card-row">
-        <div className="card">
-          <div className="label">TOTAL PORTFOLIO VALUE</div>
-          <div className="value">{fmtMoney(totalLive)}</div>
-        </div>
-
-        <div className={`card ${plClass}`}>
-          <div className="label">DAILY P/L</div>
-          <div className="value">
-            {fmtMoney(dailyPL)} ({dailyPLPct.toFixed(2)}%)
-          </div>
+      <div className={`card wide ${plClass}`}>
+        <div className="label">DAILY P/L</div>
+        <div className="value">
+          {fmtMoney(dailyPL)} ({dailyPLPct.toFixed(2)}%)
         </div>
       </div>
 
       <div className="card wide">
         <div className="label">ALLOCATION BANDS</div>
         <div className="allocation-band">
-          {allocationBands.map((b) => (
-            <div
-              key={b.name}
-              className="band"
-              style={{ width: `${b.percent}%`, backgroundColor: b.color }}
-            >
+          {allocationBands.map(b => (
+            <div key={b.name} className="band" style={{ width: `${b.percent}%`, backgroundColor: b.color }}>
               {b.name} {b.percent}%
             </div>
           ))}
@@ -144,7 +174,7 @@ export default function Dashboard() {
       <div className="card wide">
         <div className="label">TOP HOLDINGS</div>
         <div className="holdings-list">
-          {topHoldings.map((h) => (
+          {topHoldings.map(h => (
             <div key={h.symbol} className="holding-row">
               <span className="symbol">{h.symbol}</span>
               <span className="qty">{h.qty}</span>
@@ -152,15 +182,6 @@ export default function Dashboard() {
           ))}
         </div>
       </div>
-
-      <div className="card wide">
-        <div className="label">SYSTEM STATUS</div>
-        <div className="status-line">Market Data: LIVE</div>
-        <div className="status-line">Refresh: 60s</div>
-        <div className="status-line">Automation: ALERT-ONLY</div>
-        <div className="status-line">Audit: IMMUTABLE</div>
-      </div>
     </div>
   );
 }
-
