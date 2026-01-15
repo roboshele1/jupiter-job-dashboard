@@ -1,4 +1,13 @@
 // electron/ipc/registerIpc.js
+// IPC Registry — Authoritative (Additive, Resolver-Gated)
+// ------------------------------------------------------
+// Rules:
+// - Read-only IPC only
+// - Engine is the source of truth
+// - No UI logic
+// - No mutations
+// - Backward-compatible handlers MUST remain registered
+
 import { registerGrowthEngineIpc } from "./growthEngineIpc.js";
 import { registerSignalsIpc } from "./signalsIpc.js";
 import { registerGrowthCapitalTrajectoryV2Ipc } from "./growthCapitalTrajectoryV2Ipc.js";
@@ -7,247 +16,85 @@ import { runCapitalTrajectoryV2 } from "../../engine/growth/capitalTrajectoryEng
 import { buildSignalsV2Snapshot } from "../../engine/signals/signalsV2Engine.js";
 import { buildRiskCentreIntelligenceV2 } from "../../engine/risk/riskCentreIntelligenceV2.js";
 
+import portfolioEngine from "../../engine/portfolio/portfolioEngine.js";
+import { getPortfolioReadSnapshotV1 } from "../../engine/portfolio/portfolioReadSnapshotV1.js";
 import { valuePortfolio } from "../../engine/portfolio/portfolioValuation.js";
 import { computeInsights } from "../../engine/insights/insightsEngine.js";
 import { resolveInvestableSymbol } from "../../engine/symbolUniverse/resolveInvestableSymbol.js";
 
 /**
- * IPC Registry — Authoritative
- * -----------------------------
- * Registers all read-only IPC surfaces.
- * Resolver-gated.
- * No mutation.
- * No UI logic.
+ * Registers all IPC handlers.
+ * This function is the ONLY place IPC handlers may be declared.
  */
+export async function registerAllIpc(ipcMain) {
+  /* =========================
+     PORTFOLIO — LEGACY SNAPSHOT (KEEP)
+     ========================= */
+  ipcMain.handle("portfolio:getSnapshot", async () => {
+    const snap = portfolioEngine.getPortfolioSnapshot();
 
-let cachedSnapshot = null;
+    const valuation = await valuePortfolio(
+      snap.positions.map(h => ({
+        ...h,
+        assetClass: ["BTC", "ETH"].includes(h.symbol) ? "crypto" : "equity",
+        totalCostBasis: 0
+      }))
+    );
 
-/* =========================
-   SNAPSHOT AUTHORITY
-   ========================= */
-async function computeSnapshot() {
-  const HOLDINGS = [
-    { symbol: "NVDA", qty: 73, assetClass: "equity", totalCostBasis: 12881.13, currency: "CAD" },
-    { symbol: "ASML", qty: 10, assetClass: "equity", totalCostBasis: 8649.52, currency: "CAD" },
-    { symbol: "AVGO", qty: 74, assetClass: "equity", totalCostBasis: 26190.68, currency: "CAD" },
-    { symbol: "MSTR", qty: 24, assetClass: "equity", totalCostBasis: 12496.18, currency: "CAD" },
-    { symbol: "HOOD", qty: 70, assetClass: "equity", totalCostBasis: 3316.68, currency: "CAD" },
-    { symbol: "BMNR", qty: 115, assetClass: "equity", totalCostBasis: 6320.18, currency: "CAD" },
-    { symbol: "APLD", qty: 150, assetClass: "equity", totalCostBasis: 1615.58, currency: "CAD" },
-    { symbol: "BTC", qty: 0.251083, assetClass: "crypto", totalCostBasis: 24764.31, currency: "CAD" },
-    { symbol: "ETH", qty: 0.25, assetClass: "crypto", totalCostBasis: 597.9, currency: "CAD" }
-  ];
-
-  const valuation = await valuePortfolio(HOLDINGS);
-
-  cachedSnapshot = Object.freeze({
-    timestamp: Date.now(),
-    portfolio: valuation
+    return Object.freeze({
+      timestamp: snap.timestamp,
+      portfolio: valuation
+    });
   });
 
-  return cachedSnapshot;
-}
-
-async function getCachedSnapshot() {
-  if (!cachedSnapshot) await computeSnapshot();
-  return cachedSnapshot;
-}
-
-/* =========================
-   NORMALIZERS (V2 CONSUMERS)
-   ========================= */
-function buildGrowthV2PortfolioSnapshotFromCached(cached) {
-  const totalValue = cached?.portfolio?.totals?.liveValue;
-
-  if (!totalValue) {
-    throw new Error("PORTFOLIO_SNAPSHOT_INVALID");
-  }
-
-  const positions = Array.isArray(cached?.portfolio?.positions)
-    ? cached.portfolio.positions
-    : [];
-
-  return Object.freeze({
-    contract: "PORTFOLIO_SNAPSHOT_V1",
-    timestamp: cached.timestamp,
-    currency: cached.portfolio.currency || "CAD",
-    holdings: positions.map(p => ({
-      symbol: p.symbol,
-      value: p.liveValue
-    })),
-    totalValue
+  /* =========================
+     PORTFOLIO — READ SNAPSHOT V1 (NEW, AUTHORITATIVE)
+     ========================= */
+  ipcMain.handle("portfolio:readSnapshotV1", async () => {
+    return getPortfolioReadSnapshotV1();
   });
-}
 
-function buildSignalsV2PortfolioSnapshotFromCached(cached) {
-  const positions = Array.isArray(cached?.portfolio?.positions)
-    ? cached.portfolio.positions
-    : [];
-
-  return Object.freeze({
-    contract: "PORTFOLIO_SNAPSHOT_V1",
-    timestamp: cached.timestamp,
-    holdings: positions.map(p => ({
-      symbol: p.symbol,
-      assetClass: p.assetClass,
-      deltaPct: typeof p.deltaPct === "number" ? p.deltaPct : 0
-    }))
+  /* =========================
+     SIGNALS
+     ========================= */
+  ipcMain.handle("signals:getSnapshotV2", async () => {
+    return buildSignalsV2Snapshot();
   });
-}
 
-/* =========================
-   REGISTER ALL IPC
-   ========================= */
-export function registerAllIpc(ipcMain) {
-  // =========================
-  // GROWTH ENGINE (V1)
-  // =========================
+  /* =========================
+     RISK CENTRE
+     ========================= */
+  ipcMain.handle("risk:getIntelligenceV2", async () => {
+    return buildRiskCentreIntelligenceV2();
+  });
+
+  /* =========================
+     GROWTH ENGINE
+     ========================= */
   registerGrowthEngineIpc(ipcMain);
 
-  // =========================
-  // SIGNALS (V1)
-  // =========================
-  registerSignalsIpc(ipcMain, async () => {
-    return await getCachedSnapshot();
+  ipcMain.handle("growth:capitalTrajectoryV2", async (_, payload) => {
+    return runCapitalTrajectoryV2(payload);
   });
 
-  // =========================
-  // GROWTH — CAPITAL TRAJECTORY V2
-  // =========================
-  registerGrowthCapitalTrajectoryV2Ipc(ipcMain, async () => {
-    return await getCachedSnapshot();
+  registerGrowthCapitalTrajectoryV2Ipc(ipcMain);
+
+  /* =========================
+     INSIGHTS
+     ========================= */
+  ipcMain.handle("insights:get", async (_, payload) => {
+    return computeInsights(payload);
   });
 
-  // =========================
-  // SIGNALS V2
-  // =========================
-  ipcMain.handle("signals:getSnapshot:v2", async () => {
-    const cached = await getCachedSnapshot();
-
-    const growthTrajectory = await runCapitalTrajectoryV2({
-      portfolioSnapshot: buildGrowthV2PortfolioSnapshotFromCached(cached),
-      horizonMonths: 60,
-      assumptions: { expectedReturn: 0.10, aggressiveReturn: 0.18 }
-    });
-
-    return Object.freeze(
-      buildSignalsV2Snapshot({
-        portfolioSnapshot: buildSignalsV2PortfolioSnapshotFromCached(cached),
-        growthTrajectory,
-        riskSnapshot: null,
-        confidenceEvaluations: cached?.confidenceEvaluations || []
-      })
-    );
+  /* =========================
+     SYMBOL RESOLUTION
+     ========================= */
+  ipcMain.handle("symbol:resolve", async (_, symbol) => {
+    return resolveInvestableSymbol(symbol);
   });
 
-  // =========================
-  // RISK CENTRE — INTELLIGENCE V2
-  // =========================
-  ipcMain.handle("riskCentre:intelligence:v2", async () => {
-    const cached = await getCachedSnapshot();
-
-    const growthTrajectory = await runCapitalTrajectoryV2({
-      portfolioSnapshot: buildGrowthV2PortfolioSnapshotFromCached(cached),
-      horizonMonths: 60,
-      assumptions: { expectedReturn: 0.10, aggressiveReturn: 0.18 }
-    });
-
-    const signalsSnapshot = buildSignalsV2Snapshot({
-      portfolioSnapshot: buildSignalsV2PortfolioSnapshotFromCached(cached),
-      growthTrajectory,
-      riskSnapshot: null,
-      confidenceEvaluations: cached?.confidenceEvaluations || []
-    });
-
-    return Object.freeze(
-      buildRiskCentreIntelligenceV2({
-        portfolioSnapshot: cached,
-        growthTrajectory,
-        signalsSnapshot,
-        previousState: null
-      })
-    );
-  });
-
-  // =========================
-  // PORTFOLIO
-  // =========================
-  ipcMain.handle("portfolio:getSnapshot", async () => {
-    return await getCachedSnapshot();
-  });
-
-  // =========================
-  // INSIGHTS
-  // =========================
-  ipcMain.handle("insights:compute", async () => {
-    const snap = await getCachedSnapshot();
-    return computeInsights(snap);
-  });
-
-  // =========================
-  // DISCOVERY — AUTONOMOUS
-  // =========================
-  ipcMain.handle("discovery:run", async () => {
-    const discoveryModule = await import("../../engine/discovery/runDiscoveryScan.js");
-    const themeModule = await import("../../engine/discovery/orchestrator/discoveryThemeOrchestrator.js");
-
-    const runDiscoveryScan =
-      discoveryModule.runDiscoveryScan || discoveryModule.default?.runDiscoveryScan;
-
-    const buildThemes =
-      themeModule.buildThemes || themeModule.default?.buildThemes;
-
-    if (!runDiscoveryScan || !buildThemes) {
-      throw new Error("DISCOVERY_PIPELINE_INVALID");
-    }
-
-    const results = await runDiscoveryScan();
-
-    return Object.freeze({
-      ...results,
-      emergingThemes: buildThemes({ canonical: results.canonical || [] })
-    });
-  });
-
-  // =========================
-  // DISCOVERY — MANUAL
-  // =========================
-  ipcMain.handle("discovery:analyze:symbol", async (_event, payload) => {
-    if (!payload || typeof payload.symbol !== "string") {
-      throw new Error("INVALID_PAYLOAD");
-    }
-
-    const resolution = await resolveInvestableSymbol(payload.symbol);
-    if (!resolution?.valid) throw new Error("INVALID_SYMBOL");
-
-    const engineModule = await import("../../engine/discovery/discoveryEngine.js");
-    const runDiscoveryEngine =
-      engineModule.runDiscoveryEngine || engineModule.default?.runDiscoveryEngine;
-
-    if (typeof runDiscoveryEngine !== "function") {
-      throw new Error("DISCOVERY_ENGINE_INVALID");
-    }
-
-    return Object.freeze({
-      mode: "MANUAL_RESEARCH",
-      resolution,
-      result: await runDiscoveryEngine({
-        symbol: resolution.canonicalSymbol,
-        assetType: resolution.assetType,
-        ownership: payload.ownership === true
-      })
-    });
-  });
-
-  /* =====================================================
-     APPEND-ONLY FIX — WATCHLIST (BOOT-SAFE STUB)
-     ===================================================== */
-  ipcMain.handle("watchlist:candidates", async () => {
-    return Object.freeze({
-      contract: "WATCHLIST_CANDIDATES_V0_STUB",
-      timestamp: Date.now(),
-      candidates: [],
-      note: "Stubbed — engine to be wired in Phase D2.3"
-    });
-  });
+  /* =========================
+     SIGNALS IPC (LEGACY + V2)
+     ========================= */
+  registerSignalsIpc(ipcMain);
 }
