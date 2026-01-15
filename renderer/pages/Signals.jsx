@@ -1,228 +1,193 @@
 import React, { useEffect, useMemo, useState } from "react";
 
 /**
- * Phase 2A → 2C – Signals Activation + Context Rendering (ADD-ONLY)
- * Phase D29.1 – Signal Detail Panel (APPEND-ONLY)
- * Phase D30.1 – Signals × Portfolio Bridge (READ-ONLY, APPEND-ONLY)
+ * SIGNALS — V2 RENDERER CONSUMPTION
+ * --------------------------------
+ * ROLE:
+ * - Pure consumer of Signals V2 intelligence
+ * - Silence-by-default is a FEATURE, not an error
+ * - No calculations, no ranking, no mutation
+ *
+ * AUTHORITIES:
+ * - Portfolio valuation (single source of truth)
+ * - Signals V2 snapshot (engine-owned)
  */
 
-const IMPACT_RANK = { High: 3, Moderate: 2, Low: 1 };
-const CONFIDENCE_RANK = { High: 3, Medium: 2, Low: 1 };
-const DELTA_RANK = { "↑": 3, "→": 2, "↓": 1 };
+const CONFIDENCE_ORDER = { Low: 1, Medium: 2, High: 3 };
 
-const deltaStyle = (delta) => ({
-  color:
-    delta === "↑"
-      ? "#2ecc71"
-      : delta === "↓"
-      ? "#e74c3c"
-      : "#9ca3af",
-  fontWeight: 700,
-});
-
-const contextStyle = (context) => ({
+const confidenceStyle = (c) => ({
   fontWeight: 700,
   color:
-    context === "ACCUMULATION_ZONE"
-      ? "#2ecc71"
-      : context === "DISTRIBUTION_ZONE"
-      ? "#e74c3c"
-      : "#9ca3af",
+    c === "High" ? "#22c55e" :
+    c === "Medium" ? "#facc15" :
+    "#9ca3af",
 });
 
 export default function Signals() {
-  const [sortKey, setSortKey] = useState("portfolioImpact");
-  const [ipcSnapshot, setIpcSnapshot] = useState(null);
-  const [status, setStatus] = useState("idle");
+  const [snapshot, setSnapshot] = useState(null);
+  const [status, setStatus] = useState("loading");
+  const [selected, setSelected] = useState(null);
 
-  // D29.1
-  const [selectedSignal, setSelectedSignal] = useState(null);
-
-  // D30.1 — portfolio symbol bridge (read-only)
-  const [portfolioSymbols, setPortfolioSymbols] = useState(null);
-
-  // ---- STATIC SNAPSHOT (UNCHANGED FALLBACK) ----
-  const staticSnapshot = {
-    timestamp: "2025-12-30T16:28:28.562Z",
-    notifications: [],
-    signals: [],
-  };
-
-  // ---- IPC SNAPSHOT (READ-ONLY) ----
+  /* =========================
+     LOAD SIGNALS V2 SNAPSHOT
+     ========================= */
   useEffect(() => {
-    async function loadIpcSnapshot() {
-      if (!window.api?.invoke) return;
+    let alive = true;
+
+    async function load() {
       try {
-        setStatus("loading");
-        const snap = await window.api.invoke("signals:getSnapshot");
-        if (snap && Array.isArray(snap.signals)) {
-          setIpcSnapshot(snap);
+        if (!window.jupiter?.invoke) {
+          setStatus("unavailable");
+          return;
+        }
+
+        // Signals V2 is derived from portfolio valuation internally
+        const valuation = await window.jupiter.invoke("portfolio:getValuation");
+
+        if (!alive) return;
+
+        if (!valuation?.signalsV2) {
+          setSnapshot({
+            surfaced: false,
+            signals: [],
+            notes: ["Signals engine silent by design."],
+            timestamp: Date.now(),
+          });
           setStatus("ready");
-        } else {
-          setStatus("fallback");
+          return;
         }
-      } catch {
-        setStatus("fallback");
+
+        setSnapshot(valuation.signalsV2);
+        setStatus("ready");
+      } catch (err) {
+        console.error("[SIGNALS_RENDER_ERROR]", err);
+        setStatus("error");
       }
     }
-    loadIpcSnapshot();
+
+    load();
+    return () => (alive = false);
   }, []);
 
-  // ---- PORTFOLIO SYMBOL BRIDGE (READ-ONLY) ----
-  useEffect(() => {
-    async function loadPortfolioSymbols() {
-      try {
-        if (!window.jupiter?.getPortfolioValuation) return;
-        const data = await window.jupiter.getPortfolioValuation();
-        if (Array.isArray(data?.positions)) {
-          setPortfolioSymbols(new Set(data.positions.map(p => p.symbol)));
-        }
-      } catch {
-        // silent failure — non-critical context
-      }
-    }
-    loadPortfolioSymbols();
-  }, []);
-
-  const snapshot = ipcSnapshot || staticSnapshot;
-
-  const sortedSignals = useMemo(() => {
-    const rankMap =
-      sortKey === "portfolioImpact"
-        ? IMPACT_RANK
-        : sortKey === "confidence"
-        ? CONFIDENCE_RANK
-        : DELTA_RANK;
-
+  /* =========================
+     DERIVED VIEW
+     ========================= */
+  const signals = useMemo(() => {
+    if (!snapshot?.signals) return [];
     return [...snapshot.signals].sort(
-      (a, b) => rankMap[b[sortKey]] - rankMap[a[sortKey]]
+      (a, b) =>
+        CONFIDENCE_ORDER[b.confidence] -
+        CONFIDENCE_ORDER[a.confidence]
     );
-  }, [snapshot, sortKey]);
+  }, [snapshot]);
 
-  const notificationCount = snapshot.notifications?.length || 0;
-  const inPortfolio =
-    selectedSignal &&
-    portfolioSymbols &&
-    portfolioSymbols.has(selectedSignal.symbol);
+  /* =========================
+     RENDER STATES
+     ========================= */
+
+  if (status === "loading") {
+    return <div style={{ padding: 24 }}>Loading signals…</div>;
+  }
+
+  if (status === "unavailable" || status === "error") {
+    return (
+      <div style={{ padding: 24, color: "#9ca3af" }}>
+        Signals unavailable — intelligence layer not initialized.
+      </div>
+    );
+  }
+
+  // ✅ SILENCE-BY-DEFAULT (THIS IS A SUCCESS STATE)
+  if (!snapshot?.surfaced || signals.length === 0) {
+    return (
+      <div style={{ padding: 24 }}>
+        <h2>Signals</h2>
+        <p style={{ opacity: 0.7 }}>
+          No material growth or risk disruptions detected.
+        </p>
+        <p style={{ opacity: 0.5, fontSize: 13 }}>
+          Signals remain silent unless portfolio conditions change materially.
+        </p>
+      </div>
+    );
+  }
+
+  /* =========================
+     ACTIVE SIGNALS VIEW
+     ========================= */
 
   return (
-    <div className="signals-page">
+    <div style={{ padding: 24 }}>
       <h2>Signals</h2>
 
-      <div style={{ marginBottom: 8, opacity: 0.75 }}>
-        Notifications: {notificationCount || "None"}
-      </div>
+      <p style={{ opacity: 0.7, marginBottom: 12 }}>
+        Signals surfaced due to material growth or risk disruption.
+      </p>
 
-      <div className="signals-help">
-        <strong>How to read this table:</strong>
-        <ul>
-          <li><b>Momentum</b>: Directional strength of recent price movement.</li>
-          <li><b>Mean Reversion</b>: Distance from recent average price.</li>
-          <li><b>Portfolio Impact</b>: Estimated influence on portfolio outcomes.</li>
-          <li><b>Confidence</b>: Derived signal reliability.</li>
-          <li><b>Context</b>: Structural posture (not an action).</li>
-          <li><b>Δ</b>: Change since last snapshot.</li>
-        </ul>
-      </div>
-
-      <div style={{ opacity: 0.6, marginBottom: 8 }}>
-        Source: {ipcSnapshot ? "Live IPC snapshot" : "Static snapshot"}
-      </div>
-
-      <table className="signals-table">
+      <table border="1" cellPadding="6" width="100%">
         <thead>
           <tr>
-            <th>Symbol</th>
-            <th>Asset Class</th>
-            <th>Momentum</th>
-            <th>Mean Reversion</th>
-            <th onClick={() => setSortKey("portfolioImpact")} style={{ cursor: "pointer" }}>
-              Portfolio Impact
-            </th>
-            <th onClick={() => setSortKey("confidence")} style={{ cursor: "pointer" }}>
-              Confidence
-            </th>
-            <th>Context</th>
-            <th onClick={() => setSortKey("delta")} style={{ cursor: "pointer" }}>
-              Δ
-            </th>
+            <th align="left">Symbol</th>
+            <th align="left">Asset Class</th>
+            <th align="left">Confidence</th>
+            <th align="left">Materiality</th>
+            <th align="left">Growth Impact</th>
+            <th align="left">Risk Context</th>
           </tr>
         </thead>
         <tbody>
-          {sortedSignals.map((s) => (
+          {signals.map((s) => (
             <tr
               key={s.symbol}
-              onClick={() => setSelectedSignal(s)}
+              onClick={() => setSelected(s)}
               style={{ cursor: "pointer" }}
             >
               <td>{s.symbol}</td>
               <td>{s.assetClass}</td>
-              <td>{s.momentum}</td>
-              <td>{s.meanReversion}</td>
-              <td>{s.portfolioImpact}</td>
-              <td style={{ fontWeight: 700 }}>{s.confidence}</td>
-              <td><span style={contextStyle(s.context)}>{s.context || "—"}</span></td>
-              <td><span style={deltaStyle(s.delta)}>{s.delta}</span></td>
+              <td style={confidenceStyle(s.confidence)}>
+                {s.confidence}
+              </td>
+              <td>{s.materiality}</td>
+              <td>{s.growthImpact}</td>
+              <td>{s.riskContext}</td>
             </tr>
           ))}
         </tbody>
       </table>
 
-      {/* ---- SIGNAL DETAIL PANEL (EXTENDED D30.1) ---- */}
-      {selectedSignal && (
+      {/* =========================
+         DETAIL PANEL
+         ========================= */}
+      {selected && (
         <div
           style={{
             marginTop: 16,
-            padding: "1rem",
+            padding: "16px",
+            border: "1px solid #1f2937",
+            borderRadius: 8,
             background: "#020617",
-            borderRadius: "10px",
-            border: "1px solid #0f172a",
           }}
         >
-          <h3>{selectedSignal.symbol} — Signal Insight</h3>
+          <h3>{selected.symbol} — Signal Context</h3>
 
-          <div style={{ marginTop: 8 }}>
-            <strong>Portfolio Exposure:</strong>{" "}
-            <span
-              style={{
-                fontWeight: 700,
-                color: inPortfolio ? "#2ecc71" : "#9ca3af",
-              }}
-            >
-              {portfolioSymbols
-                ? inPortfolio
-                  ? "IN PORTFOLIO"
-                  : "NOT IN PORTFOLIO"
-                : "UNKNOWN"}
-            </span>
-          </div>
-
-          <div style={{ marginTop: 8 }}>
-            <strong>Context:</strong>{" "}
-            <span style={contextStyle(selectedSignal.context)}>
-              {selectedSignal.context || "NEUTRAL"}
-            </span>
-          </div>
-
-          <div style={{ marginTop: 8 }}>
-            <strong>Δ (Change):</strong>{" "}
-            <span style={deltaStyle(selectedSignal.delta)}>
-              {selectedSignal.delta}
-            </span>{" "}
-            since the previous snapshot.
-          </div>
-
-          <ul style={{ marginTop: 12, opacity: 0.85 }}>
-            <li><b>Momentum:</b> {selectedSignal.momentum}</li>
-            <li><b>Mean Reversion:</b> {selectedSignal.meanReversion}</li>
-            <li><b>Portfolio Impact:</b> {selectedSignal.portfolioImpact}</li>
-            <li><b>Confidence:</b> {selectedSignal.confidence}</li>
+          <ul style={{ marginTop: 8, opacity: 0.85 }}>
+            <li><b>Confidence:</b> {selected.confidence}</li>
+            <li><b>Materiality:</b> {selected.materiality}</li>
+            <li><b>Growth Impact:</b> {selected.growthImpact}</li>
+            <li><b>Risk Context:</b> {selected.riskContext}</li>
           </ul>
+
+          <p style={{ marginTop: 10, fontSize: 13, opacity: 0.6 }}>
+            Signals provide situational awareness only — not recommendations or actions.
+          </p>
         </div>
       )}
 
-      <div style={{ marginTop: 8, opacity: 0.5 }}>
-        Snapshot time: {snapshot.timestamp}
+      <div style={{ marginTop: 12, fontSize: 12, opacity: 0.5 }}>
+        Snapshot time:{" "}
+        {snapshot?.timestamp
+          ? new Date(snapshot.timestamp).toLocaleString()
+          : "—"}
       </div>
     </div>
   );
