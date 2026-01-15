@@ -16,6 +16,9 @@
  * - Risk Centre Outputs
  */
 
+import watchPkg from "./buildSignalsWatchUniverse.js";
+const { buildSignalsWatchUniverse } = watchPkg;
+
 const CONFIDENCE_ORDER = { Low: 1, Medium: 2, High: 3 };
 
 /* ======================================================
@@ -29,21 +32,13 @@ function classifyMateriality(deltaPct = 0) {
 }
 
 function isGrowthDisruption(growthTrajectory) {
-  if (!growthTrajectory) return false;
-
-  const { verdict } = growthTrajectory;
-  if (!verdict) return false;
-
-  return verdict.classification !== "FEASIBLE";
+  if (!growthTrajectory?.verdict) return false;
+  return growthTrajectory.verdict.classification !== "FEASIBLE";
 }
 
 function isRiskDisruption(riskSnapshot) {
   if (!riskSnapshot) return false;
-
-  return (
-    riskSnapshot.regime === "RISK_OFF" ||
-    riskSnapshot.regime === "STRESS"
-  );
+  return riskSnapshot.regime === "RISK_OFF" || riskSnapshot.regime === "STRESS";
 }
 
 function shouldSurfaceSignal({ growthTrajectory, riskSnapshot }) {
@@ -57,13 +52,17 @@ function shouldSurfaceSignal({ growthTrajectory, riskSnapshot }) {
    CORE ENGINE
 ====================================================== */
 
-export function buildSignalsV2Snapshot({
+export async function buildSignalsV2Snapshot({
   portfolioSnapshot,
   growthTrajectory,
   riskSnapshot,
-  confidenceEvaluations = []
+  confidenceEvaluations = [],
 } = {}) {
   const timestamp = Date.now();
+
+  // Build watch universe (authoritative scope)
+  const watchUniverse = await buildSignalsWatchUniverse();
+  const allowedSymbols = new Set(watchUniverse.universe);
 
   // HARD SILENCE — nothing to say
   if (!shouldSurfaceSignal({ growthTrajectory, riskSnapshot })) {
@@ -72,22 +71,24 @@ export function buildSignalsV2Snapshot({
       timestamp,
       surfaced: false,
       signals: [],
+      watchUniverseMeta: watchUniverse.telemetry,
       notes: [
         "No material growth or risk disruption detected.",
-        "Signals engine intentionally silent."
-      ]
+        "Signals engine intentionally silent.",
+      ],
     };
   }
 
   const signals = [];
-
   const positions = Array.isArray(portfolioSnapshot?.holdings)
     ? portfolioSnapshot.holdings
     : [];
 
   for (const p of positions) {
+    if (!allowedSymbols.has(p.symbol)) continue;
+
     const evalResult = confidenceEvaluations.find(
-      e => e.symbol === p.symbol
+      (e) => e.symbol === p.symbol
     );
 
     const confidence =
@@ -95,7 +96,6 @@ export function buildSignalsV2Snapshot({
 
     const materiality = classifyMateriality(p.deltaPct ?? 0);
 
-    // Skip low-importance assets unless confidence is high
     if (materiality === "LOW" && confidence !== "High") continue;
 
     signals.push({
@@ -107,7 +107,8 @@ export function buildSignalsV2Snapshot({
       growthImpact: isGrowthDisruption(growthTrajectory)
         ? "CONSTRAINED"
         : "NEUTRAL",
-      riskContext: riskSnapshot?.regime || "UNKNOWN"
+      riskContext: riskSnapshot?.regime || "UNKNOWN",
+      provenance: watchUniverse.provenance[p.symbol] || [],
     });
   }
 
@@ -116,10 +117,11 @@ export function buildSignalsV2Snapshot({
     timestamp,
     surfaced: signals.length > 0,
     signals,
+    watchUniverseMeta: watchUniverse.telemetry,
     notes: [
       "Signals surfaced due to material growth or risk disruption.",
       "Silence-by-default policy enforced.",
-      "No recommendations issued."
-    ]
+      "No recommendations issued.",
+    ],
   };
 }
