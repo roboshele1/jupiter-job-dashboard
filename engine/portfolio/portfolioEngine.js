@@ -1,133 +1,95 @@
+// engine/portfolio/portfolioEngine.js
+// AUTHORITATIVE PORTFOLIO ENGINE — BROADCAST SPINE V1
+
+import { EventEmitter } from "events";
+import { valuePortfolio } from "./portfolioValuation.js";
+
 /**
- * JUPITER — Portfolio Engine (Editable V1)
- * ---------------------------------------
- * Single authoritative mutation boundary for portfolio holdings.
- *
- * RULES:
- * - Engine owns mutation
- * - Disk-backed persistence
- * - No pricing, no analytics
- * - Deterministic + testable
+ * Internal mutable state (engine-only)
  */
+let holdings = [
+  { symbol: "NVDA", qty: 73, assetClass: "equity", totalCostBasis: 12881.13, currency: "CAD" },
+  { symbol: "ASML", qty: 10, assetClass: "equity", totalCostBasis: 8649.52, currency: "CAD" },
+  { symbol: "AVGO", qty: 74, assetClass: "equity", totalCostBasis: 26190.68, currency: "CAD" },
+  { symbol: "MSTR", qty: 24, assetClass: "equity", totalCostBasis: 12496.18, currency: "CAD" },
+  { symbol: "HOOD", qty: 70, assetClass: "equity", totalCostBasis: 3316.68, currency: "CAD" },
+  { symbol: "BMNR", qty: 115, assetClass: "equity", totalCostBasis: 6320.18, currency: "CAD" },
+  { symbol: "APLD", qty: 150, assetClass: "equity", totalCostBasis: 1615.58, currency: "CAD" },
+  { symbol: "BTC", qty: 0.251083, assetClass: "crypto", totalCostBasis: 24764.31, currency: "CAD" },
+  { symbol: "ETH", qty: 0.25, assetClass: "crypto", totalCostBasis: 597.9, currency: "CAD" }
+];
 
-const fs = require("fs");
-const path = require("path");
-
-// Canonical holdings file (V1)
-const HOLDINGS_PATH = path.resolve(__dirname, "../data/holdings.js");
-
-/* =========================
-   INTERNAL HELPERS
-   ========================= */
-
-function loadHoldings() {
-  delete require.cache[require.resolve(HOLDINGS_PATH)];
-  const holdings = require(HOLDINGS_PATH);
-
-  if (!Array.isArray(holdings)) {
-    throw new Error("HOLDINGS_FILE_INVALID");
-  }
-
-  return holdings.map(h => ({
-    symbol: String(h.symbol),
-    qty: Number(h.qty)
-  }));
-}
-
-function persistHoldings(holdings) {
-  const content = `/**
- * JUPITER — Canonical Holdings Authority (V1)
- * AUTO-GENERATED — DO NOT EDIT MANUALLY
+/**
+ * Event bus (engine → world)
  */
+const portfolioEvents = new EventEmitter();
 
-module.exports = ${JSON.stringify(holdings, null, 2)};
-`;
+/**
+ * Last immutable snapshot
+ */
+let lastSnapshot = null;
 
-  fs.writeFileSync(HOLDINGS_PATH, content, "utf8");
-}
+/**
+ * Normalize + freeze snapshot
+ */
+async function computeSnapshot() {
+  const valuation = await valuePortfolio(holdings);
 
-/* =========================
-   READ API
-   ========================= */
-
-function getPortfolioSnapshot() {
-  const holdings = loadHoldings();
-
-  return Object.freeze({
-    contract: "PORTFOLIO_ENGINE_V1",
+  const snapshot = Object.freeze({
     timestamp: Date.now(),
-    positions: holdings
+    portfolio: valuation
   });
+
+  lastSnapshot = snapshot;
+
+  // 🔔 SINGLE AUTHORITATIVE BROADCAST
+  portfolioEvents.emit("PORTFOLIO_UPDATED", snapshot);
+
+  return snapshot;
 }
 
-/* =========================
-   MUTATION API
-   ========================= */
+/**
+ * ===== READ API =====
+ */
+export function getPortfolioSnapshot() {
+  return lastSnapshot;
+}
 
-function addHolding(symbol, qty) {
-  if (!symbol || typeof symbol !== "string") {
-    throw new Error("INVALID_SYMBOL");
+export function onPortfolioUpdated(handler) {
+  portfolioEvents.on("PORTFOLIO_UPDATED", handler);
+}
+
+/**
+ * ===== MUTATIONS =====
+ */
+export async function addHolding({ symbol, qty, assetClass, totalCostBasis, currency }) {
+  if (!symbol || qty == null || qty <= 0) {
+    throw new Error("INVALID_HOLDING");
   }
-  if (typeof qty !== "number" || qty <= 0) {
+
+  holdings.push({ symbol, qty, assetClass, totalCostBasis, currency });
+  return computeSnapshot();
+}
+
+export async function updateHolding({ symbol, qty }) {
+  if (!symbol || qty == null || qty <= 0) {
     throw new Error("INVALID_QTY");
   }
 
-  const holdings = loadHoldings();
+  const h = holdings.find(h => h.symbol === symbol);
+  if (!h) throw new Error("HOLDING_NOT_FOUND");
 
-  if (holdings.find(h => h.symbol === symbol)) {
-    throw new Error("HOLDING_ALREADY_EXISTS");
-  }
-
-  holdings.push({ symbol, qty });
-  persistHoldings(holdings);
-
-  return getPortfolioSnapshot();
+  h.qty = qty;
+  return computeSnapshot();
 }
 
-function updateHolding(symbol, qty) {
-  if (!symbol || typeof symbol !== "string") {
-    throw new Error("INVALID_SYMBOL");
-  }
-  if (typeof qty !== "number" || qty <= 0) {
-    throw new Error("INVALID_QTY");
-  }
-
-  const holdings = loadHoldings();
-  const target = holdings.find(h => h.symbol === symbol);
-
-  if (!target) {
-    throw new Error("HOLDING_NOT_FOUND");
-  }
-
-  target.qty = qty;
-  persistHoldings(holdings);
-
-  return getPortfolioSnapshot();
+export async function removeHolding({ symbol }) {
+  holdings = holdings.filter(h => h.symbol !== symbol);
+  return computeSnapshot();
 }
 
-function removeHolding(symbol) {
-  if (!symbol || typeof symbol !== "string") {
-    throw new Error("INVALID_SYMBOL");
-  }
-
-  const holdings = loadHoldings();
-  const next = holdings.filter(h => h.symbol !== symbol);
-
-  if (next.length === holdings.length) {
-    throw new Error("HOLDING_NOT_FOUND");
-  }
-
-  persistHoldings(next);
-  return getPortfolioSnapshot();
-}
-
-/* =========================
-   EXPORTS
-   ========================= */
-
-module.exports = Object.freeze({
-  getPortfolioSnapshot,
-  addHolding,
-  updateHolding,
-  removeHolding
-});
+/**
+ * ===== BOOTSTRAP =====
+ * Ensure snapshot exists once engine loads
+ */
+computeSnapshot();
