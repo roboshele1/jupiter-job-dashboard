@@ -7,12 +7,15 @@ const BUCKET_COLORS = {
   Semiconductors: "#4cc9f0",
   Software: "#8b5cf6",
   Crypto: "#fbbf24",
-  Cash: "#e5e7eb"
+  Cash: "#e5e7eb",
 };
 
 function fmtMoney(n) {
   const num = Number(n || 0);
-  return `$${num.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  return `$${num.toLocaleString(undefined, {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}`;
 }
 
 function safeNum(n) {
@@ -48,8 +51,14 @@ export default function Dashboard() {
 
   const uiState = useMemo(() => readPortfolioUiState(), []);
 
+  /* =========================
+     PORTFOLIO NORMALIZATION
+     ========================= */
   const positions = useMemo(() => {
-    const base = Array.isArray(valuation?.positions) ? valuation.positions : [];
+    const base = Array.isArray(valuation?.positions)
+      ? valuation.positions
+      : [];
+
     if (!uiState) return base;
 
     const removed = new Set(uiState.removedSymbols || []);
@@ -68,74 +77,123 @@ export default function Dashboard() {
         qty:
           typeof overrideQty === "number" && Number.isFinite(overrideQty)
             ? overrideQty
-            : p.qty
+            : p.qty,
       });
     }
 
     for (const [symbol, payload] of Object.entries(added)) {
       if (removed.has(symbol)) continue;
-      if (merged.some(m => m.symbol === symbol)) continue;
+      if (merged.some((m) => m.symbol === symbol)) continue;
 
       merged.push({
         symbol,
         qty: Number(payload?.qty) || 0,
+        assetClass: payload?.assetClass || "unknown",
         snapshotValue: 0,
         livePrice: 0,
         liveValue: 0,
         delta: 0,
         deltaPct: 0,
         priceSource: "ui-only",
-        priceFreshness: null
+        priceFreshness: null,
       });
     }
 
     return merged;
   }, [valuation, uiState]);
 
-  const totalLive = positions.reduce((a, p) => a + safeNum(p.liveValue), 0);
-  const totalSnapshot = positions.reduce((a, p) => a + safeNum(p.snapshotValue), 0);
+  /* =========================
+     VALUATION METRICS
+     ========================= */
+  const totalLive = positions.reduce(
+    (a, p) => a + safeNum(p.liveValue),
+    0
+  );
+  const totalSnapshot = positions.reduce(
+    (a, p) => a + safeNum(p.snapshotValue),
+    0
+  );
+
   const dailyPL = totalLive - totalSnapshot;
-  const dailyPLPct = totalSnapshot > 0 ? (dailyPL / totalSnapshot) * 100 : 0;
+  const dailyPLPct =
+    totalSnapshot > 0 ? (dailyPL / totalSnapshot) * 100 : 0;
 
   const plClass =
-    dailyPL > 0 ? "pl-positive" : dailyPL < 0 ? "pl-negative" : "pl-neutral";
+    dailyPL > 0
+      ? "pl-positive"
+      : dailyPL < 0
+      ? "pl-negative"
+      : "pl-neutral";
 
+  /* =========================
+     SNAPSHOT + FRESHNESS
+     ========================= */
+  const snapshotTime =
+    valuation?.priceSnapshotMeta?.fetchedAt ||
+    valuation?.snapshotAt ||
+    null;
+
+  const freshnessLevel =
+    valuation?.priceSnapshotMeta?.freshness?.level || "UNKNOWN";
+
+  const marketStatus =
+    freshnessLevel === "LIVE"
+      ? "LIVE"
+      : freshnessLevel === "STALE"
+      ? "STALE"
+      : "UNKNOWN";
+
+  /* =========================
+     TOP HOLDINGS
+     ========================= */
   const topHoldings = useMemo(
     () =>
       positions
         .slice()
         .sort((a, b) => safeNum(b.liveValue) - safeNum(a.liveValue))
         .slice(0, 5)
-        .map(p => ({ symbol: p.symbol, qty: p.qty })),
+        .map((p) => ({ symbol: p.symbol, qty: p.qty })),
     [positions]
   );
 
+  /* =========================
+     ALLOCATION (INSTITUTIONAL)
+     ========================= */
   const allocationBands = useMemo(() => {
     if (!positions.length || totalLive <= 0) {
       return [
         { name: "Semiconductors", percent: 56, color: BUCKET_COLORS.Semiconductors },
         { name: "Software", percent: 9, color: BUCKET_COLORS.Software },
         { name: "Crypto", percent: 26, color: BUCKET_COLORS.Crypto },
-        { name: "Cash", percent: 9, color: BUCKET_COLORS.Cash }
+        { name: "Cash", percent: 9, color: BUCKET_COLORS.Cash },
       ];
     }
 
-    const buckets = { Semiconductors: 0, Software: 0, Crypto: 0, Cash: 0 };
+    const buckets = {
+      Semiconductors: 0,
+      Software: 0,
+      Crypto: 0,
+      Cash: 0,
+    };
 
     for (const p of positions) {
-      const sym = p.symbol.toUpperCase();
       const v = safeNum(p.liveValue);
+      const cls = (p.assetClass || "").toLowerCase();
+      const sym = p.symbol.toUpperCase();
 
-      if (sym.includes("BTC") || sym.includes("ETH")) buckets.Crypto += v;
-      else if (["NVDA", "AVGO", "ASML", "TSM"].includes(sym)) buckets.Semiconductors += v;
-      else if (["HOOD", "MSTR"].includes(sym)) buckets.Software += v;
+      if (cls === "crypto" || sym.includes("BTC") || sym.includes("ETH"))
+        buckets.Crypto += v;
+      else if (["NVDA", "AVGO", "ASML", "TSM"].includes(sym))
+        buckets.Semiconductors += v;
+      else if (["HOOD", "MSTR"].includes(sym))
+        buckets.Software += v;
       else buckets.Cash += v;
     }
 
     const bands = Object.entries(buckets).map(([name, val]) => ({
       name,
       percent: Math.round((val / totalLive) * 100),
-      color: BUCKET_COLORS[name]
+      color: BUCKET_COLORS[name],
     }));
 
     const sum = bands.reduce((a, b) => a + b.percent, 0);
@@ -144,9 +202,21 @@ export default function Dashboard() {
     return bands;
   }, [positions, totalLive]);
 
+  /* =========================
+     RENDER
+     ========================= */
   return (
     <div className="dashboard">
       <h1>Dashboard</h1>
+
+      {snapshotTime && (
+        <div className="card wide">
+          <div className="label">SNAPSHOT TIME</div>
+          <div className="value">
+            {new Date(snapshotTime).toLocaleString()}
+          </div>
+        </div>
+      )}
 
       <div className="card wide">
         <div className="label">TOTAL PORTFOLIO VALUE</div>
@@ -154,17 +224,24 @@ export default function Dashboard() {
       </div>
 
       <div className={`card wide ${plClass}`}>
-        <div className="label">DAILY P/L</div>
+        <div className="label">TODAY’S P/L</div>
         <div className="value">
           {fmtMoney(dailyPL)} ({dailyPLPct.toFixed(2)}%)
         </div>
       </div>
 
       <div className="card wide">
-        <div className="label">ALLOCATION BANDS</div>
+        <div className="label">PORTFOLIO ALLOCATION</div>
         <div className="allocation-band">
-          {allocationBands.map(b => (
-            <div key={b.name} className="band" style={{ width: `${b.percent}%`, backgroundColor: b.color }}>
+          {allocationBands.map((b) => (
+            <div
+              key={b.name}
+              className="band"
+              style={{
+                width: `${b.percent}%`,
+                backgroundColor: b.color,
+              }}
+            >
               {b.name} {b.percent}%
             </div>
           ))}
@@ -174,12 +251,31 @@ export default function Dashboard() {
       <div className="card wide">
         <div className="label">TOP HOLDINGS</div>
         <div className="holdings-list">
-          {topHoldings.map(h => (
+          {topHoldings.map((h) => (
             <div key={h.symbol} className="holding-row">
               <span className="symbol">{h.symbol}</span>
               <span className="qty">{h.qty}</span>
             </div>
           ))}
+        </div>
+      </div>
+
+      <div className="card wide">
+        <div className="label">SYSTEM STATUS</div>
+        <div className="value">
+          Market Data:{" "}
+          <strong
+            style={{
+              color:
+                marketStatus === "LIVE"
+                  ? "#22c55e"
+                  : marketStatus === "STALE"
+                  ? "#facc15"
+                  : "#9ca3af",
+            }}
+          >
+            {marketStatus}
+          </strong>
         </div>
       </div>
     </div>
