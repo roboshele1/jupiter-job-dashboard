@@ -65,6 +65,7 @@ function writeUiState(next) {
 export default function Portfolio() {
   const [valuation, setValuation] = useState(null);
   const [error, setError] = useState(null);
+  const [refreshing, setRefreshing] = useState(false);
 
   const [uiState, setUiState] = useState(() => {
     try {
@@ -88,37 +89,50 @@ export default function Portfolio() {
   /* =========================
      Load LIVE valuation (authoritative)
      ========================= */
-  useEffect(() => {
-    let alive = true;
+  async function loadValuation() {
+    try {
+      const v = await window.jupiter.invoke("portfolio:getValuation");
+      setValuation(v);
 
-    async function load() {
-      try {
-        const v = await window.jupiter.invoke("portfolio:getValuation");
-        if (!alive) return;
-
-        setValuation(v);
-
-        const drafts = {};
-        for (const p of v?.positions || []) {
-          drafts[p.symbol] = String(p.qty ?? "");
-        }
-        for (const [s, q] of Object.entries(uiState.qtyBySymbol || {})) {
-          drafts[s] = String(q);
-        }
-        for (const [s, v] of Object.entries(uiState.addedSymbols || {})) {
-          drafts[s] = String(v.qty ?? "");
-        }
-
-        setRowDraftQty(drafts);
-      } catch (err) {
-        console.error("[PORTFOLIO_LOAD_ERROR]", err);
-        setError(err.message);
+      const drafts = {};
+      for (const p of v?.positions || []) {
+        drafts[p.symbol] = String(p.qty ?? "");
       }
-    }
+      for (const [s, q] of Object.entries(uiState.qtyBySymbol || {})) {
+        drafts[s] = String(q);
+      }
+      for (const [s, v] of Object.entries(uiState.addedSymbols || {})) {
+        drafts[s] = String(v.qty ?? "");
+      }
 
-    load();
-    return () => (alive = false);
+      setRowDraftQty(drafts);
+    } catch (err) {
+      console.error("[PORTFOLIO_LOAD_ERROR]", err);
+      setError(err.message);
+    }
+  }
+
+  useEffect(() => {
+    loadValuation();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  /* =========================
+     Manual Refresh (V3)
+     ========================= */
+  async function refreshValuation() {
+    try {
+      setRefreshing(true);
+      const v = await window.jupiter.refreshPortfolioValuation();
+      setValuation(v);
+      setStatus("Valuation refreshed");
+    } catch (err) {
+      console.error("[PORTFOLIO_REFRESH_ERROR]", err);
+      setError(err.message);
+    } finally {
+      setRefreshing(false);
+    }
+  }
 
   /* =========================
      Persist UI state
@@ -194,7 +208,9 @@ export default function Portfolio() {
   function handleRemove(symbol) {
     setUiState(prev => ({
       ...prev,
-      removedSymbols: Array.from(new Set([...(prev.removedSymbols || []), symbol]))
+      removedSymbols: Array.from(
+        new Set([...(prev.removedSymbols || []), symbol])
+      )
     }));
     setStatus(`Removed ${symbol}`);
   }
@@ -230,6 +246,13 @@ export default function Portfolio() {
   return (
     <div style={{ padding: "1.5rem" }}>
       <h1>Portfolio</h1>
+
+      {/* Refresh Control */}
+      <div style={{ marginBottom: 16 }}>
+        <button onClick={refreshValuation} disabled={refreshing}>
+          {refreshing ? "Refreshing…" : "Refresh Valuation"}
+        </button>
+      </div>
 
       {/* Summary */}
       <div className="card wide" style={{ marginBottom: 20 }}>
@@ -276,29 +299,23 @@ export default function Portfolio() {
           return (
             <div key={p.symbol} className="card wide" style={{ padding: "1rem" }}>
               <div style={{ display: "flex", justifyContent: "space-between" }}>
-                {/* LEFT: Identity */}
+                {/* Identity */}
                 <div>
                   <div style={{ fontWeight: 600 }}>{p.symbol}</div>
-
-                  {/* Live price + currency (explicit, subordinate) */}
                   <div style={{ fontSize: 13, opacity: 0.85 }}>
                     {p.livePrice
-                      ? `${p.currency || ""} ${Number(
-                          p.livePrice
-                        ).toLocaleString()}`
+                      ? `${p.currency} ${Number(p.livePrice).toLocaleString()}`
                       : "—"}
                   </div>
-
-                  {/* Source + freshness */}
                   <div style={{ fontSize: 11, opacity: 0.5 }}>
-                    {p.priceSource || "—"}
+                    {p.priceSource}
                     {p.priceFreshness?.level
                       ? ` · ${p.priceFreshness.level}`
                       : ""}
                   </div>
                 </div>
 
-                {/* CENTER: Values */}
+                {/* Values */}
                 <div style={{ textAlign: "right" }}>
                   <div>Snapshot {fmtMoney(p.snapshotValue)}</div>
                   <div>Live {fmtMoney(p.liveValue)}</div>
@@ -307,7 +324,7 @@ export default function Portfolio() {
                   </div>
                 </div>
 
-                {/* RIGHT: Controls */}
+                {/* Controls */}
                 <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
                   <input
                     value={draft}
