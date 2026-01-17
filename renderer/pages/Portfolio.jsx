@@ -160,6 +160,7 @@ export default function Portfolio() {
         liveValue: 0,
         delta: 0,
         deltaPct: 0,
+        currency: "",
         priceSource: "ui-only",
         priceFreshness: null
       });
@@ -230,6 +231,7 @@ export default function Portfolio() {
     <div style={{ padding: "1.5rem" }}>
       <h1>Portfolio</h1>
 
+      {/* Summary */}
       <div className="card wide" style={{ marginBottom: 20 }}>
         <div style={{ opacity: 0.7 }}>TOTAL SNAPSHOT</div>
         <div style={{ fontSize: 24 }}>{fmtMoney(totals.snapshotValue)}</div>
@@ -245,15 +247,27 @@ export default function Portfolio() {
         </div>
       </div>
 
+      {/* Add */}
       <div className="card wide" style={{ marginBottom: 24 }}>
-        <div style={{ marginBottom: 8, opacity: 0.7 }}>ADD POSITION (UI-ONLY)</div>
+        <div style={{ marginBottom: 8, opacity: 0.7 }}>
+          ADD POSITION (UI-ONLY)
+        </div>
         <div style={{ display: "flex", gap: 8 }}>
-          <input placeholder="Symbol" value={addSymbol} onChange={e => setAddSymbol(e.target.value)} />
-          <input placeholder="Qty" value={addQty} onChange={e => setAddQty(e.target.value)} />
+          <input
+            placeholder="Symbol"
+            value={addSymbol}
+            onChange={e => setAddSymbol(e.target.value)}
+          />
+          <input
+            placeholder="Qty"
+            value={addQty}
+            onChange={e => setAddQty(e.target.value)}
+          />
           <button onClick={handleAdd}>Add</button>
         </div>
       </div>
 
+      {/* Holdings */}
       <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
         {visiblePositions.map(p => {
           const draft = rowDraftQty[p.symbol] ?? String(p.qty ?? "");
@@ -262,13 +276,29 @@ export default function Portfolio() {
           return (
             <div key={p.symbol} className="card wide" style={{ padding: "1rem" }}>
               <div style={{ display: "flex", justifyContent: "space-between" }}>
+                {/* LEFT: Identity */}
                 <div>
                   <div style={{ fontWeight: 600 }}>{p.symbol}</div>
-                  <div style={{ opacity: 0.6, fontSize: 12 }}>
-                    {p.priceSource} · {p.priceFreshness?.level}
+
+                  {/* Live price + currency (explicit, subordinate) */}
+                  <div style={{ fontSize: 13, opacity: 0.85 }}>
+                    {p.livePrice
+                      ? `${p.currency || ""} ${Number(
+                          p.livePrice
+                        ).toLocaleString()}`
+                      : "—"}
+                  </div>
+
+                  {/* Source + freshness */}
+                  <div style={{ fontSize: 11, opacity: 0.5 }}>
+                    {p.priceSource || "—"}
+                    {p.priceFreshness?.level
+                      ? ` · ${p.priceFreshness.level}`
+                      : ""}
                   </div>
                 </div>
 
+                {/* CENTER: Values */}
                 <div style={{ textAlign: "right" }}>
                   <div>Snapshot {fmtMoney(p.snapshotValue)}</div>
                   <div>Live {fmtMoney(p.liveValue)}</div>
@@ -277,14 +307,19 @@ export default function Portfolio() {
                   </div>
                 </div>
 
+                {/* RIGHT: Controls */}
                 <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
                   <input
                     value={draft}
                     onChange={e => setDraft(p.symbol, e.target.value)}
                     style={{ width: 90 }}
                   />
-                  <button onClick={() => handleUpdate(p.symbol)}>Update</button>
-                  <button onClick={() => handleRemove(p.symbol)}>Remove</button>
+                  <button onClick={() => handleUpdate(p.symbol)}>
+                    Update
+                  </button>
+                  <button onClick={() => handleRemove(p.symbol)}>
+                    Remove
+                  </button>
                 </div>
               </div>
             </div>
