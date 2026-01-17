@@ -33,20 +33,66 @@ function readPortfolioUiState() {
   }
 }
 
+/**
+ * Market data freshness precedence.
+ * (UI-only inference; does NOT change any engine logic.)
+ */
+const FRESHNESS_RANK = {
+  LIVE: 3,
+  DELAYED: 2,
+  STALE: 1,
+  UNKNOWN: 0,
+};
+
+function pickBestFreshness(positions) {
+  let best = { level: "UNKNOWN", confidence: "UNKNOWN" };
+  let bestRank = 0;
+
+  for (const p of positions || []) {
+    const level = p?.priceFreshness?.level || "UNKNOWN";
+    const confidence = p?.priceFreshness?.confidence || "UNKNOWN";
+    const rank = FRESHNESS_RANK[level] ?? 0;
+
+    if (rank > bestRank) {
+      bestRank = rank;
+      best = { level, confidence };
+    }
+  }
+
+  return best;
+}
+
 export default function Dashboard() {
   const [valuation, setValuation] = useState(null);
+  const [lastRefreshAt, setLastRefreshAt] = useState(null);
 
+  // ✅ DASHBOARD LIVE REFRESH (lightweight polling)
+  // Mirrors the “autonomous feel” without needing app restarts.
   useEffect(() => {
-    let mounted = true;
+    let alive = true;
 
     async function load() {
-      if (!window?.jupiter?.getPortfolioValuation) return;
-      const v = await window.jupiter.getPortfolioValuation();
-      if (mounted) setValuation(v);
+      try {
+        if (!window?.jupiter?.getPortfolioValuation) return;
+        const v = await window.jupiter.getPortfolioValuation();
+        if (!alive) return;
+        setValuation(v);
+        setLastRefreshAt(new Date());
+      } catch (e) {
+        // Dashboard should fail soft (read-only surface)
+        console.error("[DASHBOARD_VALUATION_LOAD_ERROR]", e);
+      }
     }
 
     load();
-    return () => (mounted = false);
+
+    // 15s gives “current” without being noisy.
+    const id = setInterval(load, 15_000);
+
+    return () => {
+      alive = false;
+      clearInterval(id);
+    };
   }, []);
 
   const uiState = useMemo(() => readPortfolioUiState(), []);
@@ -55,10 +101,7 @@ export default function Dashboard() {
      PORTFOLIO NORMALIZATION
      ========================= */
   const positions = useMemo(() => {
-    const base = Array.isArray(valuation?.positions)
-      ? valuation.positions
-      : [];
-
+    const base = Array.isArray(valuation?.positions) ? valuation.positions : [];
     if (!uiState) return base;
 
     const removed = new Set(uiState.removedSymbols || []);
@@ -105,41 +148,47 @@ export default function Dashboard() {
   /* =========================
      VALUATION METRICS
      ========================= */
-  const totalLive = positions.reduce(
-    (a, p) => a + safeNum(p.liveValue),
-    0
-  );
+  const totalLive = positions.reduce((a, p) => a + safeNum(p.liveValue), 0);
   const totalSnapshot = positions.reduce(
     (a, p) => a + safeNum(p.snapshotValue),
     0
   );
 
   const dailyPL = totalLive - totalSnapshot;
-  const dailyPLPct =
-    totalSnapshot > 0 ? (dailyPL / totalSnapshot) * 100 : 0;
+  const dailyPLPct = totalSnapshot > 0 ? (dailyPL / totalSnapshot) * 100 : 0;
 
   const plClass =
-    dailyPL > 0
-      ? "pl-positive"
-      : dailyPL < 0
-      ? "pl-negative"
-      : "pl-neutral";
+    dailyPL > 0 ? "pl-positive" : dailyPL < 0 ? "pl-negative" : "pl-neutral";
 
   /* =========================
      SNAPSHOT + FRESHNESS
      ========================= */
   const snapshotTime =
-    valuation?.priceSnapshotMeta?.fetchedAt ||
-    valuation?.snapshotAt ||
-    null;
+    valuation?.priceSnapshotMeta?.fetchedAt || valuation?.snapshotAt || null;
 
-  const freshnessLevel =
+  // Engine-level freshness (if present)
+  const engineFreshnessLevel =
     valuation?.priceSnapshotMeta?.freshness?.level || "UNKNOWN";
+  const engineFreshnessConfidence =
+    valuation?.priceSnapshotMeta?.freshness?.confidence || "UNKNOWN";
+
+  // UI-level best-effort freshness from positions (prevents “UNKNOWN for days”)
+  const bestFromPositions = useMemo(
+    () => pickBestFreshness(positions),
+    [positions]
+  );
+
+  const chosenFreshness =
+    engineFreshnessLevel !== "UNKNOWN"
+      ? { level: engineFreshnessLevel, confidence: engineFreshnessConfidence }
+      : bestFromPositions;
 
   const marketStatus =
-    freshnessLevel === "LIVE"
+    chosenFreshness.level === "LIVE"
       ? "LIVE"
-      : freshnessLevel === "STALE"
+      : chosenFreshness.level === "DELAYED"
+      ? "DELAYED"
+      : chosenFreshness.level === "STALE"
       ? "STALE"
       : "UNKNOWN";
 
@@ -162,7 +211,11 @@ export default function Dashboard() {
   const allocationBands = useMemo(() => {
     if (!positions.length || totalLive <= 0) {
       return [
-        { name: "Semiconductors", percent: 56, color: BUCKET_COLORS.Semiconductors },
+        {
+          name: "Semiconductors",
+          percent: 56,
+          color: BUCKET_COLORS.Semiconductors,
+        },
         { name: "Software", percent: 9, color: BUCKET_COLORS.Software },
         { name: "Crypto", percent: 26, color: BUCKET_COLORS.Crypto },
         { name: "Cash", percent: 9, color: BUCKET_COLORS.Cash },
@@ -179,7 +232,7 @@ export default function Dashboard() {
     for (const p of positions) {
       const v = safeNum(p.liveValue);
       const cls = (p.assetClass || "").toLowerCase();
-      const sym = p.symbol.toUpperCase();
+      const sym = (p.symbol || "").toUpperCase();
 
       if (cls === "crypto" || sym.includes("BTC") || sym.includes("ETH"))
         buckets.Crypto += v;
@@ -209,12 +262,18 @@ export default function Dashboard() {
     <div className="dashboard">
       <h1>Dashboard</h1>
 
+      {/* Readability-first: show “last refreshed” (always current if polling works) */}
+      <div className="card wide">
+        <div className="label">LAST REFRESHED</div>
+        <div className="value">
+          {lastRefreshAt ? lastRefreshAt.toLocaleString() : "—"}
+        </div>
+      </div>
+
       {snapshotTime && (
         <div className="card wide">
           <div className="label">SNAPSHOT TIME</div>
-          <div className="value">
-            {new Date(snapshotTime).toLocaleString()}
-          </div>
+          <div className="value">{new Date(snapshotTime).toLocaleString()}</div>
         </div>
       )}
 
@@ -269,6 +328,8 @@ export default function Dashboard() {
               color:
                 marketStatus === "LIVE"
                   ? "#22c55e"
+                  : marketStatus === "DELAYED"
+                  ? "#60a5fa"
                   : marketStatus === "STALE"
                   ? "#facc15"
                   : "#9ca3af",
@@ -276,6 +337,13 @@ export default function Dashboard() {
           >
             {marketStatus}
           </strong>
+          <span style={{ opacity: 0.6, marginLeft: 8, fontSize: 12 }}>
+            ({chosenFreshness.level}
+            {chosenFreshness.confidence
+              ? ` • ${chosenFreshness.confidence}`
+              : ""}
+            )
+          </span>
         </div>
       </div>
     </div>
