@@ -63,7 +63,7 @@ function writeUiState(next) {
    Portfolio Component
    ========================= */
 export default function Portfolio() {
-  const [snapshot, setSnapshot] = useState(null);
+  const [valuation, setValuation] = useState(null);
   const [error, setError] = useState(null);
 
   const [uiState, setUiState] = useState(() => {
@@ -86,19 +86,22 @@ export default function Portfolio() {
   const [status, setStatus] = useState(null);
 
   /* =========================
-     Load Snapshot (once)
+     Load LIVE valuation (authoritative)
      ========================= */
   useEffect(() => {
-    async function loadSnapshot() {
+    let alive = true;
+
+    async function load() {
       try {
-        const snap = await window.jupiter.invoke("portfolio:getSnapshot");
-        setSnapshot(snap);
+        const v = await window.jupiter.invoke("portfolio:getValuation");
+        if (!alive) return;
+
+        setValuation(v);
 
         const drafts = {};
-        for (const p of snap?.portfolio?.positions || []) {
-          if (p?.symbol) drafts[p.symbol] = String(p.qty ?? "");
+        for (const p of v?.positions || []) {
+          drafts[p.symbol] = String(p.qty ?? "");
         }
-
         for (const [s, q] of Object.entries(uiState.qtyBySymbol || {})) {
           drafts[s] = String(q);
         }
@@ -113,8 +116,8 @@ export default function Portfolio() {
       }
     }
 
-    loadSnapshot();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    load();
+    return () => (alive = false);
   }, []);
 
   /* =========================
@@ -130,7 +133,7 @@ export default function Portfolio() {
      Visible Positions
      ========================= */
   const visiblePositions = useMemo(() => {
-    const base = snapshot?.portfolio?.positions || [];
+    const base = valuation?.positions || [];
     const removed = new Set(uiState.removedSymbols || []);
     const qtyBySymbol = uiState.qtyBySymbol || {};
     const added = uiState.addedSymbols || {};
@@ -163,7 +166,7 @@ export default function Portfolio() {
     }
 
     return merged;
-  }, [snapshot, uiState]);
+  }, [valuation, uiState]);
 
   /* =========================
      Actions
@@ -219,15 +222,14 @@ export default function Portfolio() {
      Render
      ========================= */
   if (error) return <div style={{ color: "red" }}>{error}</div>;
-  if (!snapshot) return <div>Loading portfolio…</div>;
+  if (!valuation) return <div>Loading portfolio…</div>;
 
-  const totals = snapshot.portfolio?.totals || {};
+  const totals = valuation.totals || {};
 
   return (
     <div style={{ padding: "1.5rem" }}>
       <h1>Portfolio</h1>
 
-      {/* Summary */}
       <div className="card wide" style={{ marginBottom: 20 }}>
         <div style={{ opacity: 0.7 }}>TOTAL SNAPSHOT</div>
         <div style={{ fontSize: 24 }}>{fmtMoney(totals.snapshotValue)}</div>
@@ -243,7 +245,6 @@ export default function Portfolio() {
         </div>
       </div>
 
-      {/* Add */}
       <div className="card wide" style={{ marginBottom: 24 }}>
         <div style={{ marginBottom: 8, opacity: 0.7 }}>ADD POSITION (UI-ONLY)</div>
         <div style={{ display: "flex", gap: 8 }}>
@@ -253,7 +254,6 @@ export default function Portfolio() {
         </div>
       </div>
 
-      {/* Holdings */}
       <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
         {visiblePositions.map(p => {
           const draft = rowDraftQty[p.symbol] ?? String(p.qty ?? "");
@@ -264,7 +264,9 @@ export default function Portfolio() {
               <div style={{ display: "flex", justifyContent: "space-between" }}>
                 <div>
                   <div style={{ fontWeight: 600 }}>{p.symbol}</div>
-                  <div style={{ opacity: 0.6, fontSize: 12 }}>{p.priceSource}</div>
+                  <div style={{ opacity: 0.6, fontSize: 12 }}>
+                    {p.priceSource} · {p.priceFreshness?.level}
+                  </div>
                 </div>
 
                 <div style={{ textAlign: "right" }}>
