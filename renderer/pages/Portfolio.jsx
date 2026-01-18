@@ -256,7 +256,7 @@ export default function Portfolio() {
 
       {/* Summary */}
       <div className="card wide" style={{ marginBottom: 20 }}>
-        <div style={{ opacity: 0.7 }}>TOTAL SNAPSHOT</div>
+        <div style={{ opacity: 0.7 }}>TOTAL BOOK COST</div>
         <div style={{ fontSize: 24 }}>{fmtMoney(totals.snapshotValue)}</div>
         <div style={{ opacity: 0.7, marginTop: 8 }}>TOTAL LIVE</div>
         <div style={{ fontSize: 24 }}>{fmtMoney(totals.liveValue)}</div>
@@ -317,7 +317,7 @@ export default function Portfolio() {
 
                 {/* Values */}
                 <div style={{ textAlign: "right" }}>
-                  <div>Snapshot {fmtMoney(p.snapshotValue)}</div>
+                  <div>Book Cost {fmtMoney(p.snapshotValue)}</div>
                   <div>Live {fmtMoney(p.liveValue)}</div>
                   <div style={{ color: deltaColor }}>
                     Δ {fmtMoney(p.delta)} ({Number(p.deltaPct).toFixed(2)}%)
@@ -348,3 +348,4 @@ export default function Portfolio() {
     </div>
   );
 }
+
