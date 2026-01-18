@@ -7,49 +7,45 @@ import { runCapitalTrajectoryV2 } from "../../engine/growth/capitalTrajectoryEng
 import { buildSignalsV2Snapshot } from "../../engine/signals/signalsV2Engine.js";
 import { buildRiskCentreIntelligenceV2 } from "../../engine/risk/riskCentreIntelligenceV2.js";
 
-import { valuePortfolio } from "../../engine/portfolio/portfolioValuation.js";
 import { computeInsights } from "../../engine/insights/insightsEngine.js";
 import { resolveInvestableSymbol } from "../../engine/symbolUniverse/resolveInvestableSymbol.js";
 
+import { getPortfolioReadSnapshotV1 } from "../../engine/portfolio/portfolioReadSnapshotV1.js";
+
 /**
- * IPC Registry — Authoritative
- * -----------------------------
- * Registers all read-only IPC surfaces.
- * Resolver-gated.
- * No mutation.
- * No UI logic.
+ * IPC Registry — Authoritative (V8)
+ * --------------------------------
+ * Canonical READ-ONLY IPC surface.
+ *
+ * RULES:
+ * - NO hard-coded holdings
+ * - NO pricing logic
+ * - NO valuation logic
+ * - Engine snapshot is the single source of truth
+ * - Deterministic + cacheable
  */
 
 let cachedSnapshot = null;
 
 /* =========================
-   SNAPSHOT AUTHORITY
+   SNAPSHOT AUTHORITY (V8)
    ========================= */
 async function computeSnapshot() {
-  const HOLDINGS = [
-    { symbol: "NVDA", qty: 73, assetClass: "equity", totalCostBasis: 12881.13, currency: "CAD" },
-    { symbol: "ASML", qty: 10, assetClass: "equity", totalCostBasis: 8649.52, currency: "CAD" },
-    { symbol: "AVGO", qty: 74, assetClass: "equity", totalCostBasis: 26190.68, currency: "CAD" },
-    { symbol: "MSTR", qty: 24, assetClass: "equity", totalCostBasis: 12496.18, currency: "CAD" },
-    { symbol: "HOOD", qty: 70, assetClass: "equity", totalCostBasis: 3316.68, currency: "CAD" },
-    { symbol: "BMNR", qty: 115, assetClass: "equity", totalCostBasis: 6320.18, currency: "CAD" },
-    { symbol: "APLD", qty: 150, assetClass: "equity", totalCostBasis: 1615.58, currency: "CAD" },
-    { symbol: "BTC", qty: 0.251083, assetClass: "crypto", totalCostBasis: 24764.31, currency: "CAD" },
-    { symbol: "ETH", qty: 0.25, assetClass: "crypto", totalCostBasis: 597.9, currency: "CAD" }
-  ];
-
-  const valuation = await valuePortfolio(HOLDINGS);
+  const snapshot = await getPortfolioReadSnapshotV1();
 
   cachedSnapshot = Object.freeze({
     timestamp: Date.now(),
-    portfolio: valuation
+    portfolio: snapshot.valuation,
+    holdings: snapshot.holdings
   });
 
   return cachedSnapshot;
 }
 
 async function getCachedSnapshot() {
-  if (!cachedSnapshot) await computeSnapshot();
+  if (!cachedSnapshot) {
+    await computeSnapshot();
+  }
   return cachedSnapshot;
 }
 
@@ -59,7 +55,7 @@ async function getCachedSnapshot() {
 function buildGrowthV2PortfolioSnapshotFromCached(cached) {
   const totalValue = cached?.portfolio?.totals?.liveValue;
 
-  if (!totalValue) {
+  if (!Number.isFinite(totalValue)) {
     throw new Error("PORTFOLIO_SNAPSHOT_INVALID");
   }
 
@@ -68,7 +64,7 @@ function buildGrowthV2PortfolioSnapshotFromCached(cached) {
     : [];
 
   return Object.freeze({
-    contract: "PORTFOLIO_SNAPSHOT_V1",
+    contract: "PORTFOLIO_SNAPSHOT_V2",
     timestamp: cached.timestamp,
     currency: cached.portfolio.currency || "CAD",
     holdings: positions.map(p => ({
@@ -85,18 +81,18 @@ function buildSignalsV2PortfolioSnapshotFromCached(cached) {
     : [];
 
   return Object.freeze({
-    contract: "PORTFOLIO_SNAPSHOT_V1",
+    contract: "PORTFOLIO_SNAPSHOT_V2",
     timestamp: cached.timestamp,
     holdings: positions.map(p => ({
       symbol: p.symbol,
       assetClass: p.assetClass,
-      deltaPct: typeof p.deltaPct === "number" ? p.deltaPct : 0
+      deltaPct: Number.isFinite(p.deltaPct) ? p.deltaPct : 0
     }))
   });
 }
 
 /* =========================
-   REGISTER ALL IPC
+   REGISTER ALL IPC (READ-ONLY)
    ========================= */
 export function registerAllIpc(ipcMain) {
   // =========================
@@ -170,7 +166,7 @@ export function registerAllIpc(ipcMain) {
   });
 
   // =========================
-  // PORTFOLIO
+  // PORTFOLIO — CANONICAL READ
   // =========================
   ipcMain.handle("portfolio:getSnapshot", async () => {
     return await getCachedSnapshot();
@@ -239,9 +235,9 @@ export function registerAllIpc(ipcMain) {
     });
   });
 
-  /* =====================================================
-     APPEND-ONLY FIX — WATCHLIST (BOOT-SAFE STUB)
-     ===================================================== */
+  // =========================
+  // WATCHLIST — STUB (BOOT-SAFE)
+  // =========================
   ipcMain.handle("watchlist:candidates", async () => {
     return Object.freeze({
       contract: "WATCHLIST_CANDIDATES_V0_STUB",
