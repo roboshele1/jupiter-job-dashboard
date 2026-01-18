@@ -11,38 +11,42 @@
  * - Deterministic
  * - Frozen output
  *
- * ALL TABS must eventually read from THIS contract.
+ * ALL TABS must read from THIS contract.
  */
 
 import { valuePortfolio } from "./portfolioValuation.js";
-import engine from "./portfolioEngine.js";
+import holdingsAuthority from "../data/holdings.v4.authority.js";
 
 /**
  * Build the authoritative read snapshot.
  */
 export async function getPortfolioReadSnapshotV1() {
-  // 1️⃣ Read canonical holdings (qty only)
-  const rawSnapshot = engine.getPortfolioSnapshot();
-  const holdings = Array.isArray(rawSnapshot?.positions)
-    ? rawSnapshot.positions
+  // 1️⃣ Load canonical holdings authority (qty + cost basis)
+  const holdings = Array.isArray(holdingsAuthority)
+    ? holdingsAuthority
     : [];
 
-  // 2️⃣ Normalize for valuation layer
+  // 2️⃣ Validate + normalize for valuation engine
   const valuationInput = holdings.map(h => ({
     symbol: h.symbol,
-    qty: h.qty,
-    assetClass: ["BTC", "ETH"].includes(h.symbol) ? "crypto" : "equity",
-    totalCostBasis: 0 // placeholder until cost basis contract is unified
+    qty: Number(h.qty) || 0,
+    assetClass: h.assetClass,
+    totalCostBasis: Number(h.totalCostBasis) || 0,
+    currency: h.currency || "CAD"
   }));
 
-  // 3️⃣ Value portfolio (pricing + freshness + totals)
+  // 3️⃣ Run valuation (pricing + freshness + totals)
   const valuation = await valuePortfolio(valuationInput);
 
-  // 4️⃣ Emit frozen, canonical read snapshot
+  // 4️⃣ Emit frozen, canonical snapshot
   return Object.freeze({
     contract: "PORTFOLIO_READ_SNAPSHOT_V1",
     asOf: Date.now(),
-    holdings: Object.freeze([...holdings]),
+
+    holdings: Object.freeze(
+      valuationInput.map(h => Object.freeze({ ...h }))
+    ),
+
     valuation: Object.freeze(valuation)
   });
 }
