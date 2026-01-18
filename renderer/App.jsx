@@ -1,5 +1,8 @@
 // renderer/App.jsx
 // JUPITER — Application Shell (V1 Read-Only, Deterministic Bootstrap)
+// -----------------------------------------------------------------
+// Global layout + routing. Owns persistent UI chrome only.
+// No business logic. No engine access.
 
 import React, { useEffect } from "react";
 import { HashRouter as Router, Routes, Route } from "react-router-dom";
@@ -14,10 +17,12 @@ import RiskCentre from "./pages/RiskCentre";
 import MarketMonitor from "./pages/MarketMonitor";
 
 import Sidebar from "./components/Sidebar";
+import SystemHeartbeat from "./components/SystemHeartbeat";
 import { usePortfolioSnapshotStore } from "./state/portfolioSnapshotStore";
 
 /**
  * RAW PORTFOLIO SNAPSHOT (authoritative source)
+ * Bootstrap only — read-only, deterministic
  */
 const RAW_SNAPSHOT = {
   contract: "PORTFOLIO_SNAPSHOT_V1",
@@ -37,6 +42,7 @@ const RAW_SNAPSHOT = {
 
 /**
  * NORMALIZE SNAPSHOT FOR ALL CONSUMERS
+ * (App shell responsibility only)
  */
 function normalizeSnapshot(raw) {
   const holdings = raw.positions.map(p => ({
@@ -60,7 +66,6 @@ export default function App() {
 
   useEffect(() => {
     const normalized = normalizeSnapshot(RAW_SNAPSHOT);
-    console.log("[BOOTSTRAP] Writing NORMALIZED portfolio snapshot", normalized);
     writeSnapshot(normalized);
   }, [writeSnapshot]);
 
@@ -69,6 +74,9 @@ export default function App() {
       <div style={{ display: "flex", height: "100vh" }}>
         <Sidebar />
         <main style={{ flex: 1, overflowY: "auto" }}>
+          {/* GLOBAL SYSTEM HEARTBEAT (persistent across all tabs) */}
+          <SystemHeartbeat />
+
           <Routes>
             <Route path="/" element={<Dashboard />} />
             <Route path="/dashboard" element={<Dashboard />} />
