@@ -1,121 +1,86 @@
 // engine/runtime/taskRegistry.js
 // Path B — Multi-Engine Autonomous Discovery (AUTHORITATIVE)
 // -----------------------------------------------------------
-// Defines ALL autonomous runtime tasks and their cadence.
-// Runtime = scheduler + recorder only.
-// No intelligence logic here.
+// Scheduler ONLY. No intelligence logic.
+// Append-only evolution. Deterministic execution.
 
 import { valuePortfolio } from "../portfolio/portfolioValuation.js";
 
-/**
- * DISCOVERY ENGINES (lazy-loaded)
- * - Lazy imports prevent boot-time coupling
- * - Each engine is isolated, autonomous, and observable
- */
+/* ─────────────────────────────────────────────
+   DISCOVERY ENGINES (LAZY-LOADED)
+   ───────────────────────────────────────────── */
 
 async function runDiscoveryV1() {
-  const discoveryModule = await import(
-    "../discovery/runDiscoveryScan.js"
-  );
-
-  const runDiscoveryScan =
-    discoveryModule.runDiscoveryScan ||
-    discoveryModule.default?.runDiscoveryScan;
-
-  if (typeof runDiscoveryScan !== "function") {
-    throw new Error("DISCOVERY_V1_INVALID");
-  }
-
-  return runDiscoveryScan();
+  const m = await import("../discovery/runDiscoveryScan.js");
+  const fn = m.runDiscoveryScan || m.default?.runDiscoveryScan;
+  if (typeof fn !== "function") throw new Error("DISCOVERY_V1_INVALID");
+  return fn();
 }
 
 async function runEmergingThemes() {
-  const themeModule = await import(
-    "../discovery/orchestrator/discoveryThemeOrchestrator.js"
-  );
-
-  const buildThemes =
-    themeModule.buildThemes ||
-    themeModule.default?.buildThemes;
-
-  if (typeof buildThemes !== "function") {
-    throw new Error("DISCOVERY_THEMES_INVALID");
-  }
-
-  return buildThemes();
+  const m = await import("../discovery/orchestrator/discoveryThemeOrchestrator.js");
+  const fn = m.buildThemes || m.default?.buildThemes;
+  if (typeof fn !== "function") throw new Error("DISCOVERY_THEMES_INVALID");
+  return fn();
 }
 
 async function runRankedDiscovery() {
-  const rankedModule = await import(
-    "../discovery/ranking/rankedDiscoveryEngine.js"
-  );
-
-  const runRankedDiscoveryEngine =
-    rankedModule.runRankedDiscoveryEngine ||
-    rankedModule.default?.runRankedDiscoveryEngine;
-
-  if (typeof runRankedDiscoveryEngine !== "function") {
-    throw new Error("DISCOVERY_RANKED_INVALID");
-  }
-
-  return runRankedDiscoveryEngine();
+  const m = await import("../discovery/ranking/rankedDiscoveryEngine.js");
+  const fn =
+    m.runRankedDiscoveryEngine || m.default?.runRankedDiscoveryEngine;
+  if (typeof fn !== "function") throw new Error("DISCOVERY_RANKED_INVALID");
+  return fn();
 }
 
-/**
- * TASK REGISTRY — AUTHORITATIVE
- * -----------------------------
- * - Discovery V1 retained for safety and debugging
- * - Ranked Discovery is now a first-class autonomous engine
- * - Themes remains autonomous
- * - Trajectory intentionally excluded (matcher ≠ engine)
- */
+async function runWatchlistTrajectory() {
+  const m = await import("../watchlist/runWatchlistTrajectoryScan.js");
+  const fn =
+    m.runWatchlistTrajectoryScan ||
+    m.default?.runWatchlistTrajectoryScan;
+  if (typeof fn !== "function") {
+    throw new Error("WATCHLIST_TRAJECTORY_INVALID");
+  }
+  return fn();
+}
+
+/* ─────────────────────────────────────────────
+   TASK REGISTRY — AUTHORITATIVE
+   ───────────────────────────────────────────── */
 
 export const TASKS = [
-  // ─────────────────────────────────────────────
-  // CORE — PORTFOLIO (unchanged)
-  // ─────────────────────────────────────────────
+  // CORE — PORTFOLIO
   {
     key: "portfolio",
     intervalMs: 10_000,
-    run: async () => {
-      return valuePortfolio();
-    }
+    run: async () => valuePortfolio()
   },
 
-  // ─────────────────────────────────────────────
-  // DISCOVERY V1 — LEGACY / COMPOSITE
-  // (Fallback, debugging, full sweep)
-  // ─────────────────────────────────────────────
+  // DISCOVERY V1 — LEGACY / SAFETY
   {
     key: "discovery.v1",
     intervalMs: 15 * 60 * 1000,
-    run: async () => {
-      return runDiscoveryV1();
-    }
+    run: async () => runDiscoveryV1()
   },
 
-  // ─────────────────────────────────────────────
-  // PATH B — EMERGING THEMES (SLOW, HEAVY)
-  // Cadence: 6 hours (2 / 6 / 12 configurable later)
-  // ─────────────────────────────────────────────
+  // PATH B — EMERGING THEMES (HEAVY)
   {
     key: "discovery.themes",
     intervalMs: 6 * 60 * 60 * 1000,
-    run: async () => {
-      return runEmergingThemes();
-    }
+    run: async () => runEmergingThemes()
   },
 
-  // ─────────────────────────────────────────────
-  // PATH B — RANKED MARKET DISCOVERY (MEDIUM)
-  // Cadence: 45 minutes
-  // ─────────────────────────────────────────────
+  // PATH B — RANKED MARKET DISCOVERY (PRIMARY)
   {
     key: "discovery.ranked",
     intervalMs: 45 * 60 * 1000,
-    run: async () => {
-      return runRankedDiscovery();
-    }
+    run: async () => runRankedDiscovery()
+  },
+
+  // PATH B — WATCHLIST TRAJECTORY (DERIVED)
+  {
+    key: "watchlist.trajectory",
+    intervalMs: 90 * 60 * 1000,
+    run: async () => runWatchlistTrajectory()
   }
 ];
 
