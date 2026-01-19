@@ -1,36 +1,73 @@
-// Orchestrates resolvers. Valid if ANY resolver succeeds.
-// Fail-closed: unresolved => invalid.
+// engine/symbolUniverse/resolveInvestableSymbol.js
+// INVESTABLE SYMBOL ORCHESTRATOR — V3 (AUTHORITATIVE)
+// --------------------------------------------------
+// Single source of truth for symbol validity across:
+// - Electron
+// - Discovery Lab
+// - Manual research
+// - Engines
+//
+// Rules:
+// - Valid if ANY resolver succeeds
+// - Deterministic precedence
+// - Fail-closed
+// - No UI logic
+// - No IPC logic
 
+import { tsxResolver } from "./resolvers/tsxResolver.js";
 import { polygonResolver } from "./resolvers/polygonResolver.js";
 import { indexAliasResolver } from "./resolvers/indexAliasResolver.js";
 import { coinbaseResolver } from "./resolvers/coinbaseResolver.js";
 
 export async function resolveInvestableSymbol(inputSymbol) {
-  const symbol = String(inputSymbol || "").trim().toUpperCase();
-  if (!symbol) {
-    return { valid: false };
+  if (!inputSymbol || typeof inputSymbol !== "string") {
+    return Object.freeze({
+      valid: false,
+      reason: "INVALID_INPUT"
+    });
   }
 
-  // Correct precedence:
-  // 1) Equities / ETFs (Polygon)
-  // 2) Indices (aliases)
-  // 3) Crypto (Coinbase)
+  const symbol = inputSymbol.trim().toUpperCase();
+
+  // Resolver precedence is EXPLICIT and intentional:
+  // 1) TSX equities & ETFs (🇨🇦)
+  // 2) US equities & ETFs (🇺🇸 Polygon)
+  // 3) Crypto assets (Coinbase)
+  // 4) Index aliases (SPX, NDX, etc.)
   const resolvers = [
+    tsxResolver,
     polygonResolver,
-    indexAliasResolver,
-    coinbaseResolver
+    coinbaseResolver,
+    indexAliasResolver
   ];
 
   for (const resolver of resolvers) {
     try {
       const result = await resolver(symbol);
-      if (result?.valid) {
-        return result;
+      if (result && result.symbol) {
+        return Object.freeze({
+          valid: true,
+          ...result
+        });
       }
     } catch {
-      // continue
+      // Resolver failure is non-fatal — continue
     }
   }
 
-  return { valid: false };
+  return Object.freeze({
+    valid: false,
+    reason: "UNRESOLVED_SYMBOL"
+  });
 }
+
+export async function isInvestableSymbol(symbol) {
+  const r = await resolveInvestableSymbol(symbol);
+  return Boolean(r?.valid);
+}
+
+export default Object.freeze({
+  resolveInvestableSymbol,
+  isInvestableSymbol
+});
+

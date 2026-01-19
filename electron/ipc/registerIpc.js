@@ -1,4 +1,6 @@
 // electron/ipc/registerIpc.js
+import { ipcMain } from "electron";
+
 import { registerGrowthEngineIpc } from "./growthEngineIpc.js";
 import { registerSignalsIpc } from "./signalsIpc.js";
 import { registerGrowthCapitalTrajectoryV2Ipc } from "./growthCapitalTrajectoryV2Ipc.js";
@@ -14,10 +16,10 @@ import { resolveInvestableSymbol } from "../../engine/symbolUniverse/resolveInve
 /**
  * IPC Registry — Authoritative
  * -----------------------------
- * Registers all read-only IPC surfaces.
- * Resolver-gated.
- * No mutation.
- * No UI logic.
+ * Read-only IPC
+ * Resolver-gated
+ * No UI logic
+ * No mutation
  */
 
 let cachedSnapshot = null;
@@ -54,131 +56,23 @@ async function getCachedSnapshot() {
 }
 
 /* =========================
-   NORMALIZERS (V2 CONSUMERS)
-   ========================= */
-function buildGrowthV2PortfolioSnapshotFromCached(cached) {
-  const totalValue = cached?.portfolio?.totals?.liveValue;
-
-  if (!totalValue) {
-    throw new Error("PORTFOLIO_SNAPSHOT_INVALID");
-  }
-
-  const positions = Array.isArray(cached?.portfolio?.positions)
-    ? cached.portfolio.positions
-    : [];
-
-  return Object.freeze({
-    contract: "PORTFOLIO_SNAPSHOT_V1",
-    timestamp: cached.timestamp,
-    currency: cached.portfolio.currency || "CAD",
-    holdings: positions.map(p => ({
-      symbol: p.symbol,
-      value: p.liveValue
-    })),
-    totalValue
-  });
-}
-
-function buildSignalsV2PortfolioSnapshotFromCached(cached) {
-  const positions = Array.isArray(cached?.portfolio?.positions)
-    ? cached.portfolio.positions
-    : [];
-
-  return Object.freeze({
-    contract: "PORTFOLIO_SNAPSHOT_V1",
-    timestamp: cached.timestamp,
-    holdings: positions.map(p => ({
-      symbol: p.symbol,
-      assetClass: p.assetClass,
-      deltaPct: typeof p.deltaPct === "number" ? p.deltaPct : 0
-    }))
-  });
-}
-
-/* =========================
    REGISTER ALL IPC
    ========================= */
 export function registerAllIpc(ipcMain) {
-  // =========================
-  // GROWTH ENGINE (V1)
-  // =========================
   registerGrowthEngineIpc(ipcMain);
 
-  // =========================
-  // SIGNALS (V1)
-  // =========================
   registerSignalsIpc(ipcMain, async () => {
     return await getCachedSnapshot();
   });
 
-  // =========================
-  // GROWTH — CAPITAL TRAJECTORY V2
-  // =========================
   registerGrowthCapitalTrajectoryV2Ipc(ipcMain, async () => {
     return await getCachedSnapshot();
   });
 
-  // =========================
-  // SIGNALS V2
-  // =========================
-  ipcMain.handle("signals:getSnapshot:v2", async () => {
-    const cached = await getCachedSnapshot();
-
-    const growthTrajectory = await runCapitalTrajectoryV2({
-      portfolioSnapshot: buildGrowthV2PortfolioSnapshotFromCached(cached),
-      horizonMonths: 60,
-      assumptions: { expectedReturn: 0.10, aggressiveReturn: 0.18 }
-    });
-
-    return Object.freeze(
-      buildSignalsV2Snapshot({
-        portfolioSnapshot: buildSignalsV2PortfolioSnapshotFromCached(cached),
-        growthTrajectory,
-        riskSnapshot: null,
-        confidenceEvaluations: cached?.confidenceEvaluations || []
-      })
-    );
-  });
-
-  // =========================
-  // RISK CENTRE — INTELLIGENCE V2
-  // =========================
-  ipcMain.handle("riskCentre:intelligence:v2", async () => {
-    const cached = await getCachedSnapshot();
-
-    const growthTrajectory = await runCapitalTrajectoryV2({
-      portfolioSnapshot: buildGrowthV2PortfolioSnapshotFromCached(cached),
-      horizonMonths: 60,
-      assumptions: { expectedReturn: 0.10, aggressiveReturn: 0.18 }
-    });
-
-    const signalsSnapshot = buildSignalsV2Snapshot({
-      portfolioSnapshot: buildSignalsV2PortfolioSnapshotFromCached(cached),
-      growthTrajectory,
-      riskSnapshot: null,
-      confidenceEvaluations: cached?.confidenceEvaluations || []
-    });
-
-    return Object.freeze(
-      buildRiskCentreIntelligenceV2({
-        portfolioSnapshot: cached,
-        growthTrajectory,
-        signalsSnapshot,
-        previousState: null
-      })
-    );
-  });
-
-  // =========================
-  // PORTFOLIO
-  // =========================
   ipcMain.handle("portfolio:getSnapshot", async () => {
     return await getCachedSnapshot();
   });
 
-  // =========================
-  // INSIGHTS
-  // =========================
   ipcMain.handle("insights:compute", async () => {
     const snap = await getCachedSnapshot();
     return computeInsights(snap);
@@ -210,7 +104,7 @@ export function registerAllIpc(ipcMain) {
   });
 
   // =========================
-  // DISCOVERY — MANUAL
+  // DISCOVERY — MANUAL (FIXED)
   // =========================
   ipcMain.handle("discovery:analyze:symbol", async (_event, payload) => {
     if (!payload || typeof payload.symbol !== "string") {
@@ -218,7 +112,9 @@ export function registerAllIpc(ipcMain) {
     }
 
     const resolution = await resolveInvestableSymbol(payload.symbol);
-    if (!resolution?.valid) throw new Error("INVALID_SYMBOL");
+    if (!resolution?.valid) {
+      throw new Error("INVALID_SYMBOL");
+    }
 
     const engineModule = await import("../../engine/discovery/discoveryEngine.js");
     const runDiscoveryEngine =
@@ -232,22 +128,23 @@ export function registerAllIpc(ipcMain) {
       mode: "MANUAL_RESEARCH",
       resolution,
       result: await runDiscoveryEngine({
-        symbol: resolution.canonicalSymbol,
-        assetType: resolution.assetType,
+        symbol: resolution.symbol,        // ✅ FIX
+        assetType: resolution.assetClass, // ✅ FIX
         ownership: payload.ownership === true
       })
     });
   });
 
-  /* =====================================================
-     APPEND-ONLY FIX — WATCHLIST (BOOT-SAFE STUB)
-     ===================================================== */
+  // =========================
+  // WATCHLIST (STUB — SAFE)
+  // =========================
   ipcMain.handle("watchlist:candidates", async () => {
     return Object.freeze({
       contract: "WATCHLIST_CANDIDATES_V0_STUB",
       timestamp: Date.now(),
       candidates: [],
-      note: "Stubbed — engine to be wired in Phase D2.3"
+      note: "Stubbed — engine to be wired later"
     });
   });
 }
+
