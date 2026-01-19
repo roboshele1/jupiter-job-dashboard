@@ -1,15 +1,16 @@
 /**
- * Tactical Explanation Layer — D10.3B
- * ----------------------------------
+ * Tactical Explanation Layer — D10.4 (Explainable Signals)
+ * -------------------------------------------------------
  * Purpose:
- * Translate tactical signals into calm, everyday English
- * without altering scores or introducing advice.
+ * Translate tactical signals into asset-specific, numeric-aware
+ * explanations that clarify *why* a tactical posture exists.
  *
  * HARD RULES:
  * - Read-only
  * - Deterministic
- * - No thresholds invented here (must mirror scorer logic)
- * - Language only, no math decisions
+ * - Mirrors scorer thresholds exactly
+ * - No trading instructions
+ * - No recommendations
  */
 
 function explainTacticalContext(inputs = {}, scoreOutput = {}) {
@@ -24,51 +25,52 @@ function explainTacticalContext(inputs = {}, scoreOutput = {}) {
   } = inputs;
 
   const breakdown = scoreOutput.breakdown || {};
-
   const explanations = [];
 
   /* =============================
-     RSI (Emotional State)
+     RSI — Emotional Intensity
   ============================== */
-  if (rsi14 < 30) {
-    explanations.push(
-      "The price has been pushed down heavily, suggesting selling pressure may be close to exhaustion."
-    );
-  } else if (rsi14 >= 40 && rsi14 <= 60) {
-    explanations.push(
-      "The price is behaving normally, with no strong emotional buying or selling."
-    );
-  } else if (rsi14 > 70) {
-    explanations.push(
-      "The price has risen quickly, which can indicate recent buying enthusiasm may be overheated."
-    );
-  } else {
-    explanations.push(
-      "The price shows mild emotional behavior, but nothing extreme."
-    );
-  }
-
-  /* =============================
-     Trend Distance (Context)
-  ============================== */
-  if (price != null && sma200 != null) {
-    const distance = (price - sma200) / sma200;
-
-    if (distance > 0.25) {
+  if (typeof rsi14 === "number") {
+    if (rsi14 < 30) {
       explanations.push(
-        "The price is far above its long-term average, meaning expectations may be stretched."
+        `RSI is ${rsi14.toFixed(1)}, indicating heavy selling pressure that may be approaching exhaustion.`
       );
-    } else if (distance >= -0.10 && distance <= 0.15) {
+    } else if (rsi14 >= 40 && rsi14 <= 60) {
       explanations.push(
-        "The price is close to its long-term trend, suggesting balanced market expectations."
+        `RSI is ${rsi14.toFixed(1)}, reflecting neutral price behavior without emotional extremes.`
       );
-    } else if (distance < -0.20) {
+    } else if (rsi14 > 70) {
       explanations.push(
-        "The price is well below its long-term trend, which may reflect pessimism or neglect."
+        `RSI is ${rsi14.toFixed(1)}, suggesting recent buying enthusiasm may be stretched.`
       );
     } else {
       explanations.push(
-        "The price is somewhat away from its long-term trend, but not in an extreme way."
+        `RSI is ${rsi14.toFixed(1)}, showing mild directional bias without extreme conditions.`
+      );
+    }
+  }
+
+  /* =============================
+     Trend Distance — Valuation Context
+  ============================== */
+  if (typeof price === "number" && typeof sma200 === "number") {
+    const distancePct = ((price - sma200) / sma200) * 100;
+
+    if (distancePct > 25) {
+      explanations.push(
+        `Price is approximately ${distancePct.toFixed(1)}% above its long-term average, indicating elevated expectations relative to trend.`
+      );
+    } else if (distancePct >= -10 && distancePct <= 15) {
+      explanations.push(
+        `Price is within ${distancePct.toFixed(1)}% of its long-term trend, suggesting balanced market expectations.`
+      );
+    } else if (distancePct < -20) {
+      explanations.push(
+        `Price is roughly ${Math.abs(distancePct).toFixed(1)}% below its long-term trend, reflecting pessimism or reduced interest.`
+      );
+    } else {
+      explanations.push(
+        `Price deviates moderately from its long-term trend by ${distancePct.toFixed(1)}%.`
       );
     }
   }
@@ -76,50 +78,59 @@ function explainTacticalContext(inputs = {}, scoreOutput = {}) {
   /* =============================
      Momentum Consistency
   ============================== */
-  const positives = [momentum3m, momentum6m, momentum12m].filter(v => v > 0)
-    .length;
+  const momentumValues = [momentum3m, momentum6m, momentum12m].filter(
+    (v) => typeof v === "number"
+  );
 
-  if (positives === 3) {
-    explanations.push(
-      "Momentum has been positive across short-, medium-, and long-term periods."
-    );
-  } else if (positives === 0) {
-    explanations.push(
-      "Momentum has been weak across multiple timeframes."
-    );
-  } else {
-    explanations.push(
-      "Momentum is mixed, with strength in some periods and weakness in others."
-    );
+  const positives = momentumValues.filter((v) => v > 0).length;
+
+  if (momentumValues.length === 3) {
+    if (positives === 3) {
+      explanations.push(
+        "Momentum is positive across short-, medium-, and long-term periods, indicating consistent trend strength."
+      );
+    } else if (positives === 0) {
+      explanations.push(
+        "Momentum is negative across multiple timeframes, indicating sustained weakness."
+      );
+    } else {
+      explanations.push(
+        "Momentum is mixed, with strength present in some periods and weakness in others."
+      );
+    }
   }
 
   /* =============================
-     Volatility (Risk Environment)
+     Volatility — Risk Environment
   ============================== */
-  if (atrPercent > 0.06) {
-    explanations.push(
-      "Price swings are large, meaning risk and uncertainty are elevated."
-    );
-  } else if (atrPercent >= 0.02 && atrPercent <= 0.04) {
-    explanations.push(
-      "Price movements are steady and within a normal range."
-    );
-  } else if (atrPercent < 0.015) {
-    explanations.push(
-      "Price movements are unusually calm, which can occur during consolidation."
-    );
-  } else {
-    explanations.push(
-      "Volatility is present but not extreme."
-    );
+  if (typeof atrPercent === "number") {
+    const atrPct = atrPercent * 100;
+
+    if (atrPercent > 0.06) {
+      explanations.push(
+        `Average price swings are elevated at roughly ${atrPct.toFixed(1)}%, indicating higher uncertainty.`
+      );
+    } else if (atrPercent >= 0.02 && atrPercent <= 0.04) {
+      explanations.push(
+        `Price volatility is moderate at approximately ${atrPct.toFixed(1)}%, reflecting a stable trading environment.`
+      );
+    } else if (atrPercent < 0.015) {
+      explanations.push(
+        `Price volatility is unusually low at around ${atrPct.toFixed(1)}%, which can occur during consolidation phases.`
+      );
+    } else {
+      explanations.push(
+        `Volatility is present at about ${atrPct.toFixed(1)}%, but not at extreme levels.`
+      );
+    }
   }
 
   return Object.freeze({
     summary:
-      "Market behavior was reviewed to understand stability and emotional extremes, not to time trades.",
+      "Tactical signals were evaluated to understand price behavior, trend context, momentum consistency, and risk conditions.",
     details: Object.freeze(explanations),
     disclaimer:
-      "This explanation describes observed market behavior only. It does not predict future price movement.",
+      "This explanation describes observed market conditions only. It does not provide trading instructions or predict future prices.",
   });
 }
 
