@@ -1,45 +1,65 @@
-// Node-only resolver for crypto symbols via Coinbase products
-// Strict: accepts only true spot crypto bases (USD-quoted)
+// engine/symbolUniverse/resolvers/coinbaseResolver.js
+// COINBASE CRYPTO RESOLVER — V2 (AUTHORITATIVE)
+// --------------------------------------------
+// Resolves native crypto assets ONLY (BTC, ETH, etc).
+// Explicit allowlist to prevent ETF / equity contamination.
+// Must execute BEFORE Polygon resolver.
+//
+// Rules:
+// - Native crypto symbols only
+// - Fail-closed
+// - Deterministic
+// - No ETF resolution
+// - No fallback guessing
 
-import fetch from "node-fetch";
-
-const COINBASE_PRODUCTS = "https://api.exchange.coinbase.com/products";
-
-// Known non-crypto symbols that may appear in Coinbase products
-const NON_CRYPTO_SYMBOLS = new Set([
-  "SPX",
-  "NDX",
-  "DJI",
-  "RUT",
-  "FTSE"
-]);
-
-export async function coinbaseResolver(symbol) {
-  if (NON_CRYPTO_SYMBOLS.has(symbol)) return null;
-
-  try {
-    const res = await fetch(COINBASE_PRODUCTS, { timeout: 5000 });
-    if (!res.ok) return null;
-
-    const products = await res.json();
-    if (!Array.isArray(products)) return null;
-
-    const hit = products.find(
-      p =>
-        p?.base_currency === symbol &&
-        p?.quote_currency === "USD" &&
-        p?.status === "online"
-    );
-
-    if (!hit) return null;
-
-    return {
-      valid: true,
-      assetType: "crypto",
-      canonicalSymbol: hit.base_currency,
-      source: "coinbase"
-    };
-  } catch {
-    return null;
+const NATIVE_CRYPTO_ALLOWLIST = Object.freeze({
+  BTC: {
+    symbol: "BTC",
+    name: "Bitcoin",
+    currency: "USD"
+  },
+  ETH: {
+    symbol: "ETH",
+    name: "Ethereum",
+    currency: "USD"
+  },
+  SOL: {
+    symbol: "SOL",
+    name: "Solana",
+    currency: "USD"
+  },
+  ADA: {
+    symbol: "ADA",
+    name: "Cardano",
+    currency: "USD"
+  },
+  AVAX: {
+    symbol: "AVAX",
+    name: "Avalanche",
+    currency: "USD"
   }
+});
+
+export async function coinbaseResolver(inputSymbol) {
+  if (!inputSymbol || typeof inputSymbol !== "string") return null;
+
+  const sym = inputSymbol.trim().toUpperCase();
+
+  const meta = NATIVE_CRYPTO_ALLOWLIST[sym];
+  if (!meta) return null;
+
+  return Object.freeze({
+    symbol: meta.symbol,
+    name: meta.name,
+    exchange: "CRYPTO",
+    country: "GLOBAL",
+    currency: meta.currency,
+    assetClass: "crypto",
+    source: "coinbaseResolver",
+    canonical: true
+  });
 }
+
+export default Object.freeze({
+  coinbaseResolver
+});

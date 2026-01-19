@@ -42,6 +42,24 @@ function getSymbol(r) {
   return r?.symbol?.symbol || r?.symbol || "";
 }
 
+function formatDisplaySymbol({ input, resolution }) {
+  if (!resolution) return input || '';
+
+  const name = resolution.name || 'Unknown';
+  const symbol = resolution.symbol || input;
+  const exchangeMap = {
+    XNAS: 'NASDAQ',
+    XNYS: 'NYSE',
+    ARCX: 'NYSE Arca',
+    TSX: 'TSX',
+    CRYPTO: 'Crypto'
+  };
+  const exchange = exchangeMap[resolution.exchange] || resolution.exchange || '';
+
+  return input + ' → ' + name + ' (' + symbol + (exchange ? ' · ' + exchange : '') + ')';
+}
+
+
 function convictionLabelFromNormalized(n) {
   const x = Number(n ?? 0);
   if (x >= 0.7) return "High";
@@ -200,7 +218,7 @@ export default function DiscoveryLab() {
 
           {manual && !manualError && (
             <div style={{ marginTop: "0.9rem" }}>
-              <h3>{manual.symbol}</h3>
+              <h3>{formatDisplaySymbol({ input: manualSymbol, resolution: manualResult?.resolution })}</h3>
               <span style={badgeStyle(manualDecision)}>{manualDecision}</span>
               <span style={{ marginLeft: "0.5rem" }}>Conviction {manualConvPct}%</span>
 
