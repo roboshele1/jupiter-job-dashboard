@@ -1,29 +1,35 @@
 // renderer/components/SystemHeartbeat.jsx
-// JUPITER — Global System Heartbeat (Read-Only, V1)
-// -------------------------------------------------
-// Purpose: Provide institutional-grade assurance that
-// Jupiter is actively running background scanners.
-// No data dependencies. No side effects.
+// JUPITER — Global System Heartbeat (Truth-Wired, V2)
+// --------------------------------------------------
+// Reports real autonomous runtime health via IPC.
+// No simulation. No assumptions.
 
 import React, { useEffect, useState } from "react";
 
-const STATES = [
-  "Scanning emerging themes",
-  "Ranking discovery candidates",
-  "Monitoring signals & momentum",
-  "Watching volatility regimes",
-  "Idle · No actionable signals"
-];
-
 export default function SystemHeartbeat() {
-  const [idx, setIdx] = useState(0);
+  const [health, setHealth] = useState({ lastUpdated: null, keys: [] });
+
+  async function fetchHealth() {
+    try {
+      const h = await window.jupiter.invoke("runtime:getHealth");
+      setHealth(h || { lastUpdated: null, keys: [] });
+    } catch {
+      setHealth({ lastUpdated: null, keys: [] });
+    }
+  }
 
   useEffect(() => {
-    const id = setInterval(() => {
-      setIdx((i) => (i + 1) % STATES.length);
-    }, 20000); // slow, calm rotation
+    fetchHealth();
+    const id = setInterval(fetchHealth, 10_000);
     return () => clearInterval(id);
   }, []);
+
+  const now = Date.now();
+  const last = health.lastUpdated;
+  const minutesAgo =
+    last ? Math.floor((now - last) / 60000) : null;
+
+  const isRunning = Boolean(last);
 
   return (
     <div
@@ -39,37 +45,30 @@ export default function SystemHeartbeat() {
         zIndex: 10
       }}
     >
-      {/* Pulse indicator */}
       <div
         style={{
           width: 10,
           height: 10,
           borderRadius: "50%",
-          background: "#2ecc71",
-          boxShadow: "0 0 6px rgba(46, 204, 113, 0.8)",
-          animation: "pulse 2.5s ease-in-out infinite"
+          background: isRunning ? "#2ecc71" : "#999",
+          boxShadow: isRunning
+            ? "0 0 6px rgba(46, 204, 113, 0.8)"
+            : "none"
         }}
       />
 
-      {/* Copy */}
       <div style={{ display: "flex", flexDirection: "column" }}>
         <div style={{ fontSize: 13, fontWeight: 500 }}>
-          Scanner running · Monitoring markets
+          {isRunning
+            ? "Scanner running · Autonomous"
+            : "Scanner idle · Not yet run"}
         </div>
         <div style={{ fontSize: 11, opacity: 0.65 }}>
-          {STATES[idx]}
+          {isRunning
+            ? `Last discovery scan: ${minutesAgo} min ago`
+            : "Awaiting first autonomous execution"}
         </div>
       </div>
-
-      <style>
-        {`
-          @keyframes pulse {
-            0%   { transform: scale(0.9); opacity: 0.6; }
-            50%  { transform: scale(1.2); opacity: 1; }
-            100% { transform: scale(0.9); opacity: 0.6; }
-          }
-        `}
-      </style>
     </div>
   );
 }

@@ -1,13 +1,19 @@
 // engine/runtime/runtimeLoop.js
-// Jupiter continuous runtime daemon
+// Jupiter continuous runtime daemon (Autonomy-safe, explicit tasks)
+// ---------------------------------------------------------------
+// Runs selected autonomous tasks on fixed intervals.
+// No UI coupling. No IPC. No renderer dependencies.
 
-import { TASKS } from "./taskRegistry.js";
 import { writeSnapshot } from "./runtimeStore.js";
 
-export function startRuntimeLoop() {
+/**
+ * Start the runtime loop with an explicit task list.
+ * This guarantees deterministic and intentional autonomy.
+ */
+export function startRuntimeLoop(tasks = []) {
   console.log("[RUNTIME] Jupiter runtime loop starting…");
 
-  TASKS.forEach(task => {
+  tasks.forEach((task) => {
     async function tick() {
       try {
         const result = await task.run();
@@ -18,7 +24,9 @@ export function startRuntimeLoop() {
       }
     }
 
+    // Run immediately, then on interval
     tick();
     setInterval(tick, task.intervalMs);
   });
 }
+

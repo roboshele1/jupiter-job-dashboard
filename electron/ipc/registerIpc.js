@@ -11,6 +11,8 @@ import { valuePortfolio } from "../../engine/portfolio/portfolioValuation.js";
 import { computeInsights } from "../../engine/insights/insightsEngine.js";
 import { resolveInvestableSymbol } from "../../engine/symbolUniverse/resolveInvestableSymbol.js";
 
+import { getRuntimeHealth } from "../../engine/runtime/runtimeStore.js";
+
 /**
  * IPC Registry — Authoritative
  * -----------------------------
@@ -54,109 +56,70 @@ async function getCachedSnapshot() {
 }
 
 /* =========================
-   NORMALIZERS (V2 CONSUMERS)
-   ========================= */
-function buildGrowthV2PortfolioSnapshotFromCached(cached) {
-  const totalValue = cached?.portfolio?.totals?.liveValue;
-
-  if (!totalValue) {
-    throw new Error("PORTFOLIO_SNAPSHOT_INVALID");
-  }
-
-  const positions = Array.isArray(cached?.portfolio?.positions)
-    ? cached.portfolio.positions
-    : [];
-
-  return Object.freeze({
-    contract: "PORTFOLIO_SNAPSHOT_V1",
-    timestamp: cached.timestamp,
-    currency: cached.portfolio.currency || "CAD",
-    holdings: positions.map(p => ({
-      symbol: p.symbol,
-      value: p.liveValue
-    })),
-    totalValue
-  });
-}
-
-function buildSignalsV2PortfolioSnapshotFromCached(cached) {
-  const positions = Array.isArray(cached?.portfolio?.positions)
-    ? cached.portfolio.positions
-    : [];
-
-  return Object.freeze({
-    contract: "PORTFOLIO_SNAPSHOT_V1",
-    timestamp: cached.timestamp,
-    holdings: positions.map(p => ({
-      symbol: p.symbol,
-      assetClass: p.assetClass,
-      deltaPct: typeof p.deltaPct === "number" ? p.deltaPct : 0
-    }))
-  });
-}
-
-/* =========================
    REGISTER ALL IPC
    ========================= */
 export function registerAllIpc(ipcMain) {
-  // =========================
-  // GROWTH ENGINE (V1)
-  // =========================
   registerGrowthEngineIpc(ipcMain);
 
-  // =========================
-  // SIGNALS (V1)
-  // =========================
   registerSignalsIpc(ipcMain, async () => {
     return await getCachedSnapshot();
   });
 
-  // =========================
-  // GROWTH — CAPITAL TRAJECTORY V2
-  // =========================
   registerGrowthCapitalTrajectoryV2Ipc(ipcMain, async () => {
     return await getCachedSnapshot();
   });
 
-  // =========================
-  // SIGNALS V2
-  // =========================
   ipcMain.handle("signals:getSnapshot:v2", async () => {
     const cached = await getCachedSnapshot();
 
     const growthTrajectory = await runCapitalTrajectoryV2({
-      portfolioSnapshot: buildGrowthV2PortfolioSnapshotFromCached(cached),
+      portfolioSnapshot: {
+        contract: "PORTFOLIO_SNAPSHOT_V1",
+        timestamp: cached.timestamp,
+        currency: cached.portfolio.currency || "CAD",
+        holdings: cached.portfolio.positions.map(p => ({
+          symbol: p.symbol,
+          value: p.liveValue
+        })),
+        totalValue: cached.portfolio.totals.liveValue
+      },
       horizonMonths: 60,
       assumptions: { expectedReturn: 0.10, aggressiveReturn: 0.18 }
     });
 
     return Object.freeze(
       buildSignalsV2Snapshot({
-        portfolioSnapshot: buildSignalsV2PortfolioSnapshotFromCached(cached),
+        portfolioSnapshot: cached,
         growthTrajectory,
         riskSnapshot: null,
-        confidenceEvaluations: cached?.confidenceEvaluations || []
+        confidenceEvaluations: []
       })
     );
   });
 
-  // =========================
-  // RISK CENTRE — INTELLIGENCE V2
-  // =========================
   ipcMain.handle("riskCentre:intelligence:v2", async () => {
     const cached = await getCachedSnapshot();
 
     const growthTrajectory = await runCapitalTrajectoryV2({
-      portfolioSnapshot: buildGrowthV2PortfolioSnapshotFromCached(cached),
+      portfolioSnapshot: {
+        contract: "PORTFOLIO_SNAPSHOT_V1",
+        timestamp: cached.timestamp,
+        currency: cached.portfolio.currency || "CAD",
+        holdings: cached.portfolio.positions.map(p => ({
+          symbol: p.symbol,
+          value: p.liveValue
+        })),
+        totalValue: cached.portfolio.totals.liveValue
+      },
       horizonMonths: 60,
       assumptions: { expectedReturn: 0.10, aggressiveReturn: 0.18 }
     });
 
     const signalsSnapshot = buildSignalsV2Snapshot({
-      portfolioSnapshot: buildSignalsV2PortfolioSnapshotFromCached(cached),
+      portfolioSnapshot: cached,
       growthTrajectory,
       riskSnapshot: null,
-      confidenceEvaluations: cached?.confidenceEvaluations || []
+      confidenceEvaluations: []
     });
 
     return Object.freeze(
@@ -169,85 +132,20 @@ export function registerAllIpc(ipcMain) {
     );
   });
 
-  // =========================
-  // PORTFOLIO
-  // =========================
   ipcMain.handle("portfolio:getSnapshot", async () => {
     return await getCachedSnapshot();
   });
 
-  // =========================
-  // INSIGHTS
-  // =========================
   ipcMain.handle("insights:compute", async () => {
     const snap = await getCachedSnapshot();
     return computeInsights(snap);
   });
 
-  // =========================
-  // DISCOVERY — AUTONOMOUS
-  // =========================
-  ipcMain.handle("discovery:run", async () => {
-    const discoveryModule = await import("../../engine/discovery/runDiscoveryScan.js");
-    const themeModule = await import("../../engine/discovery/orchestrator/discoveryThemeOrchestrator.js");
-
-    const runDiscoveryScan =
-      discoveryModule.runDiscoveryScan || discoveryModule.default?.runDiscoveryScan;
-
-    const buildThemes =
-      themeModule.buildThemes || themeModule.default?.buildThemes;
-
-    if (!runDiscoveryScan || !buildThemes) {
-      throw new Error("DISCOVERY_PIPELINE_INVALID");
-    }
-
-    const results = await runDiscoveryScan();
-
-    return Object.freeze({
-      ...results,
-      emergingThemes: buildThemes({ canonical: results.canonical || [] })
-    });
-  });
-
-  // =========================
-  // DISCOVERY — MANUAL
-  // =========================
-  ipcMain.handle("discovery:analyze:symbol", async (_event, payload) => {
-    if (!payload || typeof payload.symbol !== "string") {
-      throw new Error("INVALID_PAYLOAD");
-    }
-
-    const resolution = await resolveInvestableSymbol(payload.symbol);
-    if (!resolution?.valid) throw new Error("INVALID_SYMBOL");
-
-    const engineModule = await import("../../engine/discovery/discoveryEngine.js");
-    const runDiscoveryEngine =
-      engineModule.runDiscoveryEngine || engineModule.default?.runDiscoveryEngine;
-
-    if (typeof runDiscoveryEngine !== "function") {
-      throw new Error("DISCOVERY_ENGINE_INVALID");
-    }
-
-    return Object.freeze({
-      mode: "MANUAL_RESEARCH",
-      resolution,
-      result: await runDiscoveryEngine({
-        symbol: resolution.canonicalSymbol,
-        assetType: resolution.assetType,
-        ownership: payload.ownership === true
-      })
-    });
-  });
-
-  /* =====================================================
-     APPEND-ONLY FIX — WATCHLIST (BOOT-SAFE STUB)
-     ===================================================== */
-  ipcMain.handle("watchlist:candidates", async () => {
-    return Object.freeze({
-      contract: "WATCHLIST_CANDIDATES_V0_STUB",
-      timestamp: Date.now(),
-      candidates: [],
-      note: "Stubbed — engine to be wired in Phase D2.3"
-    });
+  /* =========================
+     RUNTIME HEALTH (TRUTH SOURCE)
+     ========================= */
+  ipcMain.handle("runtime:getHealth", async () => {
+    return Object.freeze(getRuntimeHealth());
   });
 }
+
