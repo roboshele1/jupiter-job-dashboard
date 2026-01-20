@@ -1,38 +1,32 @@
+// electron/ipc/asymmetryIpc.js
+// Moonshot Asymmetry IPC — read-only bridge
+// ESM (Electron) → CommonJS (Engine)
+
+import autonomousMoonshotScanner from "../../engine/asymmetry/autonomousMoonshotScanner.js";
+import universeScheduler from "../../engine/asymmetry/universeScheduler.js";
+
 /**
- * Asymmetry IPC
- * Read-only bridge between UI and Moonshot Asymmetry Engines
- * NO logic, NO mutation, NO caching
+ * Register Moonshot / Asymmetry IPC
+ * STRICTLY READ-ONLY
  */
-
-const autonomousMoonshotScanner = require("../../engine/asymmetry/autonomousMoonshotScanner");
-const marketDataAdapter = require("../../engine/market/adapters/marketDataAdapter");
-
-module.exports = function registerAsymmetryIpc(ipcMain) {
-  /**
-   * Pulls full universe, normalizes assets, runs moonshot scan
-   */
-  ipcMain.handle("asymmetry:scan", async (_event, { universe }) => {
-    if (!Array.isArray(universe)) {
-      throw new Error("Universe must be an array");
+export default function registerAsymmetryIpc(ipcMain) {
+  // Universe provider (delegated to scheduler)
+  ipcMain.handle("market:universe:get", async () => {
+    if (typeof universeScheduler.buildUniverse === "function") {
+      return universeScheduler.buildUniverse();
     }
 
-    const hydrated = [];
-
-    for (const u of universe) {
-      if (!u?.symbol) continue;
-
-      try {
-        const asset = await marketDataAdapter(u.symbol);
-        hydrated.push(asset);
-      } catch (err) {
-        hydrated.push({
-          symbol: u.symbol,
-          status: "ERROR",
-          error: err.message
-        });
-      }
+    if (typeof universeScheduler.getUniverse === "function") {
+      return universeScheduler.getUniverse();
     }
 
-    return autonomousMoonshotScanner(hydrated);
+    throw new Error(
+      "UniverseScheduler does not expose a universe builder"
+    );
   });
-};
+
+  // Asymmetry scan
+  ipcMain.handle("asymmetry:scan", async (_evt, { universe }) => {
+    return autonomousMoonshotScanner(universe);
+  });
+}

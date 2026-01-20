@@ -3,7 +3,10 @@ import path from "path";
 import "dotenv/config";
 
 import { valuePortfolio } from "../engine/portfolio/portfolioValuation.js";
-import { registerAllIpc } from "./ipc/registerIpc.js"; // ← ADDITIVE, REQUIRED
+import { registerAllIpc } from "./ipc/registerIpc.js";
+
+// ✅ ESM-SAFE IPC IMPORT (FIX)
+import registerAsymmetryIpc from "./ipc/asymmetryIpc.js";
 
 let mainWindow;
 
@@ -46,7 +49,8 @@ function createWindow() {
 }
 
 app.whenReady().then(async () => {
-  registerAllIpc(ipcMain); // ← REQUIRED, DO NOT MOVE
+  registerAllIpc(ipcMain);          // existing invariant
+  registerAsymmetryIpc(ipcMain);   // ✅ FIXED, SAFE
   await computeAndCache();
   createWindow();
 });
@@ -76,11 +80,9 @@ function startJupiterRuntimeOnce() {
 
   runtimeStarted = true;
   console.log("[RUNTIME] Starting Jupiter autonomous loop");
-
   startRuntimeLoop();
 }
 
-// Ensure runtime starts exactly once when app is ready
 app.whenReady().then(() => {
   startJupiterRuntimeOnce();
 });

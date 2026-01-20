@@ -14,6 +14,7 @@ const items = [
   { label: "Risk Centre", path: "/risk" },
   // ✅ FIX: must match router exactly
   { label: "Market Monitor", path: "/market" },
+  { label: "Moonshot Lab", path: "/moonshot" },
 ];
 
 export default function Sidebar() {
@@ -40,4 +41,3 @@ export default function Sidebar() {
     </aside>
   );
 }
-
