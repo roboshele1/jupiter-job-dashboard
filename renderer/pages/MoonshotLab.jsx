@@ -1,166 +1,142 @@
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 
 /**
- * MOONSHOT ASYMMETRY LAB
- * Live, transparent, institutional-grade scan console
- * Engines are read-only consumers
+ * Moonshot Asymmetry Lab
+ * --------------------------------------------------
+ * Live telemetry view of autonomous asymmetry scans
+ *
+ * HARD RULES:
+ * - Read-only
+ * - No scan logic
+ * - No IPC mutation
+ * - UI reflects engine truth only
  */
 
 export default function MoonshotLab() {
-  const [results, setResults] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [lastRun, setLastRun] = useState(null);
-  const [expanded, setExpanded] = useState({});
-
-  async function runScan() {
-    setLoading(true);
-    try {
-      const universe = await window.jupiter.invoke("market:universe:get");
-      const scan = await window.jupiter.invoke("asymmetry:scan", { universe });
-      setResults(scan);
-      setLastRun(new Date().toISOString());
-    } catch (e) {
-      console.error("Moonshot scan failed:", e);
-    } finally {
-      setLoading(false);
-    }
-  }
+  const [status, setStatus] = useState("CONNECTING");
+  const [events, setEvents] = useState([]);
 
   useEffect(() => {
-    runScan();
+    let alive = true;
+
+    async function pollTelemetry() {
+      try {
+        const snap = await window.jupiter.invoke(
+          "asymmetry:telemetry:get"
+        );
+
+        if (!alive) return;
+
+        if (snap?.events) {
+          setEvents(snap.events);
+          setStatus("CONNECTED");
+        }
+      } catch (err) {
+        console.error("[MoonshotLab] Telemetry poll failed", err);
+        setStatus("ERROR");
+      }
+    }
+
+    // Initial pull
+    pollTelemetry();
+
+    // Poll every 2s (deterministic, safe)
+    const interval = setInterval(pollTelemetry, 2000);
+
+    return () => {
+      alive = false;
+      clearInterval(interval);
+    };
   }, []);
 
-  if (loading || !results) {
-    return <div style={{ padding: "2rem" }}>Running asymmetry scan…</div>;
-  }
+  const latestEvent = events.length > 0
+    ? events[events.length - 1]
+    : null;
 
-  const { surfaced = [], latent = [], rejected = [] } = results;
-
-  function renderRow(r, i, type) {
-    return (
-      <React.Fragment key={`${type}-${r.symbol}-${i}`}>
-        <tr
-          onClick={() =>
-            setExpanded((p) => ({ ...p, [`${type}-${i}`]: !p[`${type}-${i}`] }))
-          }
-          style={{ cursor: "pointer" }}
-        >
-          <td>{r.symbol}</td>
-          <td>{type}</td>
-          <td>{r.asymmetryScore}</td>
-          <td>{r.regime || "—"}</td>
-          <td>{r.status}</td>
-          <td>{r.lastEvaluated || "—"}</td>
-        </tr>
-
-        {expanded[`${type}-${i}`] && (
-          <tr>
-            <td colSpan={6} style={{ background: "#0f172a" }}>
-              <div style={{ fontSize: "0.8rem" }}>
-                <strong>Signal Breakdown</strong>
-                {Object.entries(r.signalBreakdown || {}).map(([k, v]) => (
-                  <div
-                    key={k}
-                    style={{ display: "flex", justifyContent: "space-between" }}
-                  >
-                    <span>{k}</span>
-                    <span>{v}</span>
-                  </div>
-                ))}
-
-                {Array.isArray(r.disqualificationReasons) && (
-                  <>
-                    <strong style={{ marginTop: "0.5rem", display: "block" }}>
-                      Rejection Reasons
-                    </strong>
-                    <ul>
-                      {r.disqualificationReasons.map((d, j) => (
-                        <li key={j}>{d}</li>
-                      ))}
-                    </ul>
-                  </>
-                )}
-              </div>
-            </td>
-          </tr>
-        )}
-      </React.Fragment>
-    );
-  }
+  const surfacedTickers =
+    latestEvent?.snapshot?.surfaced ?? [];
 
   return (
-    <div style={{ padding: "2rem", height: "100%", overflow: "hidden" }}>
+    <div style={{ padding: "32px" }}>
       <h1>Moonshot Asymmetry Lab</h1>
-      <p style={{ opacity: 0.8 }}>
-        Autonomous asymmetric intelligence — full transparency, no heuristics.
+      <p style={{ opacity: 0.7 }}>
+        Live autonomous scan telemetry · Streaming
       </p>
 
-      <div style={{ marginBottom: "1rem" }}>
-        <button onClick={runScan}>Run Scan</button>
-        {lastRun && (
-          <span style={{ marginLeft: "1rem", fontSize: "0.75rem" }}>
-            Last run: {new Date(lastRun).toLocaleString()}
-          </span>
+      <p style={{ marginTop: "12px", opacity: 0.6 }}>
+        Status: {status} · Events buffered: {events.length}
+      </p>
+
+      <table
+        style={{
+          marginTop: "32px",
+          width: "100%",
+          borderCollapse: "collapse"
+        }}
+      >
+        <thead>
+          <tr style={{ textAlign: "left", opacity: 0.8 }}>
+            <th>Time</th>
+            <th>Regime</th>
+            <th>Universe</th>
+            <th>Evaluated</th>
+            <th>Surfaced</th>
+            <th>Latent</th>
+          </tr>
+        </thead>
+        <tbody>
+          {events
+            .slice()
+            .reverse()
+            .map(evt => (
+              <tr key={evt.id}>
+                <td>{new Date(evt.timestamp).toLocaleTimeString()}</td>
+                <td>{evt.regime}</td>
+                <td>{evt.universeSize}</td>
+                <td>{evt.evaluated}</td>
+                <td>{evt.surfacedCount}</td>
+                <td>{evt.latentCount}</td>
+              </tr>
+            ))}
+        </tbody>
+      </table>
+
+      {/* ============================
+         SURFACED TICKERS — FULL TRUTH
+         ============================ */}
+      <div style={{ marginTop: "48px" }}>
+        <h2>Surfaced Tickers (Latest Scan)</h2>
+
+        {surfacedTickers.length === 0 ? (
+          <p style={{ opacity: 0.6 }}>
+            No tickers surfaced yet.
+          </p>
+        ) : (
+          <table
+            style={{
+              marginTop: "16px",
+              width: "100%",
+              borderCollapse: "collapse"
+            }}
+          >
+            <thead>
+              <tr style={{ textAlign: "left", opacity: 0.8 }}>
+                <th>Symbol</th>
+                <th>Asymmetry Score</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {surfacedTickers.map((s, i) => (
+                <tr key={`${s.symbol}-${i}`}>
+                  <td>{s.symbol}</td>
+                  <td>{s.asymmetryScore ?? "—"}</td>
+                  <td>SURFACED</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         )}
-      </div>
-
-      <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: "1.5rem" }}>
-        <section>
-          <h3>Surfaced (High Conviction)</h3>
-          <table width="100%" cellPadding="8">
-            <thead>
-              <tr>
-                <th align="left">Symbol</th>
-                <th align="left">Bucket</th>
-                <th align="left">Score</th>
-                <th align="left">Regime</th>
-                <th align="left">Status</th>
-                <th align="left">Evaluated</th>
-              </tr>
-            </thead>
-            <tbody>
-              {surfaced.map((r, i) => renderRow(r, i, "SURFACED"))}
-            </tbody>
-          </table>
-        </section>
-
-        <section>
-          <h3>Latent (Developing Asymmetry)</h3>
-          <table width="100%" cellPadding="8">
-            <thead>
-              <tr>
-                <th align="left">Symbol</th>
-                <th align="left">Bucket</th>
-                <th align="left">Score</th>
-                <th align="left">Regime</th>
-                <th align="left">Status</th>
-                <th align="left">Evaluated</th>
-              </tr>
-            </thead>
-            <tbody>
-              {latent.map((r, i) => renderRow(r, i, "LATENT"))}
-            </tbody>
-          </table>
-        </section>
-
-        <section>
-          <h3>Rejected (Full Audit)</h3>
-          <table width="100%" cellPadding="8">
-            <thead>
-              <tr>
-                <th align="left">Symbol</th>
-                <th align="left">Bucket</th>
-                <th align="left">Score</th>
-                <th align="left">Regime</th>
-                <th align="left">Status</th>
-                <th align="left">Evaluated</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rejected.map((r, i) => renderRow(r, i, "REJECTED"))}
-            </tbody>
-          </table>
-        </section>
       </div>
     </div>
   );

@@ -26,7 +26,20 @@ const api = {
   runChatIntelligence: (payload) => ipcRenderer.invoke("chat:v2:run", payload),
 
   // Generic escape hatch
-  invoke: (channel, payload) => ipcRenderer.invoke(channel, payload)
+  invoke: (channel, payload) => ipcRenderer.invoke(channel, payload),
+
+  // ============================
+  // 🔥 LIVE TELEMETRY SUBSCRIPTION
+  // ============================
+  on: (channel, callback) => {
+    const handler = (_event, data) => callback(data);
+    ipcRenderer.on(channel, handler);
+
+    // Return unsubscribe function
+    return () => {
+      ipcRenderer.removeListener(channel, handler);
+    };
+  }
 };
 
 // ---- EXPOSE ----

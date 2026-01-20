@@ -104,7 +104,7 @@ export function registerAllIpc(ipcMain) {
   });
 
   // =========================
-  // DISCOVERY — MANUAL (FIXED)
+  // DISCOVERY — MANUAL
   // =========================
   ipcMain.handle("discovery:analyze:symbol", async (_event, payload) => {
     if (!payload || typeof payload.symbol !== "string") {
@@ -128,15 +128,15 @@ export function registerAllIpc(ipcMain) {
       mode: "MANUAL_RESEARCH",
       resolution,
       result: await runDiscoveryEngine({
-        symbol: resolution.symbol,        // ✅ FIX
-        assetType: resolution.assetClass, // ✅ FIX
+        symbol: resolution.symbol,
+        assetType: resolution.assetClass,
         ownership: payload.ownership === true
       })
     });
   });
 
   // =========================
-  // WATCHLIST (STUB — SAFE)
+  // WATCHLIST (STUB)
   // =========================
   ipcMain.handle("watchlist:candidates", async () => {
     return Object.freeze({
@@ -146,5 +146,11 @@ export function registerAllIpc(ipcMain) {
       note: "Stubbed — engine to be wired later"
     });
   });
-}
 
+  // =========================
+  // MOONSHOT — TELEMETRY (READ-ONLY)
+  // =========================
+  import("./asymmetryTelemetryIpc.js").then(module => {
+    module.registerAsymmetryTelemetryIpc(ipcMain);
+  });
+}
