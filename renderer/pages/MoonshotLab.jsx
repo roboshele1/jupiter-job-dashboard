@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 /**
  * Moonshot Asymmetry Lab
  * --------------------------------------------------
- * Live telemetry view of autonomous asymmetry scans
+ * Institutional-grade live telemetry console
  *
  * HARD RULES:
  * - Read-only
@@ -37,10 +37,7 @@ export default function MoonshotLab() {
       }
     }
 
-    // Initial pull
     pollTelemetry();
-
-    // Poll every 2s (deterministic, safe)
     const interval = setInterval(pollTelemetry, 2000);
 
     return () => {
@@ -49,93 +46,157 @@ export default function MoonshotLab() {
     };
   }, []);
 
-  const latestEvent = events.length > 0
-    ? events[events.length - 1]
-    : null;
+  const latestEvent =
+    events.length > 0 ? events[events.length - 1] : null;
 
   const surfacedTickers =
     latestEvent?.snapshot?.surfaced ?? [];
 
+  /* ============================
+     DERIVED LIVE HEAD METRICS
+     ============================ */
+  const liveRegime = latestEvent?.regime ?? "—";
+  const universeSize = latestEvent?.universeSize ?? "—";
+  const evaluated = latestEvent?.evaluated ?? "—";
+  const surfacedCount = latestEvent?.surfacedCount ?? 0;
+  const latentCount = latestEvent?.latentCount ?? 0;
+  const timestamp = latestEvent
+    ? new Date(latestEvent.timestamp).toLocaleTimeString()
+    : "—";
+
   return (
-    <div style={{ padding: "32px" }}>
-      <h1>Moonshot Asymmetry Lab</h1>
-      <p style={{ opacity: 0.7 }}>
-        Live autonomous scan telemetry · Streaming
-      </p>
-
-      <p style={{ marginTop: "12px", opacity: 0.6 }}>
-        Status: {status} · Events buffered: {events.length}
-      </p>
-
-      <table
+    <div style={{ padding: "24px" }}>
+      {/* ============================
+         PINNED LIVE HEAD
+         ============================ */}
+      <div
         style={{
-          marginTop: "32px",
-          width: "100%",
-          borderCollapse: "collapse"
+          position: "sticky",
+          top: 0,
+          zIndex: 10,
+          background: "#020617",
+          border: "1px solid #1e293b",
+          borderRadius: 12,
+          padding: "16px 20px",
+          marginBottom: 24
         }}
       >
-        <thead>
-          <tr style={{ textAlign: "left", opacity: 0.8 }}>
-            <th>Time</th>
-            <th>Regime</th>
-            <th>Universe</th>
-            <th>Evaluated</th>
-            <th>Surfaced</th>
-            <th>Latent</th>
-          </tr>
-        </thead>
-        <tbody>
-          {events
-            .slice()
-            .reverse()
-            .map(evt => (
-              <tr key={evt.id}>
-                <td>{new Date(evt.timestamp).toLocaleTimeString()}</td>
-                <td>{evt.regime}</td>
-                <td>{evt.universeSize}</td>
-                <td>{evt.evaluated}</td>
-                <td>{evt.surfacedCount}</td>
-                <td>{evt.latentCount}</td>
-              </tr>
-            ))}
-        </tbody>
-      </table>
+        <h1 style={{ margin: 0 }}>Moonshot Asymmetry Lab</h1>
+
+        <div
+          style={{
+            display: "flex",
+            gap: 24,
+            marginTop: 12,
+            flexWrap: "wrap",
+            fontSize: "0.9rem"
+          }}
+        >
+          <span>Status: {status}</span>
+          <span>Regime: {liveRegime}</span>
+          <span>Universe: {universeSize}</span>
+          <span>Evaluated: {evaluated}</span>
+          <span
+            style={{
+              color: surfacedCount > 0 ? "#22c55e" : "#94a3b8"
+            }}
+          >
+            Surfaced: {surfacedCount}
+          </span>
+          <span
+            style={{
+              color: latentCount > 0 ? "#38bdf8" : "#94a3b8"
+            }}
+          >
+            Latent: {latentCount}
+          </span>
+          <span>Last Scan: {timestamp}</span>
+        </div>
+      </div>
 
       {/* ============================
-         SURFACED TICKERS — FULL TRUTH
+         SCROLLABLE EVENT LEDGER
          ============================ */}
-      <div style={{ marginTop: "48px" }}>
+      <div
+        style={{
+          maxHeight: "360px",
+          overflowY: "auto",
+          border: "1px solid #1e293b",
+          borderRadius: 12,
+          padding: "12px"
+        }}
+      >
+        <table
+          style={{
+            width: "100%",
+            borderCollapse: "collapse"
+          }}
+        >
+          <thead>
+            <tr style={{ textAlign: "left", opacity: 0.7 }}>
+              <th>Time</th>
+              <th>Regime</th>
+              <th>Universe</th>
+              <th>Evaluated</th>
+              <th>Surfaced</th>
+              <th>Latent</th>
+            </tr>
+          </thead>
+          <tbody>
+            {events
+              .slice()
+              .reverse()
+              .map(evt => (
+                <tr key={evt.id}>
+                  <td>
+                    {new Date(evt.timestamp).toLocaleTimeString()}
+                  </td>
+                  <td>{evt.regime}</td>
+                  <td>{evt.universeSize}</td>
+                  <td>{evt.evaluated}</td>
+                  <td>{evt.surfacedCount}</td>
+                  <td>{evt.latentCount}</td>
+                </tr>
+              ))}
+          </tbody>
+        </table>
+      </div>
+
+      {/* ============================
+         SURFACED TICKERS (LATEST)
+         ============================ */}
+      <div style={{ marginTop: 32 }}>
         <h2>Surfaced Tickers (Latest Scan)</h2>
 
         {surfacedTickers.length === 0 ? (
           <p style={{ opacity: 0.6 }}>
-            No tickers surfaced yet.
+            No moonshots surfaced yet — system is scanning continuously.
           </p>
         ) : (
-          <table
+          <div
             style={{
-              marginTop: "16px",
-              width: "100%",
-              borderCollapse: "collapse"
+              display: "flex",
+              gap: 12,
+              flexWrap: "wrap",
+              marginTop: 12
             }}
           >
-            <thead>
-              <tr style={{ textAlign: "left", opacity: 0.8 }}>
-                <th>Symbol</th>
-                <th>Asymmetry Score</th>
-                <th>Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {surfacedTickers.map((s, i) => (
-                <tr key={`${s.symbol}-${i}`}>
-                  <td>{s.symbol}</td>
-                  <td>{s.asymmetryScore ?? "—"}</td>
-                  <td>SURFACED</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+            {surfacedTickers.map((s, i) => (
+              <div
+                key={`${s.symbol}-${i}`}
+                style={{
+                  padding: "8px 12px",
+                  borderRadius: 999,
+                  background: "#022c22",
+                  border: "1px solid #22c55e",
+                  color: "#22c55e",
+                  fontWeight: 600
+                }}
+              >
+                {s.symbol}
+              </div>
+            ))}
+          </div>
         )}
       </div>
     </div>
