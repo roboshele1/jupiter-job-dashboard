@@ -59,7 +59,6 @@ function formatDisplaySymbol({ input, resolution }) {
   return input + ' → ' + name + ' (' + symbol + (exchange ? ' · ' + exchange : '') + ')';
 }
 
-
 function convictionLabelFromNormalized(n) {
   const x = Number(n ?? 0);
   if (x >= 0.7) return "High";
@@ -231,6 +230,81 @@ export default function DiscoveryLab() {
                   ))}
                 </ul>
               )}
+
+              {/* APPEND-ONLY PLACEHOLDER: Decision Drivers disclosure will be wired here (collapsed, numeric, non-generic) */}
+
+              <details style={{ marginTop: "0.75rem" }}>
+                <summary style={{ cursor: "pointer", fontWeight: 700 }}>
+                  Decision Drivers (numeric)
+                </summary>
+
+                {manual?.decisionDrivers && (
+                  <div style={{ marginTop: "0.5rem", fontSize: "0.8rem" }}>
+                    <div>
+                      <strong>Zone:</strong> {manual.decisionDrivers.zone}
+                    </div>
+                    <div style={{ opacity: 0.75 }}>
+                      {manual.decisionDrivers.zoneRationale}
+                    </div>
+
+                    {manual.decisionDrivers.zoneMath && (
+                      <details style={{ marginTop: "0.5rem" }}>
+                        <summary style={{ cursor: "pointer", fontWeight: 600 }}>
+                          Zone Math (deterministic thresholds)
+                        </summary>
+                        <div style={{ marginTop: "0.4rem", opacity: 0.85 }}>
+                          <div>
+                            <strong>Resolved Zone:</strong> {manual.decisionDrivers.zoneMath.zone}
+                          </div>
+                          {Array.isArray(manual.decisionDrivers.zoneMath.triggers) && (
+                            <ul style={{ marginTop: "0.25rem" }}>
+                              {manual.decisionDrivers.zoneMath.triggers.map((t, i) => (
+                                <li key={i}>{t}</li>
+                              ))}
+                            </ul>
+                          )}
+                        </div>
+                      </details>
+                    )}
+
+                    {manual.decisionDrivers.fundamentals && (
+                      <>
+                        <h5 style={{ marginTop: "0.5rem" }}>Fundamentals</h5>
+                        {Object.entries(manual.decisionDrivers.fundamentals).map(([k, v]) => (
+                          <div key={k} style={{ display: "flex", justifyContent: "space-between" }}>
+                            <span>{k}</span>
+                            <span>{String(v)}</span>
+                          </div>
+                        ))}
+                      </>
+                    )}
+
+                    {manual.decisionDrivers.technicals && (
+                      <>
+                        <h5 style={{ marginTop: "0.5rem" }}>Technicals</h5>
+                        {Object.entries(manual.decisionDrivers.technicals).map(([k, v]) => (
+                          <div key={k} style={{ display: "flex", justifyContent: "space-between" }}>
+                            <span>{k}</span>
+                            <span>{String(v)}</span>
+                          </div>
+                        ))}
+                      </>
+                    )}
+
+                    {manual.decisionDrivers.valuation && (
+                      <>
+                        <h5 style={{ marginTop: "0.5rem" }}>Valuation</h5>
+                        {Object.entries(manual.decisionDrivers.valuation).map(([k, v]) => (
+                          <div key={k} style={{ display: "flex", justifyContent: "space-between" }}>
+                            <span>{k}</span>
+                            <span>{String(v)}</span>
+                          </div>
+                        ))}
+                      </>
+                    )}
+                  </div>
+                )}
+              </details>
             </div>
           )}
         </div>
@@ -389,7 +463,7 @@ export default function DiscoveryLab() {
                 <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
                   <strong>{getSymbol(r)}</strong>
                   <span style={{ marginLeft: "0.5rem" }}>{r.trajectoryMatch.label}</span>
-                  <span style={{ opacity: 0.75, fontWeight: 700 }}>
+                  <span style={{ opacity: "0.75", fontWeight: 700 }}>
                     {(Number(r.trajectoryMatch.confidence || 0) * 100).toFixed(1)}%
                   </span>
                 </div>
