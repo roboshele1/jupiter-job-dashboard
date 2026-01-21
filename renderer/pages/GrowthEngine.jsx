@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 
 const riskMeta = {
   FEASIBLE: {
@@ -40,6 +40,23 @@ export default function GrowthEngine() {
   const [candidateSymbol, setCandidateSymbol] = useState("MSTR");
   const [candidateAmount, setCandidateAmount] = useState(20_000);
   const [candidateCagr, setCandidateCagr] = useState(0.30);
+
+  // --- Invariant 1 (APPEND-ONLY)
+  const [candidateTargetValue, setCandidateTargetValue] = useState(50_000);
+
+  useEffect(() => {
+    if (
+      candidateTargetValue > 0 &&
+      candidateCagr > 0 &&
+      months > 0
+    ) {
+      const inferredAmount =
+        candidateTargetValue /
+        Math.pow(1 + candidateCagr, months / 12);
+
+      setCandidateAmount(Math.round(inferredAmount));
+    }
+  }, [candidateTargetValue, candidateCagr, months]);
 
   // -----------------------------
   // Growth Engine IPC (read-only)
@@ -257,6 +274,16 @@ export default function GrowthEngine() {
         <label>
           Assumed CAGR (%)
           <input type="number" step="0.1" value={(candidateCagr * 100).toFixed(2)} onChange={(e) => setCandidateCagr(+e.target.value / 100)} />
+        </label>
+
+        {/* Invariant 1 — Targeted Value */}
+        <label>
+          Targeted Value ($)
+          <input
+            type="number"
+            value={candidateTargetValue}
+            onChange={(e) => setCandidateTargetValue(+e.target.value)}
+          />
         </label>
       </section>
 
