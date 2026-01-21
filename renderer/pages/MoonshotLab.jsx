@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 /**
  * Moonshot Asymmetry Lab
@@ -16,6 +16,11 @@ export default function MoonshotLab() {
   const [status, setStatus] = useState("CONNECTING");
   const [events, setEvents] = useState([]);
 
+  // ===== Visibility counters (UI-only, derived) =====
+  const primaryPulseRef = useRef(0);
+  const deepPulseRef = useRef(0);
+  const lastPulseRef = useRef(null);
+
   useEffect(() => {
     let alive = true;
 
@@ -27,7 +32,18 @@ export default function MoonshotLab() {
 
         if (!alive) return;
 
-        if (snap?.events) {
+        if (snap?.events && snap.events.length > 0) {
+          const latest = snap.events[snap.events.length - 1];
+
+          // --- VISIBILITY PULSE TRACKING (NO ENGINE TOUCH) ---
+          if (latest?.regime === "PRIMARY") {
+            primaryPulseRef.current += 1;
+          } else if (latest?.regime === "DEEP") {
+            deepPulseRef.current += 1;
+          }
+
+          lastPulseRef.current = latest.timestamp;
+
           setEvents(snap.events);
           setStatus("CONNECTED");
         }
@@ -49,6 +65,19 @@ export default function MoonshotLab() {
   const latestEvent =
     events.length > 0 ? events[events.length - 1] : null;
 
+  /* ==================================================
+     UI THROTTLE — FILTER NOISE (APPEND-ONLY)
+     --------------------------------------------------
+     Purpose:
+     - Reduce render pressure
+     - Hide scan-in-progress rows
+     - Preserve cadence + engine truth
+     - NO data mutation
+     ================================================== */
+  const visibleEvents = events.filter(evt =>
+    evt.surfacedCount > 0 || evt.latentCount > 0
+  );
+
   const surfacedTickers =
     latestEvent?.snapshot?.surfaced ?? [];
 
@@ -62,6 +91,10 @@ export default function MoonshotLab() {
   const latentCount = latestEvent?.latentCount ?? 0;
   const timestamp = latestEvent
     ? new Date(latestEvent.timestamp).toLocaleTimeString()
+    : "—";
+
+  const lastPulseTime = lastPulseRef.current
+    ? new Date(lastPulseRef.current).toLocaleTimeString()
     : "—";
 
   return (
@@ -96,6 +129,7 @@ export default function MoonshotLab() {
           <span>Regime: {liveRegime}</span>
           <span>Universe: {universeSize}</span>
           <span>Evaluated: {evaluated}</span>
+
           <span
             style={{
               color: surfacedCount > 0 ? "#22c55e" : "#94a3b8"
@@ -103,6 +137,7 @@ export default function MoonshotLab() {
           >
             Surfaced: {surfacedCount}
           </span>
+
           <span
             style={{
               color: latentCount > 0 ? "#38bdf8" : "#94a3b8"
@@ -110,12 +145,43 @@ export default function MoonshotLab() {
           >
             Latent: {latentCount}
           </span>
+
           <span>Last Scan: {timestamp}</span>
+        </div>
+
+        {/* ============================
+           VISIBILITY HEARTBEAT LAYER
+           ============================ */}
+        <div
+          style={{
+            marginTop: 14,
+            paddingTop: 12,
+            borderTop: "1px solid #1e293b",
+            display: "flex",
+            gap: 24,
+            flexWrap: "wrap",
+            fontSize: "0.8rem",
+            opacity: 0.85
+          }}
+        >
+          <span>
+            🟢 Primary pulses:{" "}
+            <strong>{primaryPulseRef.current}</strong>
+          </span>
+          <span>
+            🔵 Deep pulses:{" "}
+            <strong>{deepPulseRef.current}</strong>
+          </span>
+          <span>
+            ⏱ Last activity:{" "}
+            <strong>{lastPulseTime}</strong>
+          </span>
         </div>
       </div>
 
       {/* ============================
          SCROLLABLE EVENT LEDGER
+         (THROTTLED VIEW)
          ============================ */}
       <div
         style={{
@@ -143,7 +209,7 @@ export default function MoonshotLab() {
             </tr>
           </thead>
           <tbody>
-            {events
+            {visibleEvents
               .slice()
               .reverse()
               .map(evt => (
