@@ -1,4 +1,4 @@
-K// main.js — JUPITER (Canonical Electron Bootstrap)
+// main.js — JUPITER (Canonical Electron Bootstrap)
 // -----------------------------------------------
 // Restores Electron lifecycle, preload bridge, and IPC authority.
 // NO business logic. NO engine logic. NO UI logic.
@@ -9,6 +9,9 @@ import { fileURLToPath } from "url";
 
 // IPC registry (authoritative)
 import { registerAllIpc } from "./electron/ipc/registerIpc.js";
+
+// 🔵 LIVE RUNTIME (Electron-owned)
+import { startLiveRuntime } from "./engine/runtime/liveRuntime.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -37,6 +40,9 @@ function createWindow() {
 app.whenReady().then(() => {
   // Register ALL IPC surfaces (Discovery, Portfolio, Chat, etc.)
   registerAllIpc(ipcMain);
+
+  // 🔵 Initialize live runtime ONCE (no scanners yet)
+  startLiveRuntime();
 
   createWindow();
 
