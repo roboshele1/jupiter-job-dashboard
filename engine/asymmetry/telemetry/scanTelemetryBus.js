@@ -15,6 +15,11 @@
 
 const MAX_BUFFER_SIZE = 500;
 
+// 🔒 Moonshot Registry (passive persistence)
+const {
+  appendFromTelemetryEvent
+} = require('../registry/moonshotRegistry');
+
 // In-memory buffer
 let telemetryBuffer = [];
 
@@ -50,12 +55,19 @@ function recordScanEvent({ regime, universe, result }) {
     telemetryBuffer.shift();
   }
 
+  // 🧠 Persist surfaced candidates (NON-BLOCKING)
+  try {
+    appendFromTelemetryEvent(event);
+  } catch (e) {
+    console.error('[MoonshotRegistry] append failed', e);
+  }
+
   // 🔵 EMIT TO SUBSCRIBERS (event-driven)
   for (const fn of subscribers) {
     try {
       fn(event);
     } catch (e) {
-      console.error("[TelemetryBus] subscriber error", e);
+      console.error('[TelemetryBus] subscriber error', e);
     }
   }
 }
