@@ -1,0 +1,31 @@
+{
+  "meta": {
+    "mode": "DEMO",
+    "created": "2026-01-21T09:15:00Z",
+    "description": "Static demo portfolio snapshot for recruiter walkthrough"
+  },
+  "portfolio": {
+    "totalValue": 185000,
+    "dailyChangePct": 1.24,
+    "positions": [
+      {
+        "symbol": "NVDA",
+        "shares": 50,
+        "avgCost": 420,
+        "marketValue": 78000
+      },
+      {
+        "symbol": "MSTR",
+        "shares": 20,
+        "avgCost": 600,
+        "marketValue": 62000
+      },
+      {
+        "symbol": "ASML",
+        "shares": 5,
+        "avgCost": 700,
+        "marketValue": 45000
+      }
+    ]
+  }
+}

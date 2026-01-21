@@ -13,6 +13,12 @@ import { valuePortfolio } from "../../engine/portfolio/portfolioValuation.js";
 import { computeInsights } from "../../engine/insights/insightsEngine.js";
 import { resolveInvestableSymbol } from "../../engine/symbolUniverse/resolveInvestableSymbol.js";
 
+/* =========================
+   DEMO MODE (APPEND-ONLY)
+   ========================= */
+import { isDemoMode } from "../../demo/demoMode.js";
+import { registerDemoIpc } from "../../demo/ipc/demoIpcRegistry.js";
+
 /**
  * IPC Registry — Authoritative
  * -----------------------------
@@ -59,6 +65,18 @@ async function getCachedSnapshot() {
    REGISTER ALL IPC
    ========================= */
 export function registerAllIpc(ipcMain) {
+
+  /* =========================
+     DEMO MODE GATE (APPEND-ONLY)
+     ========================= */
+  if (isDemoMode()) {
+    console.log("[IPC] Demo mode active — registering demo IPC only");
+    registerDemoIpc(ipcMain);
+    return;
+  }
+
+  /* ===== LIVE MODE (UNCHANGED) ===== */
+
   registerGrowthEngineIpc(ipcMain);
 
   registerSignalsIpc(ipcMain, async () => {

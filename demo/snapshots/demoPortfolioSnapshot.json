@@ -1,0 +1,22 @@
+{
+  "contract": "DEMO_PORTFOLIO_V1",
+  "currency": "USD",
+  "totalValue": 250000,
+  "holdings": [
+    {
+      "symbol": "NVDA",
+      "assetClass": "equity",
+      "value": 120000
+    },
+    {
+      "symbol": "MSTR",
+      "assetClass": "equity",
+      "value": 80000
+    },
+    {
+      "symbol": "BTC",
+      "assetClass": "crypto",
+      "value": 50000
+    }
+  ]
+}
