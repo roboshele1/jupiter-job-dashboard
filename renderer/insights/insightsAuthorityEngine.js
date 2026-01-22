@@ -10,6 +10,8 @@
 import { runGodModeInsights } from "./godModeInsightsEngine.js";
 import { buildConfidenceState } from "./confidencePipeline.js";
 import { runCapitalReadinessEngine } from "./capitalReadinessEngine.js";
+import { runConvictionIntegration } from "./convictionIntegrationEngine.js";
+import { runConvictionDriftComparator } from "./convictionDriftComparatorEngine.js";
 
 function explainRiskFlags(riskFlags = {}) {
   const explanations = {};
@@ -103,13 +105,32 @@ export function buildInsightsIntelligence(baseData = {}) {
     riskFlags: godMode.riskFlags ?? {}
   });
 
-  // 4. Explanations (WHY layer)
+  // 4. Conviction Evolution (time-under-pressure)
+  const convictionEvolution = runConvictionIntegration({
+    confidence,
+    symbols: godMode.exposure?.symbols || []
+  });
+
+  /* =====================================================
+     APPEND-ONLY: CONVICTION vs CAPITAL DRIFT COMPARATOR
+     -----------------------------------------------------
+     - Engine-only
+     - Read-only
+     - No UI assumptions
+     ===================================================== */
+  const convictionCapitalDrift = runConvictionDriftComparator({
+    convictionEvolution,
+    exposure: godMode.exposure || {},
+    confidence
+  });
+
+  // 5. Explanations (WHY layer)
   const explanations = {
     risk: explainRiskFlags(godMode.riskFlags),
     capital: explainCapitalDecision(capital, confidence, godMode.regimeImpact)
   };
 
-  // 5. Authority contract
+  // 6. Authority contract
   return {
     meta: {
       engine: "INSIGHTS_AUTHORITY_V3",
@@ -121,6 +142,8 @@ export function buildInsightsIntelligence(baseData = {}) {
     regimeImpact: godMode.regimeImpact,
 
     confidence,
+    convictionEvolution,
+    convictionCapitalDrift,
     capital,
 
     explanations,
