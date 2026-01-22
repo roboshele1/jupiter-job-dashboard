@@ -1,91 +1,63 @@
 /**
- * Conviction Drift Comparator Engine — V1
- * ---------------------------------------
+ * Conviction Drift vs Capital Allocation Comparator — V1
+ * ------------------------------------------------------
  * Purpose:
- * - Compare capital allocation vs conviction evolution
- * - Identify misaligned risk consumption
- * - Surface internal rotation candidates
+ * - Detects mismatch between conviction evolution and capital allocation
+ * - Deterministic, time-aware, signal-free
  *
- * HARD RULES:
- * - Read-only
- * - No execution
- * - No signals
- * - Deterministic
+ * Scope:
  * - Insights-only
+ * - Read-only
+ * - No UI assumptions
  */
 
 export function runConvictionDriftComparator({
+  convictionEvolution = [],
   exposure = {},
-  convictionEvolution = []
+  confidence = {}
 }) {
   const results = [];
 
-  const bySymbol = {};
+  const topSymbol = exposure?.topHolding;
+  const topWeight = exposure?.topWeightPct ?? 0;
+
   for (const row of convictionEvolution) {
-    bySymbol[row.symbol] = row;
-  }
+    let status = "ALIGNED";
+    let severity = "LOW";
+    let message = "Capital allocation aligns with conviction state.";
 
-  const positions = exposure?.bySymbol || [];
-
-  for (const p of positions) {
-    const symbol = p.symbol;
-    const capitalValue = Number(p.liveValue || 0);
-
-    const conviction = bySymbol[symbol];
-
-    if (!conviction) {
-      results.push({
-        symbol,
-        status: "UNCLASSIFIED",
-        assessment:
-          "No conviction data available for this holding.",
-        actionBias: "REVIEW",
-        guarantees: {
-          deterministic: true,
-          readOnly: true
-        }
-      });
-      continue;
-    }
-
-    const zone = conviction.convictionZone;
-    const days = conviction.daysInState;
-
-    let drift = "ALIGNED";
-    let actionBias = "HOLD";
-    let assessment = "Capital and conviction are aligned.";
-
-    if (zone === "ACCUMULATE" && capitalValue < exposure.totalValue * 0.05) {
-      drift = "UNDER-ALLOCATED_RELATIVE_TO_CONVICTION";
-      actionBias = "INTERNAL_ROTATE_IN";
-      assessment =
-        "Conviction has strengthened over time but capital allocation remains light.";
-    }
-
+    // Over-allocation while conviction is weak
     if (
-      zone === "HOLD" &&
-      capitalValue > exposure.totalValue * 0.25
+      row.convictionZone === "ACCUMULATE" &&
+      row.confidenceState === "LOW" &&
+      row.symbol === topSymbol &&
+      topWeight > 30
     ) {
-      drift = "OVER-ALLOCATED_RELATIVE_TO_CONVICTION";
-      actionBias = "TRIM_OR_ROTATE_OUT";
-      assessment =
-        "Capital exposure is high without corresponding conviction reinforcement.";
+      status = "DRIFT";
+      severity = "MODERATE";
+      message =
+        "Capital concentration exceeds conviction strength during accumulation phase.";
     }
 
-    if (zone === "ACCUMULATE" && days >= 180) {
-      actionBias = "PRIORITY_ACCUMULATION";
-      assessment =
-        "Extended time-under-pressure confirms thesis resilience.";
+    // Severe mismatch: core accumulation not reflected
+    if (
+      row.convictionZone === "CORE_ACCUMULATE" &&
+      row.symbol !== topSymbol &&
+      topWeight > 40
+    ) {
+      status = "DRIFT";
+      severity = "HIGH";
+      message =
+        "Portfolio remains concentrated away from highest-conviction asset.";
     }
 
     results.push({
-      symbol,
-      convictionZone: zone,
-      daysUnderPressure: days,
-      capitalValue,
-      drift,
-      actionBias,
-      assessment,
+      symbol: row.symbol,
+      convictionZone: row.convictionZone,
+      capitalWeightPct: row.symbol === topSymbol ? topWeight : "NON_CORE",
+      status,
+      severity,
+      message,
       guarantees: {
         deterministic: true,
         readOnly: true,
