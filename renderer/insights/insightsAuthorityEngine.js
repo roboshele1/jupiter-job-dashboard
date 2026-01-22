@@ -12,6 +12,7 @@ import { buildConfidenceState } from "./confidencePipeline.js";
 import { runCapitalReadinessEngine } from "./capitalReadinessEngine.js";
 import { runConvictionIntegration } from "./convictionIntegrationEngine.js";
 import { runConvictionDriftComparator } from "./convictionDriftComparatorEngine.js";
+import { runCapitalReallocationPlaybook } from "./capitalReallocationPlaybookEngine.js";
 
 function explainRiskFlags(riskFlags = {}) {
   const explanations = {};
@@ -111,26 +112,33 @@ export function buildInsightsIntelligence(baseData = {}) {
     symbols: godMode.exposure?.symbols || []
   });
 
-  /* =====================================================
-     APPEND-ONLY: CONVICTION vs CAPITAL DRIFT COMPARATOR
-     -----------------------------------------------------
-     - Engine-only
-     - Read-only
-     - No UI assumptions
-     ===================================================== */
+  // 5. Conviction vs Capital Drift
   const convictionCapitalDrift = runConvictionDriftComparator({
     convictionEvolution,
     exposure: godMode.exposure || {},
     confidence
   });
 
-  // 5. Explanations (WHY layer)
+  /* =====================================================
+     APPEND-ONLY: CAPITAL REALLOCATION PLAYBOOK
+     -----------------------------------------------------
+     - Translates rotation + conviction into capital moves
+     - Read-only, deterministic, portfolio-driven
+     ===================================================== */
+  const capitalReallocationPlaybook = runCapitalReallocationPlaybook({
+    rotationSurface: baseData.rotationSurface || [],
+    convictionEvolution,
+    convictionCapitalDrift,
+    regimeImpact: godMode.regimeImpact
+  });
+
+  // 6. Explanations (WHY layer)
   const explanations = {
     risk: explainRiskFlags(godMode.riskFlags),
     capital: explainCapitalDecision(capital, confidence, godMode.regimeImpact)
   };
 
-  // 6. Authority contract
+  // 7. Authority contract
   return {
     meta: {
       engine: "INSIGHTS_AUTHORITY_V3",
@@ -144,6 +152,7 @@ export function buildInsightsIntelligence(baseData = {}) {
     confidence,
     convictionEvolution,
     convictionCapitalDrift,
+    capitalReallocationPlaybook,
     capital,
 
     explanations,

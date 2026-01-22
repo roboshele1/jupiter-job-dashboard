@@ -43,37 +43,16 @@ export default function Insights() {
   }
 
   const {
-    exposure,
     riskFlags,
     scenarios,
     invariants,
     narrative,
     regimeImpact,
     capital,
+    convictionEvolution = [],
+    convictionCapitalDrift = [],
+    capitalReallocationPlaybook = [],
   } = insights;
-
-  const explanations = {
-    fragility: {
-      LOW: "Portfolio structure is well diversified with limited concentration risk.",
-      MODERATE: "Some concentration exists, but risk remains manageable.",
-      HIGH: "Portfolio is concentrated and more vulnerable to shocks.",
-      EXTREME: "Severe concentration creates elevated drawdown risk.",
-    },
-    correlationRisk: {
-      LOW: "Holdings behave independently across market conditions.",
-      MODERATE: "Some overlap in asset behavior during stress.",
-      HIGH: "Assets are likely to move together during market stress.",
-    },
-    convictionDrift: {
-      ALIGNED: "Position sizing reflects current confidence signals.",
-      "OVER-ALLOCATED RELATIVE TO CONFIDENCE":
-        "Capital exposure exceeds what confidence signals justify.",
-    },
-    regimeMismatch: {
-      LOW: "Portfolio structure aligns with the current market regime.",
-      HIGH: "Portfolio positioning conflicts with prevailing market conditions.",
-    },
-  };
 
   return (
     <div style={{ padding: "2rem", maxWidth: 1300 }}>
@@ -83,20 +62,12 @@ export default function Insights() {
       </p>
 
       {/* SYSTEM STATE BAR */}
-      <div
-        style={{
-          display: "flex",
-          gap: 10,
-          flexWrap: "wrap",
-          marginBottom: 24,
-        }}
-      >
+      <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 24 }}>
         {[
           ["Fragility", riskFlags.fragility],
           ["Correlation", riskFlags.correlationRisk],
-          ["Readiness", capital?.readinessState || "UNKNOWN"],
           ["Regime", regimeImpact?.regime || "UNKNOWN"],
-          ["Violations", invariants.length],
+          ["Capital", capital?.readinessState || "UNKNOWN"],
         ].map(([label, value]) => (
           <span
             key={label}
@@ -114,62 +85,100 @@ export default function Insights() {
         ))}
       </div>
 
-      {/* EXPOSURE */}
-      <section
-        style={{
-          background: "#0b1220",
-          padding: "1.25rem",
-          borderRadius: 12,
-          marginBottom: 20,
-        }}
-      >
-        <h2>Exposure</h2>
-        <ul style={{ marginTop: 8, opacity: 0.85 }}>
-          <li>Total Value: ${exposure.totalValue.toLocaleString()}</li>
-          <li>Top Holding: {exposure.topHolding}</li>
-          <li>Top Weight: {exposure.topWeightPct}%</li>
-        </ul>
+      {/* CONVICTION EVOLUTION */}
+      <section style={{ background: "#020617", borderRadius: 14, padding: "1.5rem", marginBottom: 24 }}>
+        <h2 style={{ marginBottom: 12 }}>Conviction Evolution</h2>
+
+        {convictionEvolution.map((row) => (
+          <div
+            key={row.symbol}
+            style={{
+              display: "grid",
+              gridTemplateColumns: "120px 160px 120px 1fr",
+              gap: 12,
+              padding: "12px 14px",
+              borderRadius: 10,
+              background: "#0b1220",
+              border: `1px solid ${semanticColor(row.convictionZone)}`,
+              marginBottom: 8,
+            }}
+          >
+            <strong>{row.symbol}</strong>
+            <span style={{ fontWeight: 700, color: semanticColor(row.convictionZone) }}>
+              {row.convictionZone}
+            </span>
+            <span style={{ opacity: 0.75 }}>{row.daysInState} days</span>
+            <span style={{ opacity: 0.85 }}>{row.rationale}</span>
+          </div>
+        ))}
       </section>
 
-      {/* STRUCTURAL RISK */}
-      <section
-        style={{
-          background: "#0f172a",
-          padding: "1.25rem",
-          borderRadius: 12,
-          marginBottom: 20,
-        }}
-      >
-        <h2>Structural Risk</h2>
-        <ul style={{ marginTop: 10 }}>
-          {Object.entries(riskFlags).map(([key, value]) => (
-            <li key={key} style={{ marginBottom: 12 }}>
-              <strong style={{ color: semanticColor(value) }}>
-                {key}: {value}
-              </strong>
-              {explanations[key]?.[value] && (
-                <div style={{ fontSize: 13, opacity: 0.75, marginTop: 4 }}>
-                  {explanations[key][value]}
-                </div>
-              )}
-            </li>
-          ))}
-        </ul>
+      {/* CONVICTION vs CAPITAL DRIFT */}
+      <section style={{ background: "#020617", borderRadius: 14, padding: "1.5rem", marginBottom: 28 }}>
+        <h2 style={{ marginBottom: 12 }}>Conviction vs Capital Drift</h2>
+
+        {convictionCapitalDrift.length === 0 ? (
+          <div style={{ opacity: 0.6 }}>
+            No conviction–capital mismatches detected.
+          </div>
+        ) : (
+          convictionCapitalDrift.map((row) => (
+            <div
+              key={row.symbol}
+              style={{
+                display: "grid",
+                gridTemplateColumns: "120px 160px 120px 1fr",
+                gap: 12,
+                padding: "12px 14px",
+                borderRadius: 10,
+                background: "#0b1220",
+                border: `1px solid ${semanticColor(row.severity)}`,
+                marginBottom: 8,
+              }}
+            >
+              <strong>{row.symbol}</strong>
+              <span style={{ fontWeight: 700, color: semanticColor(row.status) }}>
+                {row.status}
+              </span>
+              <span style={{ opacity: 0.75 }}>{row.capitalWeightPct}%</span>
+              <span style={{ opacity: 0.85 }}>{row.message}</span>
+            </div>
+          ))
+        )}
       </section>
 
-      {/* CAPITAL READINESS */}
-      <section
-        style={{
-          border: `2px solid ${semanticColor(capital?.readinessState)}`,
-          borderRadius: 14,
-          padding: "1.25rem",
-          marginBottom: 24,
-        }}
-      >
-        <h2>Capital Readiness — {capital?.readinessState || "UNKNOWN"}</h2>
-        <p style={{ opacity: 0.8, marginTop: 6 }}>
-          {capital?.summary}
-        </p>
+      {/* CAPITAL REALLOCATION PLAYBOOK */}
+      <section style={{ background: "#020617", borderRadius: 14, padding: "1.5rem", marginBottom: 28 }}>
+        <h2 style={{ marginBottom: 12 }}>Capital Reallocation Playbook</h2>
+
+        {capitalReallocationPlaybook.length === 0 ? (
+          <div style={{ opacity: 0.6 }}>
+            No actionable capital adjustments at this time.
+          </div>
+        ) : (
+          capitalReallocationPlaybook.map((row) => (
+            <div
+              key={row.symbol}
+              style={{
+                display: "grid",
+                gridTemplateColumns: "120px 140px 120px 1fr",
+                gap: 12,
+                padding: "12px 14px",
+                borderRadius: 10,
+                background: "#0b1220",
+                border: `1px solid ${semanticColor(row.recommendedAction)}`,
+                marginBottom: 8,
+              }}
+            >
+              <strong>{row.symbol}</strong>
+              <span style={{ fontWeight: 700, color: semanticColor(row.recommendedAction) }}>
+                {row.recommendedAction}
+              </span>
+              <span style={{ opacity: 0.75 }}>{row.capitalBand}</span>
+              <span style={{ opacity: 0.85 }}>{row.rationale}</span>
+            </div>
+          ))
+        )}
       </section>
 
       {/* SCENARIO STRESS */}
@@ -187,9 +196,7 @@ export default function Insights() {
             }}
           >
             <strong>{s.name}</strong> — {s.weight}
-            <div style={{ opacity: 0.85, marginTop: 4 }}>
-              {s.assessment}
-            </div>
+            <div style={{ opacity: 0.85, marginTop: 4 }}>{s.assessment}</div>
           </div>
         ))}
       </section>
@@ -215,20 +222,12 @@ export default function Insights() {
         )}
       </section>
 
-      {/* EXECUTIVE SUMMARY */}
-      <section
-        style={{
-          background: "#0b1220",
-          padding: "1.25rem",
-          borderRadius: 12,
-        }}
-      >
+      {/* EXEC SUMMARY */}
+      <section style={{ background: "#0b1220", padding: "1.25rem", borderRadius: 12 }}>
         <h2>Executive Summary</h2>
         <ul style={{ marginTop: 8 }}>
           {narrative.slice(0, 5).map((n, i) => (
-            <li key={i} style={{ marginBottom: 6 }}>
-              {n}
-            </li>
+            <li key={i} style={{ marginBottom: 6 }}>{n}</li>
           ))}
         </ul>
       </section>
