@@ -1,5 +1,5 @@
 /**
- * God Mode Insights Engine — V1.2
+ * God Mode Insights Engine — V1.3
  * --------------------------------
  * Adds:
  * - Invariant violation detection
@@ -116,7 +116,7 @@ export function runGodModeInsights(input) {
   ];
 
   /* =========================
-     INVARIANT VIOLATIONS (NEW)
+     INVARIANT VIOLATIONS
      ========================= */
   const invariants = [];
 
@@ -194,13 +194,23 @@ export function runGodModeInsights(input) {
   return {
     meta: {
       generatedAt,
-      engine: "GOD_MODE_V1.2"
+      engine: "GOD_MODE_V1.3"
     },
 
     exposure: {
       totalValue,
       topHolding: top?.symbol ?? null,
-      topWeightPct
+      topWeightPct,
+
+      /* =========================
+         APPEND-ONLY: SYMBOL EMISSION
+         (Required for Conviction Evolution)
+         ========================= */
+      symbols: positions.map(p => p.symbol),
+      bySymbol: positions.map(p => ({
+        symbol: p.symbol,
+        liveValue: p.liveValue || 0
+      }))
     },
 
     riskFlags: {

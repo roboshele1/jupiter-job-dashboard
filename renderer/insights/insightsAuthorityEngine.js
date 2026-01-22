@@ -10,6 +10,8 @@
 import { runGodModeInsights } from "./godModeInsightsEngine.js";
 import { buildConfidenceState } from "./confidencePipeline.js";
 import { runCapitalReadinessEngine } from "./capitalReadinessEngine.js";
+import { runConvictionIntegration } from "./convictionIntegrationEngine.js";
+import { runConvictionDriftComparator } from "./convictionDriftComparatorEngine.js";
 
 function explainRiskFlags(riskFlags = {}) {
   const explanations = {};
@@ -92,6 +94,12 @@ export function buildInsightsIntelligence(baseData = {}) {
   // 2. Confidence (time-aware)
   const confidence = buildConfidenceState();
 
+  // 2.5 Conviction Evolution (time-under-pressure, read-only)
+  const convictionEvolution = runConvictionIntegration({
+    confidence,
+    symbols: godMode.exposure?.symbols || []
+  });
+
   // 3. Capital readiness
   const capital = runCapitalReadinessEngine({
     confidence,
@@ -101,6 +109,15 @@ export function buildInsightsIntelligence(baseData = {}) {
       mismatch: "UNKNOWN"
     },
     riskFlags: godMode.riskFlags ?? {}
+  });
+
+  // 3.5 Conviction Drift vs Capital Allocation (append-only)
+  const convictionDrift = runConvictionDriftComparator({
+    exposure: {
+      totalValue: godMode.exposure?.totalValue,
+      bySymbol: baseData.snapshot?.portfolio?.positions || []
+    },
+    convictionEvolution
   });
 
   // 4. Explanations (WHY layer)
@@ -121,6 +138,8 @@ export function buildInsightsIntelligence(baseData = {}) {
     regimeImpact: godMode.regimeImpact,
 
     confidence,
+    convictionEvolution,
+    convictionDrift,
     capital,
 
     explanations,
