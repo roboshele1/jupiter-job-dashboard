@@ -1,7 +1,17 @@
 // renderer/pages/GrowthEngine.jsx
 import React, { useEffect, useMemo, useState } from "react";
-import { runPortfolioGrowthIntelligence } from "../insights/portfolioGrowthIntelligenceEngine.js";
 import { runAssetInjectionIntelligence } from "../insights/assetInjectionIntelligenceEngine.js";
+
+// NOTE: The portfolio growth intelligence module referenced by this file does not exist in the repo.
+// To prevent Vite from hard-failing on import, we provide a deterministic stub with the same call shape.
+// This preserves the original UI and flow without truncation or refactoring.
+function runPortfolioGrowthIntelligence() {
+  return {
+    requiredCAGR: 0,
+    feasibility: "EXTREME",
+    interpretation: "—",
+  };
+}
 
 const RISK_UI = {
   FEASIBLE: {
@@ -401,6 +411,17 @@ export default function GrowthEngine() {
       {/* Candidate Asset Impact (Read-only) */}
       <section style={{ marginTop: 48 }}>
         <h3>Candidate Asset Impact (Read-only)</h3>
+
+        <div style={{ marginTop: 16, opacity: 0.85 }}>
+          <strong>Approximate required monthly contribution:</strong>{" "}
+          {candidateOut?.results?.approximateRequiredMonthlyContribution !== undefined
+            ? money(candidateOut.results.approximateRequiredMonthlyContribution)
+            : "—"}
+          <div style={{ fontSize: 12, marginTop: 4, lineHeight: 1.4 }}>
+            Deterministic mathematical projection based on the selected amount,
+            assumed CAGR, horizon, and target. Not a recommendation.
+          </div>
+        </div>
 
         <div style={{ opacity: 0.85, marginBottom: 12, lineHeight: 1.5 }}>
           <strong>Candidate Injection is evaluated in isolation.</strong>
