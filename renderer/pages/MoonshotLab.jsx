@@ -21,6 +21,9 @@ export default function MoonshotLab() {
   const deepPulseRef = useRef(0);
   const lastPulseRef = useRef(null);
 
+  // ===== Render throttle guards =====
+  const lastRenderSignatureRef = useRef(null);
+
   useEffect(() => {
     let alive = true;
 
@@ -30,23 +33,32 @@ export default function MoonshotLab() {
           "asymmetry:telemetry:get"
         );
 
-        if (!alive) return;
+        if (!alive || !snap?.events?.length) return;
 
-        if (snap?.events && snap.events.length > 0) {
-          const latest = snap.events[snap.events.length - 1];
+        const latest = snap.events[snap.events.length - 1];
 
-          // --- VISIBILITY PULSE TRACKING (NO ENGINE TOUCH) ---
-          if (latest?.regime === "PRIMARY") {
-            primaryPulseRef.current += 1;
-          } else if (latest?.regime === "DEEP") {
-            deepPulseRef.current += 1;
-          }
-
-          lastPulseRef.current = latest.timestamp;
-
-          setEvents(snap.events);
-          setStatus("CONNECTED");
+        // --- VISIBILITY PULSE TRACKING (NO ENGINE TOUCH) ---
+        if (latest?.regime === "PRIMARY") {
+          primaryPulseRef.current += 1;
+        } else if (latest?.regime === "DEEP") {
+          deepPulseRef.current += 1;
         }
+
+        lastPulseRef.current = latest.timestamp;
+
+        // --- RENDER SIGNATURE (THROTTLE UI REPAINTS) ---
+        const signature = [
+          latest.timestamp,
+          latest.surfacedCount,
+          latest.latentCount
+        ].join("|");
+
+        if (signature !== lastRenderSignatureRef.current) {
+          lastRenderSignatureRef.current = signature;
+          setEvents(snap.events);
+        }
+
+        setStatus("CONNECTED");
       } catch (err) {
         console.error("[MoonshotLab] Telemetry poll failed", err);
         setStatus("ERROR");
@@ -66,17 +78,13 @@ export default function MoonshotLab() {
     events.length > 0 ? events[events.length - 1] : null;
 
   /* ==================================================
-     UI THROTTLE — FILTER NOISE (APPEND-ONLY)
-     --------------------------------------------------
-     Purpose:
-     - Reduce render pressure
-     - Hide scan-in-progress rows
-     - Preserve cadence + engine truth
-     - NO data mutation
+     UI THROTTLE — FILTER NOISE
      ================================================== */
-  const visibleEvents = events.filter(evt =>
-    evt.surfacedCount > 0 || evt.latentCount > 0
-  );
+  const visibleEvents = events
+    .filter(
+      evt => evt.surfacedCount > 0 || evt.latentCount > 0
+    )
+    .slice(-50); // hard cap render cost
 
   const surfacedTickers =
     latestEvent?.snapshot?.surfaced ?? [];
@@ -150,7 +158,7 @@ export default function MoonshotLab() {
         </div>
 
         {/* ============================
-           VISIBILITY HEARTBEAT LAYER
+           VISIBILITY HEARTBEAT
            ============================ */}
         <div
           style={{
@@ -181,7 +189,6 @@ export default function MoonshotLab() {
 
       {/* ============================
          SCROLLABLE EVENT LEDGER
-         (THROTTLED VIEW)
          ============================ */}
       <div
         style={{
@@ -192,12 +199,7 @@ export default function MoonshotLab() {
           padding: "12px"
         }}
       >
-        <table
-          style={{
-            width: "100%",
-            borderCollapse: "collapse"
-          }}
-        >
+        <table style={{ width: "100%", borderCollapse: "collapse" }}>
           <thead>
             <tr style={{ textAlign: "left", opacity: 0.7 }}>
               <th>Time</th>
@@ -214,9 +216,7 @@ export default function MoonshotLab() {
               .reverse()
               .map(evt => (
                 <tr key={evt.id}>
-                  <td>
-                    {new Date(evt.timestamp).toLocaleTimeString()}
-                  </td>
+                  <td>{new Date(evt.timestamp).toLocaleTimeString()}</td>
                   <td>{evt.regime}</td>
                   <td>{evt.universeSize}</td>
                   <td>{evt.evaluated}</td>
