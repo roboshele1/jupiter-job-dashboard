@@ -13,7 +13,7 @@ const SAFE_ENV = {
     null
 };
 
-// ---- API ----
+// ---- API (CANONICAL IPC SURFACE) ----
 const api = {
   // Portfolio
   getPortfolioValuation: () => ipcRenderer.invoke("portfolio:getValuation"),
@@ -22,7 +22,7 @@ const api = {
   // Growth Engine
   growthEngineRun: (payload) => ipcRenderer.invoke("growthEngine:run", payload),
 
-  // ✅ Canonical Chat V2 helper (preferred)
+  // Chat
   runChatIntelligence: (payload) => ipcRenderer.invoke("chat:v2:run", payload),
 
   // Generic escape hatch
@@ -42,10 +42,24 @@ const api = {
   }
 };
 
-// ---- EXPOSE ----
-contextBridge.exposeInMainWorld("env", SAFE_ENV);
+// ---- EXPOSE (AUTHORITATIVE CONTRACT) ----
+
+// Modern / preferred
 contextBridge.exposeInMainWorld("jupiter", api);
 
-// Legacy aliases (do NOT remove)
+// Backward compatibility (do NOT remove)
 contextBridge.exposeInMainWorld("api", api);
 contextBridge.exposeInMainWorld("electronAPI", api);
+
+// ✅ REQUIRED FOR BUILT RENDERER
+// Minimal, safe electron namespace
+contextBridge.exposeInMainWorld("electron", {
+  ipcRenderer: {
+    invoke: ipcRenderer.invoke.bind(ipcRenderer),
+    on: ipcRenderer.on.bind(ipcRenderer),
+    removeListener: ipcRenderer.removeListener.bind(ipcRenderer)
+  }
+});
+
+// Env
+contextBridge.exposeInMainWorld("env", SAFE_ENV);

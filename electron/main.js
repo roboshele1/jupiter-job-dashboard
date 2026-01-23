@@ -37,7 +37,7 @@ async function computeAndCache() {
 }
 
 // -----------------------------------------------------
-// WINDOW
+// WINDOW (AUTHORITATIVE DEV / PROD LOADING)
 // -----------------------------------------------------
 function createWindow() {
   mainWindow = new BrowserWindow({
@@ -50,7 +50,17 @@ function createWindow() {
     }
   });
 
-  mainWindow.loadURL(process.env.VITE_DEV_SERVER_URL);
+  if (process.env.VITE_DEV_SERVER_URL) {
+    console.log("[ELECTRON] Loading DEV server:", process.env.VITE_DEV_SERVER_URL);
+    mainWindow.loadURL(process.env.VITE_DEV_SERVER_URL);
+  } else {
+    const indexPath = path.join(
+      process.cwd(),
+      "electron/renderer/dist/index.html"
+    );
+    console.log("[ELECTRON] Loading PROD file:", indexPath);
+    mainWindow.loadFile(indexPath);
+  }
 }
 
 // -----------------------------------------------------
@@ -70,7 +80,7 @@ function startAsymmetryOnce() {
 app.whenReady().then(async () => {
   registerAllIpc(ipcMain);           // IPC FIRST (required)
   await computeAndCache();           // Portfolio cache
-  createWindow();                    // UI
+  createWindow();                    // UI (DEV or PROD)
   startAsymmetryOnce();              // 🔥 AUTONOMOUS SCANS + TELEMETRY
 });
 

@@ -2,10 +2,10 @@
   "name": "jupiter",
   "version": "1.0.0",
   "private": true,
-  "main": "electron/main.js",
+  "main": "main.js",
   "scripts": {
     "dev": "vite",
-    "electron": "electron .",
+    "electron": "electron main.js",
     "start": "concurrently \"npm run dev\" \"npm run electron\""
   },
   "dependencies": {

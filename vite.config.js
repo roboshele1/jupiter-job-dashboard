@@ -2,8 +2,9 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 
 export default defineConfig({
-  root: "electron/renderer",
+  root: "renderer",
   plugins: [react()],
+  base: "./",
   define: {
     process: {},
     "process.env": {}
@@ -12,4 +13,3 @@ export default defineConfig({
     exclude: ["dotenv"]
   }
 });
-
