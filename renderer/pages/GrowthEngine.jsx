@@ -402,6 +402,17 @@ export default function GrowthEngine() {
       <section style={{ marginTop: 48 }}>
         <h3>Candidate Asset Impact (Read-only)</h3>
 
+        <div style={{ marginTop: 12, marginBottom: 16, opacity: 0.9 }}>
+          <strong>Approximate required monthly contribution:</strong>{" "}
+          {candidateOut?.requiredMonthlyContribution !== undefined
+            ? money(candidateOut.requiredMonthlyContribution)
+            : "—"}
+          <div style={{ fontSize: 12, marginTop: 4, lineHeight: 1.4 }}>
+            Deterministic mathematical projection based on the selected amount,
+            assumed CAGR, horizon, and target. Not a recommendation.
+          </div>
+        </div>
+
         <div style={{ opacity: 0.85, marginBottom: 12, lineHeight: 1.5 }}>
           <strong>Candidate Injection is evaluated in isolation.</strong>
           <br />

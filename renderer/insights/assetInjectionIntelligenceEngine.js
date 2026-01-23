@@ -49,6 +49,24 @@ export function runAssetInjectionIntelligence(input = {}) {
   // Gap at horizon if you do nothing beyond startingAmount
   const gapAtHorizon = round2(Math.max(0, targetAmount - projectedValue));
 
+  // -----------------------------
+  // Monthly contribution (NEW)
+  // -----------------------------
+  let requiredMonthlyContribution = 0;
+
+  if (gapAtHorizon > 0 && horizonMonths > 0 && r > 0) {
+    const monthlyRate = powSafe(1 + r, 1 / 12) - 1;
+
+    if (monthlyRate > 0) {
+      const growthFactor = powSafe(1 + monthlyRate, horizonMonths);
+      const annuityFactor = (growthFactor - 1) / monthlyRate;
+
+      if (annuityFactor > 0) {
+        requiredMonthlyContribution = round2(gapAtHorizon / annuityFactor);
+      }
+    }
+  }
+
   const feasibility =
     gapAtHorizon <= 0 ? "ON_TRACK" : gapAtHorizon / Math.max(targetAmount, 1) <= 0.25 ? "CLOSE" : "OFF_TRACK";
 
@@ -69,6 +87,10 @@ export function runAssetInjectionIntelligence(input = {}) {
     gapAtHorizon,
     requiredStartingCapital,
     requiredAdditionalNow,
+
+    // NEW OUTPUT (append-only)
+    requiredMonthlyContribution,
+
     feasibility,
     interpretation,
     guarantees: {
