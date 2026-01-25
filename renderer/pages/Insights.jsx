@@ -1,12 +1,22 @@
-import { useEffect, useState } from "react";
+// renderer/pages/Insights.jsx
+import { useEffect, useState, useMemo } from "react";
 import { fetchInsightsData } from "../adapters/insightsIpcAdapter.js";
 import { buildInsightsIntelligence } from "../insights/insightsAuthorityEngine.js";
 import { semanticColor } from "../insights/semanticColorMap.js";
 
+// ✅ UI-only conviction adapter (SAFE, PURE, NO IPC)
+import { applyConvictionDays } from "../adapters/convictionAdapter.js";
+
 export default function Insights() {
+  // ─────────────────────────────────────────────
+  // STATE (STATIC ORDER — NEVER CONDITIONAL)
+  // ─────────────────────────────────────────────
   const [insights, setInsights] = useState(null);
   const [error, setError] = useState(null);
 
+  // ─────────────────────────────────────────────
+  // DATA LOAD (ONCE)
+  // ─────────────────────────────────────────────
   useEffect(() => {
     let mounted = true;
 
@@ -31,9 +41,34 @@ export default function Insights() {
     }
 
     load();
-    return () => (mounted = false);
+    return () => {
+      mounted = false;
+    };
   }, []);
 
+  // ─────────────────────────────────────────────
+  // DERIVED (SAFE DEFAULTS)
+  // ─────────────────────────────────────────────
+  const {
+    riskFlags = {},
+    scenarios = [],
+    invariants = [],
+    narrative = [],
+    regimeImpact = {},
+    capital = {},
+    convictionEvolution = [],
+    convictionCapitalDrift = [],
+    capitalReallocationPlaybook = [],
+  } = insights || {};
+
+  // ✅ ALWAYS RUN — PURE MEMO
+  const convictionRows = useMemo(() => {
+    return applyConvictionDays(convictionEvolution || []);
+  }, [convictionEvolution]);
+
+  // ─────────────────────────────────────────────
+  // RENDER GUARDS (AFTER HOOKS)
+  // ─────────────────────────────────────────────
   if (error) {
     return <div style={{ padding: 24, color: "#ef4444" }}>{error}</div>;
   }
@@ -42,18 +77,9 @@ export default function Insights() {
     return <div style={{ padding: 24 }}>Loading insights…</div>;
   }
 
-  const {
-    riskFlags,
-    scenarios,
-    invariants,
-    narrative,
-    regimeImpact,
-    capital,
-    convictionEvolution = [],
-    convictionCapitalDrift = [],
-    capitalReallocationPlaybook = [],
-  } = insights;
-
+  // ─────────────────────────────────────────────
+  // RENDER
+  // ─────────────────────────────────────────────
   return (
     <div style={{ padding: "2rem", maxWidth: 1300 }}>
       <h1 style={{ marginBottom: "0.25rem" }}>Insights</h1>
@@ -89,28 +115,32 @@ export default function Insights() {
       <section style={{ background: "#020617", borderRadius: 14, padding: "1.5rem", marginBottom: 24 }}>
         <h2 style={{ marginBottom: 12 }}>Conviction Evolution</h2>
 
-        {convictionEvolution.map((row) => (
-          <div
-            key={row.symbol}
-            style={{
-              display: "grid",
-              gridTemplateColumns: "120px 160px 120px 1fr",
-              gap: 12,
-              padding: "12px 14px",
-              borderRadius: 10,
-              background: "#0b1220",
-              border: `1px solid ${semanticColor(row.convictionZone)}`,
-              marginBottom: 8,
-            }}
-          >
-            <strong>{row.symbol}</strong>
-            <span style={{ fontWeight: 700, color: semanticColor(row.convictionZone) }}>
-              {row.convictionZone}
-            </span>
-            <span style={{ opacity: 0.75 }}>{row.daysInState} days</span>
-            <span style={{ opacity: 0.85 }}>{row.rationale}</span>
-          </div>
-        ))}
+        {convictionRows.length === 0 ? (
+          <div style={{ opacity: 0.6 }}>No conviction data available.</div>
+        ) : (
+          convictionRows.map((row) => (
+            <div
+              key={row.symbol}
+              style={{
+                display: "grid",
+                gridTemplateColumns: "120px 160px 120px 1fr",
+                gap: 12,
+                padding: "12px 14px",
+                borderRadius: 10,
+                background: "#0b1220",
+                border: `1px solid ${semanticColor(row.convictionZone)}`,
+                marginBottom: 8,
+              }}
+            >
+              <strong>{row.symbol}</strong>
+              <span style={{ fontWeight: 700, color: semanticColor(row.convictionZone) }}>
+                {row.convictionZone}
+              </span>
+              <span style={{ opacity: 0.75 }}>{row.daysInState} days</span>
+              <span style={{ opacity: 0.85 }}>{row.rationale}</span>
+            </div>
+          ))
+        )}
       </section>
 
       {/* CONVICTION vs CAPITAL DRIFT */}
@@ -118,9 +148,7 @@ export default function Insights() {
         <h2 style={{ marginBottom: 12 }}>Conviction vs Capital Drift</h2>
 
         {convictionCapitalDrift.length === 0 ? (
-          <div style={{ opacity: 0.6 }}>
-            No conviction–capital mismatches detected.
-          </div>
+          <div style={{ opacity: 0.6 }}>No conviction–capital mismatches detected.</div>
         ) : (
           convictionCapitalDrift.map((row) => (
             <div
@@ -152,9 +180,7 @@ export default function Insights() {
         <h2 style={{ marginBottom: 12 }}>Capital Reallocation Playbook</h2>
 
         {capitalReallocationPlaybook.length === 0 ? (
-          <div style={{ opacity: 0.6 }}>
-            No actionable capital adjustments at this time.
-          </div>
+          <div style={{ opacity: 0.6 }}>No actionable capital adjustments at this time.</div>
         ) : (
           capitalReallocationPlaybook.map((row) => (
             <div
