@@ -49,3 +49,10 @@ contextBridge.exposeInMainWorld("jupiter", api);
 // Legacy aliases (do NOT remove)
 contextBridge.exposeInMainWorld("api", api);
 contextBridge.exposeInMainWorld("electronAPI", api);
+
+// ============================
+// 🔹 ADDITIONAL CANONICAL ALIASES FOR BACKWARD COMPAT
+// ============================
+contextBridge.exposeInMainWorld("ipc", api);
+contextBridge.exposeInMainWorld("ipcRenderer", api);
+

@@ -33,7 +33,7 @@ let cachedSnapshot = null;
 
 /* =========================
    SNAPSHOT AUTHORITY
-   ========================= */
+   ============================ */
 async function computeSnapshot() {
   const HOLDINGS = [
     { symbol: "NVDA", qty: 73, assetClass: "equity", totalCostBasis: 12881.13, currency: "CAD" },
@@ -64,7 +64,7 @@ async function getCachedSnapshot() {
 
 /* =========================
    REGISTER ALL IPC
-   ========================= */
+   ============================ */
 export function registerAllIpc(ipcMain) {
   registerGrowthEngineIpc(ipcMain);
 
