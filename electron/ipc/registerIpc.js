@@ -143,6 +143,27 @@ export function registerAllIpc(ipcMain) {
   });
 
   // =========================
+  // 🧩 DISCOVERY — STUB HANDLERS (READ-ONLY, SILENT)
+  // =========================
+  ipcMain.handle("discovery:divergence:explanations", async () => {
+    return Object.freeze({
+      contract: "DISCOVERY_DIVERGENCE_EXPLANATIONS_STUB_V1",
+      timestamp: Date.now(),
+      explanations: [],
+      note: "Stub — divergence explanations engine not wired yet"
+    });
+  });
+
+  ipcMain.handle("discovery:evaluation:rejected", async () => {
+    return Object.freeze({
+      contract: "DISCOVERY_EVALUATION_REJECTED_STUB_V1",
+      timestamp: Date.now(),
+      rejected: [],
+      note: "Stub — rejected evaluation explanations pending engine"
+    });
+  });
+
+  // =========================
   // WATCHLIST (STUB)
   // =========================
   ipcMain.handle("watchlist:candidates", async () => {
@@ -166,3 +187,4 @@ export function registerAllIpc(ipcMain) {
   // =========================
   registerMoonshotRegistryIpc(ipcMain);
 }
+
