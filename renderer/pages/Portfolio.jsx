@@ -247,6 +247,16 @@ export default function Portfolio() {
     <div style={{ padding: "1.5rem" }}>
       <h1>Portfolio</h1>
 
+      {/* =========================
+          Portfolio Actions (READ-ONLY SHELL)
+          ========================= */}
+      <div className="card wide" style={{ marginBottom: 20, opacity: 0.6 }}>
+        <strong>Portfolio Actions</strong>
+        <div style={{ fontSize: 12, marginTop: 6 }}>
+          Add / Update / Remove actions will be enabled via engine-backed commands.
+        </div>
+      </div>
+
       {/* Refresh Control */}
       <div style={{ marginBottom: 16 }}>
         <button onClick={refreshValuation} disabled={refreshing}>
@@ -270,26 +280,6 @@ export default function Portfolio() {
         </div>
       </div>
 
-      {/* Add */}
-      <div className="card wide" style={{ marginBottom: 24 }}>
-        <div style={{ marginBottom: 8, opacity: 0.7 }}>
-          ADD POSITION (UI-ONLY)
-        </div>
-        <div style={{ display: "flex", gap: 8 }}>
-          <input
-            placeholder="Symbol"
-            value={addSymbol}
-            onChange={e => setAddSymbol(e.target.value)}
-          />
-          <input
-            placeholder="Qty"
-            value={addQty}
-            onChange={e => setAddQty(e.target.value)}
-          />
-          <button onClick={handleAdd}>Add</button>
-        </div>
-      </div>
-
       {/* Holdings */}
       <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
         {visiblePositions.map(p => {
@@ -299,7 +289,6 @@ export default function Portfolio() {
           return (
             <div key={p.symbol} className="card wide" style={{ padding: "1rem" }}>
               <div style={{ display: "flex", justifyContent: "space-between" }}>
-                {/* Identity */}
                 <div>
                   <div style={{ fontWeight: 600 }}>{p.symbol}</div>
                   <div style={{ fontSize: 13, opacity: 0.85 }}>
@@ -307,15 +296,8 @@ export default function Portfolio() {
                       ? `${p.currency} ${Number(p.livePrice).toLocaleString()}`
                       : "—"}
                   </div>
-                  <div style={{ fontSize: 11, opacity: 0.5 }}>
-                    {p.priceSource}
-                    {p.priceFreshness?.level
-                      ? ` · ${p.priceFreshness.level}`
-                      : ""}
-                  </div>
                 </div>
 
-                {/* Values */}
                 <div style={{ textAlign: "right" }}>
                   <div>Book Cost {fmtMoney(p.snapshotValue)}</div>
                   <div>Live {fmtMoney(p.liveValue)}</div>
@@ -324,19 +306,14 @@ export default function Portfolio() {
                   </div>
                 </div>
 
-                {/* Controls */}
                 <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
                   <input
                     value={draft}
                     onChange={e => setDraft(p.symbol, e.target.value)}
                     style={{ width: 90 }}
                   />
-                  <button onClick={() => handleUpdate(p.symbol)}>
-                    Update
-                  </button>
-                  <button onClick={() => handleRemove(p.symbol)}>
-                    Remove
-                  </button>
+                  <button onClick={() => handleUpdate(p.symbol)}>Update</button>
+                  <button onClick={() => handleRemove(p.symbol)}>Remove</button>
                 </div>
               </div>
             </div>
@@ -348,4 +325,3 @@ export default function Portfolio() {
     </div>
   );
 }
-
