@@ -1,19 +1,29 @@
 /**
- * JUPITER — Portfolio Engine (Editable V1)
- * ---------------------------------------
+ * JUPITER — Portfolio Engine (Editable V1.1)
+ * -----------------------------------------
  * Single authoritative mutation boundary for portfolio holdings.
  *
- * RULES:
- * - Engine owns mutation
+ * INVARIANT (STEP 1):
+ * - Dynamic symbol validation via resolver
+ * - No UI logic
+ * - No pricing logic
+ * - No IPC logic
  * - Disk-backed persistence
- * - No pricing, no analytics
- * - Deterministic + testable
  */
 
 const fs = require("fs");
 const path = require("path");
 
-// Canonical holdings file (V1)
+/* =========================
+   Symbol Resolver (ENGINE)
+   ========================= */
+const resolverModule = require("../symbolUniverse/resolveInvestableSymbol.js");
+const resolveInvestableSymbol =
+  resolverModule.resolveInvestableSymbol || resolverModule.default;
+
+/* =========================
+   Canonical holdings file
+   ========================= */
 const HOLDINGS_PATH = path.resolve(__dirname, "../data/holdings.js");
 
 /* =========================
@@ -64,36 +74,48 @@ function getPortfolioSnapshot() {
    MUTATION API
    ========================= */
 
-function addHolding(symbol, qty) {
+async function validateSymbol(symbol) {
   if (!symbol || typeof symbol !== "string") {
     throw new Error("INVALID_SYMBOL");
   }
+
+  const resolution = await resolveInvestableSymbol(symbol);
+
+  if (!resolution || resolution.valid !== true) {
+    throw new Error("INVALID_SYMBOL");
+  }
+
+  return resolution.symbol; // normalized (e.g. MSFT)
+}
+
+async function addHolding(symbol, qty) {
+  const resolvedSymbol = await validateSymbol(symbol);
+
   if (typeof qty !== "number" || qty <= 0) {
     throw new Error("INVALID_QTY");
   }
 
   const holdings = loadHoldings();
 
-  if (holdings.find(h => h.symbol === symbol)) {
+  if (holdings.find(h => h.symbol === resolvedSymbol)) {
     throw new Error("HOLDING_ALREADY_EXISTS");
   }
 
-  holdings.push({ symbol, qty });
+  holdings.push({ symbol: resolvedSymbol, qty });
   persistHoldings(holdings);
 
   return getPortfolioSnapshot();
 }
 
-function updateHolding(symbol, qty) {
-  if (!symbol || typeof symbol !== "string") {
-    throw new Error("INVALID_SYMBOL");
-  }
+async function updateHolding(symbol, qty) {
+  const resolvedSymbol = await validateSymbol(symbol);
+
   if (typeof qty !== "number" || qty <= 0) {
     throw new Error("INVALID_QTY");
   }
 
   const holdings = loadHoldings();
-  const target = holdings.find(h => h.symbol === symbol);
+  const target = holdings.find(h => h.symbol === resolvedSymbol);
 
   if (!target) {
     throw new Error("HOLDING_NOT_FOUND");
@@ -105,13 +127,11 @@ function updateHolding(symbol, qty) {
   return getPortfolioSnapshot();
 }
 
-function removeHolding(symbol) {
-  if (!symbol || typeof symbol !== "string") {
-    throw new Error("INVALID_SYMBOL");
-  }
+async function removeHolding(symbol) {
+  const resolvedSymbol = await validateSymbol(symbol);
 
   const holdings = loadHoldings();
-  const next = holdings.filter(h => h.symbol !== symbol);
+  const next = holdings.filter(h => h.symbol !== resolvedSymbol);
 
   if (next.length === holdings.length) {
     throw new Error("HOLDING_NOT_FOUND");

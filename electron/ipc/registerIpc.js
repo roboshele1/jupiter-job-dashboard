@@ -1,13 +1,14 @@
 // electron/ipc/registerIpc.js
-import { ipcMain } from "electron";
+// IPC Registry — Authoritative (DET)
+// - Renderer calls window.jupiter.invoke(channel, payload)
+// - Handlers registered ONCE (we remove existing handler first)
+// - Must include stubs for tabs that expect IPC (Discovery/Watchlist)
+
+import { createRequire } from "module";
 
 import { registerGrowthEngineIpc } from "./growthEngineIpc.js";
 import { registerSignalsIpc } from "./signalsIpc.js";
 import { registerGrowthCapitalTrajectoryV2Ipc } from "./growthCapitalTrajectoryV2Ipc.js";
-
-import { runCapitalTrajectoryV2 } from "../../engine/growth/capitalTrajectoryEngineV2.js";
-import { buildSignalsV2Snapshot } from "../../engine/signals/signalsV2Engine.js";
-import { buildRiskCentreIntelligenceV2 } from "../../engine/risk/riskCentreIntelligenceV2.js";
 
 import { valuePortfolio } from "../../engine/portfolio/portfolioValuation.js";
 import { computeInsights } from "../../engine/insights/insightsEngine.js";
@@ -16,48 +17,84 @@ import { resolveInvestableSymbol } from "../../engine/symbolUniverse/resolveInve
 /* ============================
    🟢 APPEND-ONLY: MOONSHOT REGISTRY IPC
    ============================ */
-import {
-  registerMoonshotRegistryIpc
-} from "../../engine/asymmetry/registry/moonshotRegistryIpc.js";
+import { registerMoonshotRegistryIpc } from "../../engine/asymmetry/registry/moonshotRegistryIpc.js";
 
-/* ============================
-   🧩 PORTFOLIO ACTIONS ENGINE (CJS → ESM SAFE IMPORT)
-   ============================ */
-import portfolioEnginePkg from "../../engine/portfolio/portfolioEngine.js";
-
-const {
-  addHolding,
-  updateHolding,
-  removeHolding
-} = portfolioEnginePkg;
-
-/**
- * IPC Registry — Authoritative
- * -----------------------------
- * Read-only unless explicitly stated
- * Resolver-gated
- * No UI logic
- */
+const require = createRequire(import.meta.url);
 
 let cachedSnapshot = null;
 
 /* =========================
-   SNAPSHOT AUTHORITY
-   ============================ */
-async function computeSnapshot() {
-  const HOLDINGS = [
-    { symbol: "NVDA", qty: 73, assetClass: "equity", totalCostBasis: 12881.13, currency: "CAD" },
-    { symbol: "ASML", qty: 10, assetClass: "equity", totalCostBasis: 8649.52, currency: "CAD" },
-    { symbol: "AVGO", qty: 74, assetClass: "equity", totalCostBasis: 26190.68, currency: "CAD" },
-    { symbol: "MSTR", qty: 24, assetClass: "equity", totalCostBasis: 12496.18, currency: "CAD" },
-    { symbol: "HOOD", qty: 70, assetClass: "equity", totalCostBasis: 3316.68, currency: "CAD" },
-    { symbol: "BMNR", qty: 115, assetClass: "equity", totalCostBasis: 6320.18, currency: "CAD" },
-    { symbol: "APLD", qty: 150, assetClass: "equity", totalCostBasis: 1615.58, currency: "CAD" },
-    { symbol: "BTC", qty: 0.251083, assetClass: "crypto", totalCostBasis: 24764.31, currency: "CAD" },
-    { symbol: "ETH", qty: 0.25, assetClass: "crypto", totalCostBasis: 597.9, currency: "CAD" }
-  ];
+   HOLDINGS AUTHORITY (DISK)
+   =========================
+   engine/data/holdings.js is CommonJS: module.exports = [...]
+   Contains objects: symbol, qty, totalCostBasis, assetClass, currency
+*/
+const HOLDINGS_PATH = "../../engine/data/holdings.js";
 
-  const valuation = await valuePortfolio(HOLDINGS);
+function normalizeSymbol(symbol) {
+  return String(symbol || "").trim().toUpperCase();
+}
+
+function asNumber(v) {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : NaN;
+}
+
+function loadHoldingsFull() {
+  const resolved = require.resolve(HOLDINGS_PATH);
+  delete require.cache[resolved];
+
+  const h = require(HOLDINGS_PATH);
+  if (!Array.isArray(h)) throw new Error("HOLDINGS_FILE_INVALID");
+
+  return h.map(x => ({
+    symbol: normalizeSymbol(x.symbol),
+    qty: asNumber(x.qty),
+    totalCostBasis: asNumber(x.totalCostBasis),
+    assetClass: x.assetClass === "crypto" ? "crypto" : "equity",
+    currency: String(x.currency || "CAD")
+  }));
+}
+
+function persistHoldingsFull(next) {
+  const fs = require("fs");
+  const path = require("path");
+
+  const abs = path.resolve(process.cwd(), "engine/data/holdings.js");
+
+  const content = `/**
+ * JUPITER — Canonical Holdings Authority (V1)
+ * AUTO-GENERATED — DO NOT EDIT MANUALLY
+ */
+module.exports = ${JSON.stringify(next, null, 2)};
+`;
+
+  fs.writeFileSync(abs,mad(content), "utf8");
+
+  // local helper to ensure string
+  function mad(s) { return String(s); }
+}
+
+function findIndexBySymbol(holdings, symbol) {
+  const sym = normalizeSymbol(symbol);
+  return holdings.findIndex(h => h.symbol === sym);
+}
+
+/* =========================
+   SNAPSHOT AUTHORITY
+   ========================= */
+async function computeSnapshot() {
+  const HOLDINGS = loadHoldingsFull();
+
+  const valuation = await valuePortfolio(
+    HOLDINGS.map(h => ({
+      symbol: h.symbol,
+      qty: h.qty,
+      assetClass: h.assetClass,
+      totalCostBasis: h.totalCostBasis,
+      currency: h.currency
+    }))
+  );
 
   cachedSnapshot = Object.freeze({
     timestamp: Date.now(),
@@ -73,9 +110,20 @@ async function getCachedSnapshot() {
 }
 
 /* =========================
+   SAFE REGISTRATION (NO DUPES)
+   ========================= */
+function registerHandler(ipcMain, channel, fn) {
+  try {
+    ipcMain.removeHandler(channel);
+  } catch {}
+  ipcMain.handle(channel, fn);
+}
+
+/* =========================
    REGISTER ALL IPC
    ============================ */
 export function registerAllIpc(ipcMain) {
+  // Existing registries
   registerGrowthEngineIpc(ipcMain);
 
   registerSignalsIpc(ipcMain, async () => {
@@ -86,46 +134,123 @@ export function registerAllIpc(ipcMain) {
     return await getCachedSnapshot();
   });
 
-  /* =========================
-     PORTFOLIO — READ
-     ============================ */
-  ipcMain.handle("portfolio:getSnapshot", async () => {
+  // =========================
+  // PORTFOLIO — AUTHORITATIVE
+  // =========================
+  registerHandler(ipcMain, "portfolio:getSnapshot", async () => {
     return await getCachedSnapshot();
   });
 
-  /* =========================
-     PORTFOLIO — ACTIONS (ENGINE-BACKED)
-     ============================ */
-  ipcMain.handle("portfolio:addHolding", async (_event, payload) => {
-    const result = await addHolding(payload);
-    cachedSnapshot = null;
-    return result;
+  registerHandler(ipcMain, "portfolio:getValuation", async () => {
+    const snap = await getCachedSnapshot();
+    return snap.portfolio;
   });
 
-  ipcMain.handle("portfolio:updateHolding", async (_event, payload) => {
-    const result = await updateHolding(payload);
+  registerHandler(ipcMain, "portfolio:refreshValuation", async () => {
     cachedSnapshot = null;
-    return result;
+    const snap = await getCachedSnapshot();
+    return snap.portfolio;
   });
 
-  ipcMain.handle("portfolio:removeHolding", async (_event, payload) => {
-    const result = await removeHolding(payload);
+  // =========================
+  // PORTFOLIO ACTIONS — MUTATION (DISK)
+  // Expected channels:
+  // - portfolio:addHolding      payload: { symbol, qty, assetClass?, totalCostBasis?, currency? }
+  // - portfolio:updateHolding   payload: { symbol, qty, assetClass?, totalCostBasis?, currency? }
+  // - portfolio:removeHolding   payload: { symbol }
+  // =========================
+  registerHandler(ipcMain, "portfolio:addHolding", async (_event, payload) => {
+    const symbol = normalizeSymbol(payload?.symbol);
+    const qty = asNumber(payload?.qty);
+
+    if (!symbol) throw new Error("INVALID_SYMBOL");
+    if (!Number.isFinite(qty) || qty <= 0) throw new Error("INVALID_QTY");
+
+    const holdings = loadHoldingsFull();
+    if (findIndexBySymbol(holdings, symbol) >= 0) throw new Error("HOLDING_ALREADY_EXISTS");
+
+    holdings.push({
+      symbol,
+      qty,
+      totalCostBasis: Number.isFinite(asNumber(payload?.totalCostBasis)) ? asNumber(payload.totalCostBasis) : 0,
+      assetClass: payload?.assetClass === "crypto" ? "crypto" : "equity",
+      currency: String(payload?.currency || "CAD")
+    });
+
+    persistHoldingsFull(holdings);
     cachedSnapshot = null;
-    return result;
+
+    // Return updated valuation so UI can refresh deterministically
+    const snap = await getCachedSnapshot();
+    return snap.portfolio;
   });
 
-  /* =========================
-     INSIGHTS
-     ============================ */
-  ipcMain.handle("insights:compute", async () => {
+  registerHandler(ipcMain, "portfolio:updateHolding", async (_event, payload) => {
+    const symbol = normalizeSymbol(payload?.symbol);
+    const qty = asNumber(payload?.qty);
+
+    if (!symbol) throw new Error("INVALID_SYMBOL");
+    if (!Number.isFinite(qty) || qty <= 0) throw new Error("INVALID_QTY");
+
+    const holdings = loadHoldingsFull();
+    const idx = findIndexBySymbol(holdings, symbol);
+    if (idx < 0) throw new Error("HOLDING_NOT_FOUND");
+
+    const next = {
+      ...holdings[idx],
+      qty
+    };
+
+    if (payload?.totalCostBasis != null) {
+      const tcb = asNumber(payload.totalCostBasis);
+      if (!Number.isFinite(tcb) || tcb < 0) throw new Error("INVALID_TOTAL_COST_BASIS");
+      next.totalCostBasis = tcb;
+    }
+    if (payload?.assetClass) {
+      next.assetClass = payload.assetClass === "crypto" ? "crypto" : "equity";
+    }
+    if (payload?.currency) {
+      next.currency = String(payload.currency);
+    }
+
+    holdings[idx] = next;
+
+    persistHoldingsFull(holdings);
+    cachedSnapshot = null;
+
+    const snap = await getCachedSnapshot();
+    return snap.portfolio;
+  });
+
+  registerHandler(ipcMain, "portfolio:removeHolding", async (_event, payload) => {
+    const symbol = normalizeSymbol(payload?.symbol);
+    if (!symbol) throw new Error("INVALID_SYMBOL");
+
+    const holdings = loadHoldingsFull();
+    const idx = findIndexBySymbol(holdings, symbol);
+    if (idx < 0) throw new Error("HOLDING_NOT_FOUND");
+
+    holdings.splice(idx, 1);
+
+    persistHoldingsFull(holdings);
+    cachedSnapshot = null;
+
+    const snap = await getCachedSnapshot();
+    return snap.portfolio;
+  });
+
+  // =========================
+  // INSIGHTS
+  // =========================
+  registerHandler(ipcMain, "insights:compute", async () => {
     const snap = await getCachedSnapshot();
     return computeInsights(snap);
   });
 
-  /* =========================
-     DISCOVERY — AUTONOMOUS
-     ============================ */
-  ipcMain.handle("discovery:run", async () => {
+  // =========================
+  // DISCOVERY — AUTONOMOUS
+  // =========================
+  registerHandler(ipcMain, "discovery:run", async () => {
     const discoveryModule = await import("../../engine/discovery/runDiscoveryScan.js");
     const themeModule = await import("../../engine/discovery/orchestrator/discoveryThemeOrchestrator.js");
 
@@ -147,10 +272,10 @@ export function registerAllIpc(ipcMain) {
     });
   });
 
-  /* =========================
-     DISCOVERY — MANUAL
-     ============================ */
-  ipcMain.handle("discovery:analyze:symbol", async (_event, payload) => {
+  // =========================
+  // DISCOVERY — MANUAL
+  // =========================
+  registerHandler(ipcMain, "discovery:analyze:symbol", async (_event, payload) => {
     if (!payload || typeof payload.symbol !== "string") {
       throw new Error("INVALID_PAYLOAD");
     }
@@ -179,20 +304,27 @@ export function registerAllIpc(ipcMain) {
     });
   });
 
-  /* =========================
-     STUBS / TELEMETRY
-     ============================ */
-  ipcMain.handle("watchlist:candidates", async () => {
+  // =========================
+  // WATCHLIST (STUB) — REQUIRED BY DISCOVERY LAB UI
+  // =========================
+  registerHandler(ipcMain, "watchlist:candidates", async () => {
     return Object.freeze({
       contract: "WATCHLIST_CANDIDATES_V0_STUB",
       timestamp: Date.now(),
-      candidates: []
+      candidates: [],
+      note: "Stubbed — engine to be wired later"
     });
   });
 
+  // =========================
+  // MOONSHOT — TELEMETRY (READ-ONLY)
+  // =========================
   import("./asymmetryTelemetryIpc.js").then(module => {
     module.registerAsymmetryTelemetryIpc(ipcMain);
   });
 
+  // =========================
+  // 🟢 MOONSHOT — REGISTRY (READ-ONLY, APPEND-ONLY)
+  // =========================
   registerMoonshotRegistryIpc(ipcMain);
 }
