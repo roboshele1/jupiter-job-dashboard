@@ -20,13 +20,23 @@ import {
   registerMoonshotRegistryIpc
 } from "../../engine/asymmetry/registry/moonshotRegistryIpc.js";
 
+/* ============================
+   🧩 PORTFOLIO ACTIONS ENGINE (CJS → ESM SAFE IMPORT)
+   ============================ */
+import portfolioEnginePkg from "../../engine/portfolio/portfolioEngine.js";
+
+const {
+  addHolding,
+  updateHolding,
+  removeHolding
+} = portfolioEnginePkg;
+
 /**
  * IPC Registry — Authoritative
  * -----------------------------
- * Read-only IPC
+ * Read-only unless explicitly stated
  * Resolver-gated
  * No UI logic
- * No mutation
  */
 
 let cachedSnapshot = null;
@@ -76,18 +86,45 @@ export function registerAllIpc(ipcMain) {
     return await getCachedSnapshot();
   });
 
+  /* =========================
+     PORTFOLIO — READ
+     ============================ */
   ipcMain.handle("portfolio:getSnapshot", async () => {
     return await getCachedSnapshot();
   });
 
+  /* =========================
+     PORTFOLIO — ACTIONS (ENGINE-BACKED)
+     ============================ */
+  ipcMain.handle("portfolio:addHolding", async (_event, payload) => {
+    const result = await addHolding(payload);
+    cachedSnapshot = null;
+    return result;
+  });
+
+  ipcMain.handle("portfolio:updateHolding", async (_event, payload) => {
+    const result = await updateHolding(payload);
+    cachedSnapshot = null;
+    return result;
+  });
+
+  ipcMain.handle("portfolio:removeHolding", async (_event, payload) => {
+    const result = await removeHolding(payload);
+    cachedSnapshot = null;
+    return result;
+  });
+
+  /* =========================
+     INSIGHTS
+     ============================ */
   ipcMain.handle("insights:compute", async () => {
     const snap = await getCachedSnapshot();
     return computeInsights(snap);
   });
 
-  // =========================
-  // DISCOVERY — AUTONOMOUS
-  // =========================
+  /* =========================
+     DISCOVERY — AUTONOMOUS
+     ============================ */
   ipcMain.handle("discovery:run", async () => {
     const discoveryModule = await import("../../engine/discovery/runDiscoveryScan.js");
     const themeModule = await import("../../engine/discovery/orchestrator/discoveryThemeOrchestrator.js");
@@ -110,9 +147,9 @@ export function registerAllIpc(ipcMain) {
     });
   });
 
-  // =========================
-  // DISCOVERY — MANUAL
-  // =========================
+  /* =========================
+     DISCOVERY — MANUAL
+     ============================ */
   ipcMain.handle("discovery:analyze:symbol", async (_event, payload) => {
     if (!payload || typeof payload.symbol !== "string") {
       throw new Error("INVALID_PAYLOAD");
@@ -142,49 +179,20 @@ export function registerAllIpc(ipcMain) {
     });
   });
 
-  // =========================
-  // 🧩 DISCOVERY — STUB HANDLERS (READ-ONLY, SILENT)
-  // =========================
-  ipcMain.handle("discovery:divergence:explanations", async () => {
-    return Object.freeze({
-      contract: "DISCOVERY_DIVERGENCE_EXPLANATIONS_STUB_V1",
-      timestamp: Date.now(),
-      explanations: [],
-      note: "Stub — divergence explanations engine not wired yet"
-    });
-  });
-
-  ipcMain.handle("discovery:evaluation:rejected", async () => {
-    return Object.freeze({
-      contract: "DISCOVERY_EVALUATION_REJECTED_STUB_V1",
-      timestamp: Date.now(),
-      rejected: [],
-      note: "Stub — rejected evaluation explanations pending engine"
-    });
-  });
-
-  // =========================
-  // WATCHLIST (STUB)
-  // =========================
+  /* =========================
+     STUBS / TELEMETRY
+     ============================ */
   ipcMain.handle("watchlist:candidates", async () => {
     return Object.freeze({
       contract: "WATCHLIST_CANDIDATES_V0_STUB",
       timestamp: Date.now(),
-      candidates: [],
-      note: "Stubbed — engine to be wired later"
+      candidates: []
     });
   });
 
-  // =========================
-  // MOONSHOT — TELEMETRY (READ-ONLY)
-  // =========================
   import("./asymmetryTelemetryIpc.js").then(module => {
     module.registerAsymmetryTelemetryIpc(ipcMain);
   });
 
-  // =========================
-  // 🟢 MOONSHOT — REGISTRY (READ-ONLY, APPEND-ONLY)
-  // =========================
   registerMoonshotRegistryIpc(ipcMain);
 }
-
