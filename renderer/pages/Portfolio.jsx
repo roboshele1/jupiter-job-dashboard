@@ -19,14 +19,6 @@ function nowMs() {
   return Date.now();
 }
 
-function normalizeSymbol(s) {
-  return String(s || "").trim().toUpperCase();
-}
-
-function isValidQty(n) {
-  return Number.isFinite(n) && n > 0;
-}
-
 function fmtMoney(n) {
   const num = Number(n || 0);
   return `$${num.toLocaleString(undefined, {
@@ -41,10 +33,7 @@ function fmtMoney(n) {
 function readUiState() {
   return safeJsonParse(localStorage.getItem(STORAGE_KEY), {
     version: 3,
-    updatedAt: 0,
-    qtyBySymbol: {},
-    removedSymbols: [],
-    addedSymbols: {}
+    updatedAt: 0
   });
 }
 
@@ -71,20 +60,9 @@ export default function Portfolio() {
     try {
       return readUiState();
     } catch {
-      return {
-        version: 3,
-        updatedAt: 0,
-        qtyBySymbol: {},
-        removedSymbols: [],
-        addedSymbols: {}
-      };
+      return { version: 3, updatedAt: 0 };
     }
   });
-
-  const [rowDraftQty, setRowDraftQty] = useState({});
-  const [addSymbol, setAddSymbol] = useState("");
-  const [addQty, setAddQty] = useState("");
-  const [status, setStatus] = useState(null);
 
   /* =========================
      Load LIVE valuation (authoritative)
@@ -93,19 +71,6 @@ export default function Portfolio() {
     try {
       const v = await window.jupiter.invoke("portfolio:getValuation");
       setValuation(v);
-
-      const drafts = {};
-      for (const p of v?.positions || []) {
-        drafts[p.symbol] = String(p.qty ?? "");
-      }
-      for (const [s, q] of Object.entries(uiState.qtyBySymbol || {})) {
-        drafts[s] = String(q);
-      }
-      for (const [s, v] of Object.entries(uiState.addedSymbols || {})) {
-        drafts[s] = String(v.qty ?? "");
-      }
-
-      setRowDraftQty(drafts);
     } catch (err) {
       console.error("[PORTFOLIO_LOAD_ERROR]", err);
       setError(err.message);
@@ -114,18 +79,16 @@ export default function Portfolio() {
 
   useEffect(() => {
     loadValuation();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   /* =========================
-     Manual Refresh (V3)
+     Manual Refresh
      ========================= */
   async function refreshValuation() {
     try {
       setRefreshing(true);
       const v = await window.jupiter.refreshPortfolioValuation();
       setValuation(v);
-      setStatus("Valuation refreshed");
     } catch (err) {
       console.error("[PORTFOLIO_REFRESH_ERROR]", err);
       setError(err.message);
@@ -144,96 +107,11 @@ export default function Portfolio() {
   }, [uiState]);
 
   /* =========================
-     Visible Positions
+     Visible Positions (read-only)
      ========================= */
   const visiblePositions = useMemo(() => {
-    const base = valuation?.positions || [];
-    const removed = new Set(uiState.removedSymbols || []);
-    const qtyBySymbol = uiState.qtyBySymbol || {};
-    const added = uiState.addedSymbols || {};
-
-    const merged = [];
-
-    for (const p of base) {
-      if (!p?.symbol || removed.has(p.symbol)) continue;
-      const qty =
-        Number.isFinite(qtyBySymbol[p.symbol]) ? qtyBySymbol[p.symbol] : p.qty;
-
-      merged.push({ ...p, qty });
-    }
-
-    for (const [sym, payload] of Object.entries(added)) {
-      if (removed.has(sym)) continue;
-      if (merged.some(m => m.symbol === sym)) continue;
-
-      merged.push({
-        symbol: sym,
-        qty: payload.qty,
-        snapshotValue: 0,
-        livePrice: 0,
-        liveValue: 0,
-        delta: 0,
-        deltaPct: 0,
-        currency: "",
-        priceSource: "ui-only",
-        priceFreshness: null
-      });
-    }
-
-    return merged;
-  }, [valuation, uiState]);
-
-  /* =========================
-     Actions
-     ========================= */
-  function setDraft(symbol, value) {
-    setRowDraftQty(prev => ({ ...prev, [symbol]: value }));
-  }
-
-  function handleUpdate(symbol) {
-    const qty = Number(rowDraftQty[symbol]);
-    if (!isValidQty(qty)) {
-      setStatus(`Invalid qty for ${symbol}`);
-      return;
-    }
-
-    setUiState(prev => ({
-      ...prev,
-      qtyBySymbol: { ...(prev.qtyBySymbol || {}), [symbol]: qty }
-    }));
-
-    setStatus(`Updated ${symbol}`);
-  }
-
-  function handleRemove(symbol) {
-    setUiState(prev => ({
-      ...prev,
-      removedSymbols: Array.from(
-        new Set([...(prev.removedSymbols || []), symbol])
-      )
-    }));
-    setStatus(`Removed ${symbol}`);
-  }
-
-  function handleAdd() {
-    const sym = normalizeSymbol(addSymbol);
-    const qty = Number(addQty);
-
-    if (!sym || !isValidQty(qty)) {
-      setStatus("Invalid symbol or qty");
-      return;
-    }
-
-    setUiState(prev => ({
-      ...prev,
-      addedSymbols: { ...(prev.addedSymbols || {}), [sym]: { qty } }
-    }));
-
-    setRowDraftQty(prev => ({ ...prev, [sym]: String(qty) }));
-    setAddSymbol("");
-    setAddQty("");
-    setStatus(`Added ${sym}`);
-  }
+    return valuation?.positions || [];
+  }, [valuation]);
 
   /* =========================
      Render
@@ -247,17 +125,15 @@ export default function Portfolio() {
     <div style={{ padding: "1.5rem" }}>
       <h1>Portfolio</h1>
 
-      {/* =========================
-          Portfolio Actions (READ-ONLY SHELL)
-          ========================= */}
+      {/* Portfolio Actions — READ-ONLY SHELL */}
       <div className="card wide" style={{ marginBottom: 20, opacity: 0.6 }}>
         <strong>Portfolio Actions</strong>
         <div style={{ fontSize: 12, marginTop: 6 }}>
-          Add / Update / Remove actions will be enabled via engine-backed commands.
+          Actions are disabled. Engine-backed actions will be enabled next.
         </div>
       </div>
 
-      {/* Refresh Control */}
+      {/* Refresh */}
       <div style={{ marginBottom: 16 }}>
         <button onClick={refreshValuation} disabled={refreshing}>
           {refreshing ? "Refreshing…" : "Refresh Valuation"}
@@ -280,10 +156,9 @@ export default function Portfolio() {
         </div>
       </div>
 
-      {/* Holdings */}
+      {/* Holdings — READ-ONLY */}
       <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
         {visiblePositions.map(p => {
-          const draft = rowDraftQty[p.symbol] ?? String(p.qty ?? "");
           const deltaColor = p.delta >= 0 ? "#2ecc71" : "#e74c3c";
 
           return (
@@ -305,23 +180,11 @@ export default function Portfolio() {
                     Δ {fmtMoney(p.delta)} ({Number(p.deltaPct).toFixed(2)}%)
                   </div>
                 </div>
-
-                <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-                  <input
-                    value={draft}
-                    onChange={e => setDraft(p.symbol, e.target.value)}
-                    style={{ width: 90 }}
-                  />
-                  <button onClick={() => handleUpdate(p.symbol)}>Update</button>
-                  <button onClick={() => handleRemove(p.symbol)}>Remove</button>
-                </div>
               </div>
             </div>
           );
         })}
       </div>
-
-      {status && <div style={{ marginTop: 12, opacity: 0.7 }}>{status}</div>}
     </div>
   );
 }
