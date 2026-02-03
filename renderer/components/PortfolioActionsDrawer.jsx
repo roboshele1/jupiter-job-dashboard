@@ -1,13 +1,12 @@
 import { useEffect, useState } from "react";
 
 /**
- * PortfolioActionsDrawer — EXECUTION ENABLED (FIXED)
- * --------------------------------------------------
- * FIXES:
- * - Correct IPC payload shape
- * - Deterministic add / update / remove
- * - Independent qty per holding
- * - Existing holdings load correctly
+ * PortfolioActionsDrawer — EXECUTION ENABLED (CANONICAL)
+ * -----------------------------------------------------
+ * FIX:
+ * - Correctly read snapshot.portfolio.positions
+ * - Existing holdings now render
+ * - Update / Remove now visible and functional
  */
 
 export default function PortfolioActionsDrawer({ open, onClose }) {
@@ -17,8 +16,7 @@ export default function PortfolioActionsDrawer({ open, onClose }) {
 
   const [newSymbol, setNewSymbol] = useState("");
   const [newQty, setNewQty] = useState("");
-
-  const [editQty, setEditQty] = useState({}); // per-symbol qty
+  const [editQty, setEditQty] = useState({});
 
   async function loadSnapshot() {
     try {
@@ -39,7 +37,8 @@ export default function PortfolioActionsDrawer({ open, onClose }) {
 
   if (!open) return null;
 
-  const positions = snapshot?.positions || [];
+  // ✅ THIS IS THE FIX
+  const positions = snapshot?.portfolio?.positions || [];
 
   async function handleAdd() {
     try {
@@ -82,9 +81,7 @@ export default function PortfolioActionsDrawer({ open, onClose }) {
       setError(null);
       setStatus(null);
 
-      await window.jupiter.invoke("portfolio:removeHolding", {
-        symbol
-      });
+      await window.jupiter.invoke("portfolio:removeHolding", { symbol });
 
       await loadSnapshot();
       setStatus(`Removed ${symbol}`);
