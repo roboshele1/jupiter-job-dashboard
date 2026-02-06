@@ -1,7 +1,7 @@
 // engine/market/getLivePrices.js
-// D8.5 — Source-aware price routing (HARDENED)
-// --------------------------------------------
-// Equity  → Polygon (prev close, plan-safe)
+// D8.6 — Source-aware price routing (INTRADAY-ENABLED, HARDENED)
+// -------------------------------------------------------------
+// Equity  → Polygon intraday (15-min delayed) → fallback prev close
 // Crypto  → Coinbase (spot)
 // Read-only, deterministic, NO THROW guarantee
 
@@ -20,6 +20,15 @@ async function safeFetchJSON(url) {
   } catch {
     return null;
   }
+}
+
+/* =========================
+   TIME HELPERS
+   ========================= */
+function oneHourWindow() {
+  const end = Date.now();
+  const start = end - 60 * 60 * 1000;
+  return { start, end };
 }
 
 /* =========================
@@ -50,7 +59,8 @@ export async function getLivePrices(symbols = []) {
     }
 
     // -----------------------------
-    // EQUITY → POLYGON (PREV CLOSE)
+    // EQUITY → POLYGON
+    // Priority: intraday → prev close
     // -----------------------------
     if (!POLYGON_KEY) {
       prices[symbol] = Object.freeze({
@@ -60,15 +70,31 @@ export async function getLivePrices(symbols = []) {
       continue;
     }
 
-    const json = await safeFetchJSON(
+    // ---- 1️⃣ INTRADAY (15-min delayed, minute bars)
+    const { start, end } = oneHourWindow();
+    const intraday = await safeFetchJSON(
+      `https://api.polygon.io/v2/aggs/ticker/${symbol}/range/1/minute/${start}/${end}?adjusted=true&limit=1&apiKey=${POLYGON_KEY}`
+    );
+
+    const intradayPrice = intraday?.results?.[0]?.c;
+    if (typeof intradayPrice === "number") {
+      prices[symbol] = Object.freeze({
+        price: intradayPrice,
+        source: "polygon-intraday-delayed",
+      });
+      continue;
+    }
+
+    // ---- 2️⃣ FALLBACK → PREV CLOSE
+    const prev = await safeFetchJSON(
       `https://api.polygon.io/v2/aggs/ticker/${symbol}/prev?adjusted=true&apiKey=${POLYGON_KEY}`
     );
 
-    const close = json?.results?.[0]?.c;
+    const close = prev?.results?.[0]?.c;
 
     prices[symbol] = Object.freeze({
       price: typeof close === "number" ? close : null,
-      source: json ? "polygon-prev-close" : "polygon-unavailable",
+      source: prev ? "polygon-prev-close" : "polygon-unavailable",
     });
   }
 

@@ -1,76 +1,97 @@
 /**
  * engine/market/priceResolver.js
- * D8.5 — Unified Price Resolver (Engine Authority)
+ * D9 — Unified Price Resolver (Intraday-First, Safe Fallback)
  *
- * Contract:
- * - Single function: resolvePrices(positions)
- * - Deterministic snapshot per invocation (single fetchedAt)
- * - Source-aware routing:
- *   - crypto (BTC/ETH) -> Coinbase spot (via getLivePrices)
- *   - equity (everything else) -> Polygon prev-close (via getLivePrices)
+ * Strategy:
+ * - Crypto → existing Coinbase path (unchanged)
+ * - Equity → Polygon intraday (15-min delayed) minute bars
+ * - Fallback → existing getLivePrices() (prev close / EOD)
  *
- * NOTE:
- * We deliberately route through engine/market/getLivePrices.js because it already
- * implements the correct provider split and is battle-tested via node command.
+ * Guarantees:
+ * - No UI changes
+ * - No IPC changes
+ * - No contract changes
  */
 
+import fetch from "node-fetch";
 import { getLivePrices } from "./getLivePrices.js";
 
-const CONTRACT = "UNIFIED_PRICE_RESOLVER_V1";
+const CONTRACT = "UNIFIED_PRICE_RESOLVER_V2_INTRADAY";
 
 function normalizeType(p) {
   const t = String(p?.type || "").toLowerCase().trim();
   const a = String(p?.assetClass || "").toLowerCase().trim();
-
-  // Accept either `type` or `assetClass`
-  if (t === "crypto" || a === "crypto") return "crypto";
-  if (t === "equity" || a === "equity") return "equity";
-
-  // If symbol is BTC/ETH, treat as crypto (hard rule)
   const s = String(p?.symbol || "").toUpperCase().trim();
-  if (s === "BTC" || s === "ETH") return "crypto";
 
-  // Default to equity
+  if (t === "crypto" || a === "crypto" || s === "BTC" || s === "ETH") {
+    return "crypto";
+  }
   return "equity";
 }
 
+async function fetchIntradayPrice(symbol) {
+  try {
+    const now = Date.now();
+    const from = now - 60 * 60 * 1000; // last 60 minutes
+
+    const url =
+      `https://api.polygon.io/v2/aggs/ticker/${symbol}` +
+      `/range/1/minute/${from}/${now}` +
+      `?adjusted=true&limit=1&apiKey=${process.env.POLYGON_API_KEY}`;
+
+    const res = await fetch(url);
+    if (!res.ok) return null;
+
+    const json = await res.json();
+    const candle = json?.results?.[0];
+
+    if (!candle || typeof candle.c !== "number") return null;
+
+    return {
+      price: candle.c,
+      source: "polygon-intraday-delayed",
+    };
+  } catch {
+    return null;
+  }
+}
+
 export async function resolvePrices(positions = []) {
+  const fetchedAt = new Date().toISOString();
+
   if (!Array.isArray(positions) || positions.length === 0) {
     return Object.freeze({
       contract: CONTRACT,
       source: "unified",
-      fetchedAt: new Date().toISOString(),
+      fetchedAt,
       prices: Object.freeze({}),
     });
   }
 
-  const fetchedAt = new Date().toISOString();
-
-  // Build a unique symbol list from positions
+  // Build unique symbol list
   const symbols = [];
   const seen = new Set();
 
   for (const p of positions) {
-    const symbol = String(p?.symbol || "").toUpperCase().trim();
-    if (!symbol) continue;
-    if (seen.has(symbol)) continue;
-    seen.add(symbol);
-    symbols.push(symbol);
+    const s = String(p?.symbol || "").toUpperCase().trim();
+    if (!s || seen.has(s)) continue;
+    seen.add(s);
+    symbols.push(s);
   }
 
-  const raw = await getLivePrices(symbols);
-
+  // Fallback prices (existing engine behavior)
+  const fallback = await getLivePrices(symbols);
   const prices = {};
+
   for (const p of positions) {
     const symbol = String(p?.symbol || "").toUpperCase().trim();
     if (!symbol) continue;
 
     const kind = normalizeType(p);
-    const row = raw?.[symbol];
 
-    // Enforce routing expectations by symbol/type (no silent cross-routing)
-    // If something comes back missing, we keep price=0 + source=unknown
+    // --- CRYPTO: unchanged ---
     if (kind === "crypto") {
+      const row = fallback?.[symbol];
       prices[symbol] = {
         price: Number(row?.price) || 0,
         source: row?.source || "unknown",
@@ -80,10 +101,24 @@ export async function resolvePrices(positions = []) {
       continue;
     }
 
-    // equity
+    // --- EQUITY: intraday first ---
+    const intraday = await fetchIntradayPrice(symbol);
+
+    if (intraday) {
+      prices[symbol] = {
+        price: intraday.price,
+        source: intraday.source,
+        currency: "USD",
+        fetchedAt,
+      };
+      continue;
+    }
+
+    // --- FALLBACK ---
+    const row = fallback?.[symbol];
     prices[symbol] = {
       price: Number(row?.price) || 0,
-      source: row?.source || "unknown",
+      source: row?.source || "fallback",
       currency: "USD",
       fetchedAt,
     };
@@ -98,4 +133,3 @@ export async function resolvePrices(positions = []) {
 }
 
 export default Object.freeze({ resolvePrices });
-
