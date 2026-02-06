@@ -1,8 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import "../styles/dashboard.css";
 
-const STORAGE_KEY = "JUPITER_PORTFOLIO_UI_V3_STATE";
-
 const BUCKET_COLORS = {
   Semiconductors: "#4cc9f0",
   Software: "#8b5cf6",
@@ -23,19 +21,9 @@ function safeNum(n) {
   return Number.isFinite(num) ? num : 0;
 }
 
-function readPortfolioUiState() {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return null;
-    return JSON.parse(raw);
-  } catch {
-    return null;
-  }
-}
-
 /**
  * Market data freshness precedence.
- * (UI-only inference; does NOT change any engine logic.)
+ * (UI-only inference; does NOT change engine logic.)
  */
 const FRESHNESS_RANK = {
   LIVE: 3,
@@ -66,8 +54,9 @@ export default function Dashboard() {
   const [valuation, setValuation] = useState(null);
   const [lastRefreshAt, setLastRefreshAt] = useState(null);
 
-  // ✅ DASHBOARD LIVE REFRESH (lightweight polling)
-  // Mirrors the “autonomous feel” without needing app restarts.
+  // =========================
+  // LOAD ENGINE VALUATION
+  // =========================
   useEffect(() => {
     let alive = true;
 
@@ -79,14 +68,11 @@ export default function Dashboard() {
         setValuation(v);
         setLastRefreshAt(new Date());
       } catch (e) {
-        // Dashboard should fail soft (read-only surface)
         console.error("[DASHBOARD_VALUATION_LOAD_ERROR]", e);
       }
     }
 
     load();
-
-    // 15s gives “current” without being noisy.
     const id = setInterval(load, 15_000);
 
     return () => {
@@ -95,70 +81,30 @@ export default function Dashboard() {
     };
   }, []);
 
-  const uiState = useMemo(() => readPortfolioUiState(), []);
-
   /* =========================
-     PORTFOLIO NORMALIZATION
+     ENGINE POSITIONS (AUTHORITATIVE)
      ========================= */
-  const positions = useMemo(() => {
-    const base = Array.isArray(valuation?.positions) ? valuation.positions : [];
-    if (!uiState) return base;
-
-    const removed = new Set(uiState.removedSymbols || []);
-    const overrides = uiState.qtyBySymbol || {};
-    const added = uiState.addedSymbols || {};
-
-    const merged = [];
-
-    for (const p of base) {
-      if (!p?.symbol) continue;
-      if (removed.has(p.symbol)) continue;
-
-      const overrideQty = overrides[p.symbol];
-      merged.push({
-        ...p,
-        qty:
-          typeof overrideQty === "number" && Number.isFinite(overrideQty)
-            ? overrideQty
-            : p.qty,
-      });
-    }
-
-    for (const [symbol, payload] of Object.entries(added)) {
-      if (removed.has(symbol)) continue;
-      if (merged.some((m) => m.symbol === symbol)) continue;
-
-      merged.push({
-        symbol,
-        qty: Number(payload?.qty) || 0,
-        assetClass: payload?.assetClass || "unknown",
-        snapshotValue: 0,
-        livePrice: 0,
-        liveValue: 0,
-        delta: 0,
-        deltaPct: 0,
-        priceSource: "ui-only",
-        priceFreshness: null,
-      });
-    }
-
-    return merged;
-  }, [valuation, uiState]);
-
-  /* =========================
-     VALUATION METRICS
-     ========================= */
-  const totalLive = positions.reduce((a, p) => a + safeNum(p.liveValue), 0);
-  const totalSnapshot = positions.reduce(
-    (a, p) => a + safeNum(p.snapshotValue),
-    0
+  const positions = useMemo(
+    () => (Array.isArray(valuation?.positions) ? valuation.positions : []),
+    [valuation]
   );
 
-  const dailyPL = totalLive - totalSnapshot;
-  const dailyPLPct = totalSnapshot > 0 ? (dailyPL / totalSnapshot) * 100 : 0;
+  /* =========================
+     ENGINE TOTALS (AUTHORITATIVE)
+     ========================= */
+  const totals = valuation?.totals || {
+    snapshotValue: 0,
+    liveValue: 0,
+    delta: 0,
+    deltaPct: 0,
+  };
 
   const plClass =
-    dailyPL > 0 ? "pl-positive" : dailyPL < 0 ? "pl-negative" : "pl-neutral";
+    totals.delta > 0
+      ? "pl-positive"
+      : totals.delta < 0
+      ? "pl-negative"
+      : "pl-neutral";
 
   /* =========================
      SNAPSHOT + FRESHNESS
@@ -166,13 +112,11 @@ export default function Dashboard() {
   const snapshotTime =
     valuation?.priceSnapshotMeta?.fetchedAt || valuation?.snapshotAt || null;
 
-  // Engine-level freshness (if present)
   const engineFreshnessLevel =
     valuation?.priceSnapshotMeta?.freshness?.level || "UNKNOWN";
   const engineFreshnessConfidence =
     valuation?.priceSnapshotMeta?.freshness?.confidence || "UNKNOWN";
 
-  // UI-level best-effort freshness from positions (prevents “UNKNOWN for days”)
   const bestFromPositions = useMemo(
     () => pickBestFreshness(positions),
     [positions]
@@ -193,7 +137,7 @@ export default function Dashboard() {
       : "UNKNOWN";
 
   /* =========================
-     TOP HOLDINGS
+     TOP HOLDINGS (ENGINE DATA)
      ========================= */
   const topHoldings = useMemo(
     () =>
@@ -206,21 +150,10 @@ export default function Dashboard() {
   );
 
   /* =========================
-     ALLOCATION (INSTITUTIONAL)
+     ALLOCATION (DISPLAY ONLY)
      ========================= */
   const allocationBands = useMemo(() => {
-    if (!positions.length || totalLive <= 0) {
-      return [
-        {
-          name: "Semiconductors",
-          percent: 56,
-          color: BUCKET_COLORS.Semiconductors,
-        },
-        { name: "Software", percent: 9, color: BUCKET_COLORS.Software },
-        { name: "Crypto", percent: 26, color: BUCKET_COLORS.Crypto },
-        { name: "Cash", percent: 9, color: BUCKET_COLORS.Cash },
-      ];
-    }
+    if (!positions.length || totals.liveValue <= 0) return [];
 
     const buckets = {
       Semiconductors: 0,
@@ -245,15 +178,15 @@ export default function Dashboard() {
 
     const bands = Object.entries(buckets).map(([name, val]) => ({
       name,
-      percent: Math.round((val / totalLive) * 100),
+      percent: Math.round((val / totals.liveValue) * 100),
       color: BUCKET_COLORS[name],
     }));
 
     const sum = bands.reduce((a, b) => a + b.percent, 0);
-    if (sum !== 100) bands[0].percent += 100 - sum;
+    if (sum !== 100 && bands.length) bands[0].percent += 100 - sum;
 
     return bands;
-  }, [positions, totalLive]);
+  }, [positions, totals.liveValue]);
 
   /* =========================
      RENDER
@@ -262,7 +195,6 @@ export default function Dashboard() {
     <div className="dashboard">
       <h1>Dashboard</h1>
 
-      {/* Readability-first: show “last refreshed” (always current if polling works) */}
       <div className="card wide">
         <div className="label">LAST REFRESHED</div>
         <div className="value">
@@ -279,13 +211,13 @@ export default function Dashboard() {
 
       <div className="card wide">
         <div className="label">TOTAL PORTFOLIO VALUE</div>
-        <div className="value">{fmtMoney(totalLive)}</div>
+        <div className="value">{fmtMoney(totals.liveValue)}</div>
       </div>
 
       <div className={`card wide ${plClass}`}>
         <div className="label">TODAY’S P/L</div>
         <div className="value">
-          {fmtMoney(dailyPL)} ({dailyPLPct.toFixed(2)}%)
+          {fmtMoney(totals.delta)} ({Number(totals.deltaPct).toFixed(2)}%)
         </div>
       </div>
 
