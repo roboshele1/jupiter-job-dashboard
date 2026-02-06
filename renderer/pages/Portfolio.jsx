@@ -1,24 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
-
-const STORAGE_KEY = "JUPITER_PORTFOLIO_UI_V3_STATE";
+import PortfolioActionsDrawer from "../components/PortfolioActionsDrawer.jsx";
 
 /* =========================
    Utilities (UNCHANGED)
    ========================= */
-function safeJsonParse(raw, fallback) {
-  try {
-    if (!raw) return fallback;
-    const v = JSON.parse(raw);
-    return v ?? fallback;
-  } catch {
-    return fallback;
-  }
-}
-
-function nowMs() {
-  return Date.now();
-}
-
 function fmtMoney(n) {
   const num = Number(n || 0);
   return `$${num.toLocaleString(undefined, {
@@ -34,6 +19,7 @@ export default function Portfolio() {
   const [valuation, setValuation] = useState(null);
   const [error, setError] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [actionsOpen, setActionsOpen] = useState(false);
 
   /* =========================
      Load LIVE valuation (AUTHORITATIVE)
@@ -68,9 +54,6 @@ export default function Portfolio() {
     }
   }
 
-  /* =========================
-     Engine-only positions
-     ========================= */
   const positions = useMemo(() => {
     return valuation?.positions || [];
   }, [valuation]);
@@ -85,14 +68,29 @@ export default function Portfolio() {
       <h1>Portfolio</h1>
 
       {/* =========================
-          Portfolio Actions (READ-ONLY SHELL)
+          Portfolio Actions (LIVE)
           ========================= */}
-      <div className="card wide" style={{ marginBottom: 20, opacity: 0.6 }}>
+      <div className="card wide" style={{ marginBottom: 20 }}>
         <strong>Portfolio Actions</strong>
         <div style={{ fontSize: 12, marginTop: 6 }}>
-          Actions are disabled. Engine-backed actions will be enabled next.
+          Manage holdings via engine-backed actions.
         </div>
+        <button
+          style={{ marginTop: 10 }}
+          onClick={() => setActionsOpen(true)}
+        >
+          Open Actions
+        </button>
       </div>
+
+      {/* Drawer */}
+      <PortfolioActionsDrawer
+        open={actionsOpen}
+        onClose={() => {
+          setActionsOpen(false);
+          loadValuation(); // re-sync after mutations
+        }}
+      />
 
       {/* Refresh */}
       <div style={{ marginBottom: 16 }}>
@@ -119,7 +117,7 @@ export default function Portfolio() {
         </div>
       </div>
 
-      {/* Holdings — ENGINE ONLY */}
+      {/* Holdings */}
       <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
         {positions.map(p => {
           const deltaColor = p.delta >= 0 ? "#2ecc71" : "#e74c3c";

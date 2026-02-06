@@ -1,29 +1,21 @@
 /**
- * JUPITER — Portfolio Engine (Editable V1.1)
+ * JUPITER — Portfolio Engine (V2.1)
  * -----------------------------------------
- * Single authoritative mutation boundary for portfolio holdings.
+ * Canonical mutation authority for holdings.
  *
- * INVARIANT (STEP 1):
- * - Dynamic symbol validation via resolver
- * - No UI logic
- * - No pricing logic
- * - No IPC logic
- * - Disk-backed persistence
+ * FIX:
+ * - Existing symbols bypass resolver (deterministic)
+ * - Resolver only used for brand-new symbols
+ * - Quantity updates ALWAYS adjust book cost
  */
 
 const fs = require("fs");
 const path = require("path");
 
-/* =========================
-   Symbol Resolver (ENGINE)
-   ========================= */
 const resolverModule = require("../symbolUniverse/resolveInvestableSymbol.js");
 const resolveInvestableSymbol =
   resolverModule.resolveInvestableSymbol || resolverModule.default;
 
-/* =========================
-   Canonical holdings file
-   ========================= */
 const HOLDINGS_PATH = path.resolve(__dirname, "../data/holdings.js");
 
 /* =========================
@@ -32,16 +24,9 @@ const HOLDINGS_PATH = path.resolve(__dirname, "../data/holdings.js");
 
 function loadHoldings() {
   delete require.cache[require.resolve(HOLDINGS_PATH)];
-  const holdings = require(HOLDINGS_PATH);
-
-  if (!Array.isArray(holdings)) {
-    throw new Error("HOLDINGS_FILE_INVALID");
-  }
-
-  return holdings.map(h => ({
-    symbol: String(h.symbol),
-    qty: Number(h.qty)
-  }));
+  const h = require(HOLDINGS_PATH);
+  if (!Array.isArray(h)) throw new Error("HOLDINGS_FILE_INVALID");
+  return h.map(x => ({ ...x }));
 }
 
 function persistHoldings(holdings) {
@@ -49,95 +34,97 @@ function persistHoldings(holdings) {
  * JUPITER — Canonical Holdings Authority (V1)
  * AUTO-GENERATED — DO NOT EDIT MANUALLY
  */
-
 module.exports = ${JSON.stringify(holdings, null, 2)};
 `;
-
   fs.writeFileSync(HOLDINGS_PATH, content, "utf8");
 }
 
+async function resolveIfNew(symbol, holdings) {
+  const normalized = String(symbol).toUpperCase();
+
+  if (holdings.some(h => h.symbol === normalized)) {
+    return normalized; // already known → valid
+  }
+
+  const res = await resolveInvestableSymbol(normalized);
+  if (!res?.valid) throw new Error("INVALID_SYMBOL");
+  return res.symbol;
+}
+
 /* =========================
-   READ API
+   READ
    ========================= */
 
 function getPortfolioSnapshot() {
-  const holdings = loadHoldings();
-
   return Object.freeze({
-    contract: "PORTFOLIO_ENGINE_V1",
     timestamp: Date.now(),
-    positions: holdings
+    positions: loadHoldings()
   });
 }
 
 /* =========================
-   MUTATION API
+   MUTATIONS
    ========================= */
 
-async function validateSymbol(symbol) {
-  if (!symbol || typeof symbol !== "string") {
-    throw new Error("INVALID_SYMBOL");
-  }
-
-  const resolution = await resolveInvestableSymbol(symbol);
-
-  if (!resolution || resolution.valid !== true) {
-    throw new Error("INVALID_SYMBOL");
-  }
-
-  return resolution.symbol; // normalized (e.g. MSFT)
-}
-
-async function addHolding(symbol, qty) {
-  const resolvedSymbol = await validateSymbol(symbol);
-
-  if (typeof qty !== "number" || qty <= 0) {
-    throw new Error("INVALID_QTY");
-  }
+async function addHolding({ symbol, qty, cost }) {
+  if (!Number.isFinite(qty) || qty <= 0) throw new Error("INVALID_QTY");
+  if (!Number.isFinite(cost) || cost <= 0) throw new Error("INVALID_COST");
 
   const holdings = loadHoldings();
+  const s = await resolveIfNew(symbol, holdings);
 
-  if (holdings.find(h => h.symbol === resolvedSymbol)) {
-    throw new Error("HOLDING_ALREADY_EXISTS");
+  const h = holdings.find(x => x.symbol === s);
+
+  if (h) {
+    h.qty += qty;
+    h.totalCostBasis += cost;
+  } else {
+    holdings.push({
+      symbol: s,
+      qty,
+      totalCostBasis: cost,
+      assetClass: "equity",
+      currency: "USD"
+    });
   }
 
-  holdings.push({ symbol: resolvedSymbol, qty });
   persistHoldings(holdings);
-
   return getPortfolioSnapshot();
 }
 
-async function updateHolding(symbol, qty) {
-  const resolvedSymbol = await validateSymbol(symbol);
-
-  if (typeof qty !== "number" || qty <= 0) {
-    throw new Error("INVALID_QTY");
-  }
+async function updateHolding({ symbol, qtyDelta }) {
+  if (!Number.isFinite(qtyDelta) || qtyDelta === 0)
+    throw new Error("INVALID_QTY_DELTA");
 
   const holdings = loadHoldings();
-  const target = holdings.find(h => h.symbol === resolvedSymbol);
+  const s = String(symbol).toUpperCase();
+  const h = holdings.find(x => x.symbol === s);
 
-  if (!target) {
-    throw new Error("HOLDING_NOT_FOUND");
+  if (!h) throw new Error("HOLDING_NOT_FOUND");
+
+  const avgCost = h.totalCostBasis / h.qty;
+  const newQty = h.qty + qtyDelta;
+
+  if (newQty < 0) throw new Error("QTY_EXCEEDS_HOLDING");
+
+  if (newQty === 0) {
+    persistHoldings(holdings.filter(x => x.symbol !== s));
+    return getPortfolioSnapshot();
   }
 
-  target.qty = qty;
-  persistHoldings(holdings);
+  if (qtyDelta < 0) {
+    h.totalCostBasis += avgCost * qtyDelta; // qtyDelta negative
+  }
 
+  h.qty = newQty;
+  persistHoldings(holdings);
   return getPortfolioSnapshot();
 }
 
-async function removeHolding(symbol) {
-  const resolvedSymbol = await validateSymbol(symbol);
-
+async function removeHolding({ symbol }) {
+  const s = String(symbol).toUpperCase();
   const holdings = loadHoldings();
-  const next = holdings.filter(h => h.symbol !== resolvedSymbol);
-
-  if (next.length === holdings.length) {
-    throw new Error("HOLDING_NOT_FOUND");
-  }
-
-  persistHoldings(next);
+  persistHoldings(holdings.filter(x => x.symbol !== s));
   return getPortfolioSnapshot();
 }
 
