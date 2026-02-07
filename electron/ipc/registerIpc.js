@@ -10,6 +10,9 @@ import { registerGrowthEngineIpc } from "./growthEngineIpc.js";
 import { registerSignalsIpc } from "./signalsIpc.js";
 import { registerGrowthCapitalTrajectoryV2Ipc } from "./growthCapitalTrajectoryV2Ipc.js";
 
+/* 🟢 APPEND-ONLY: PORTFOLIO TECHNICAL SIGNALS IPC */
+import { registerPortfolioTechnicalSignalsIpc } from "./portfolioTechnicalSignalsIpc.js";
+
 import { valuePortfolio } from "../../engine/portfolio/portfolioValuation.js";
 import { computeInsights } from "../../engine/insights/insightsEngine.js";
 import { resolveInvestableSymbol } from "../../engine/symbolUniverse/resolveInvestableSymbol.js";
@@ -25,10 +28,7 @@ let cachedSnapshot = null;
 
 /* =========================
    HOLDINGS AUTHORITY (DISK)
-   =========================
-   engine/data/holdings.js is CommonJS: module.exports = [...]
-   Contains objects: symbol, qty, totalCostBasis, assetClass, currency
-*/
+   ========================= */
 const HOLDINGS_PATH = "../../engine/data/holdings.js";
 
 function normalizeSymbol(symbol) {
@@ -69,10 +69,7 @@ function persistHoldingsFull(next) {
 module.exports = ${JSON.stringify(next, null, 2)};
 `;
 
-  fs.writeFileSync(abs,mad(content), "utf8");
-
-  // local helper to ensure string
-  function mad(s) { return String(s); }
+  fs.writeFileSync(abs, String(content), "utf8");
 }
 
 function findIndexBySymbol(holdings, symbol) {
@@ -153,90 +150,10 @@ export function registerAllIpc(ipcMain) {
   });
 
   // =========================
-  // PORTFOLIO ACTIONS — MUTATION (DISK)
-  // Expected channels:
-  // - portfolio:addHolding      payload: { symbol, qty, assetClass?, totalCostBasis?, currency? }
-  // - portfolio:updateHolding   payload: { symbol, qty, assetClass?, totalCostBasis?, currency? }
-  // - portfolio:removeHolding   payload: { symbol }
+  // 🟢 PORTFOLIO — TECHNICAL SIGNALS (READ-ONLY)
   // =========================
-  registerHandler(ipcMain, "portfolio:addHolding", async (_event, payload) => {
-    const symbol = normalizeSymbol(payload?.symbol);
-    const qty = asNumber(payload?.qty);
-
-    if (!symbol) throw new Error("INVALID_SYMBOL");
-    if (!Number.isFinite(qty) || qty <= 0) throw new Error("INVALID_QTY");
-
-    const holdings = loadHoldingsFull();
-    if (findIndexBySymbol(holdings, symbol) >= 0) throw new Error("HOLDING_ALREADY_EXISTS");
-
-    holdings.push({
-      symbol,
-      qty,
-      totalCostBasis: Number.isFinite(asNumber(payload?.totalCostBasis)) ? asNumber(payload.totalCostBasis) : 0,
-      assetClass: payload?.assetClass === "crypto" ? "crypto" : "equity",
-      currency: String(payload?.currency || "CAD")
-    });
-
-    persistHoldingsFull(holdings);
-    cachedSnapshot = null;
-
-    // Return updated valuation so UI can refresh deterministically
-    const snap = await getCachedSnapshot();
-    return snap.portfolio;
-  });
-
-  registerHandler(ipcMain, "portfolio:updateHolding", async (_event, payload) => {
-    const symbol = normalizeSymbol(payload?.symbol);
-    const qty = asNumber(payload?.qty);
-
-    if (!symbol) throw new Error("INVALID_SYMBOL");
-    if (!Number.isFinite(qty) || qty <= 0) throw new Error("INVALID_QTY");
-
-    const holdings = loadHoldingsFull();
-    const idx = findIndexBySymbol(holdings, symbol);
-    if (idx < 0) throw new Error("HOLDING_NOT_FOUND");
-
-    const next = {
-      ...holdings[idx],
-      qty
-    };
-
-    if (payload?.totalCostBasis != null) {
-      const tcb = asNumber(payload.totalCostBasis);
-      if (!Number.isFinite(tcb) || tcb < 0) throw new Error("INVALID_TOTAL_COST_BASIS");
-      next.totalCostBasis = tcb;
-    }
-    if (payload?.assetClass) {
-      next.assetClass = payload.assetClass === "crypto" ? "crypto" : "equity";
-    }
-    if (payload?.currency) {
-      next.currency = String(payload.currency);
-    }
-
-    holdings[idx] = next;
-
-    persistHoldingsFull(holdings);
-    cachedSnapshot = null;
-
-    const snap = await getCachedSnapshot();
-    return snap.portfolio;
-  });
-
-  registerHandler(ipcMain, "portfolio:removeHolding", async (_event, payload) => {
-    const symbol = normalizeSymbol(payload?.symbol);
-    if (!symbol) throw new Error("INVALID_SYMBOL");
-
-    const holdings = loadHoldingsFull();
-    const idx = findIndexBySymbol(holdings, symbol);
-    if (idx < 0) throw new Error("HOLDING_NOT_FOUND");
-
-    holdings.splice(idx, 1);
-
-    persistHoldingsFull(holdings);
-    cachedSnapshot = null;
-
-    const snap = await getCachedSnapshot();
-    return snap.portfolio;
+  registerPortfolioTechnicalSignalsIpc(ipcMain, async () => {
+    return await getCachedSnapshot();
   });
 
   // =========================
@@ -305,7 +222,7 @@ export function registerAllIpc(ipcMain) {
   });
 
   // =========================
-  // WATCHLIST (STUB) — REQUIRED BY DISCOVERY LAB UI
+  // WATCHLIST (STUB)
   // =========================
   registerHandler(ipcMain, "watchlist:candidates", async () => {
     return Object.freeze({
@@ -317,14 +234,14 @@ export function registerAllIpc(ipcMain) {
   });
 
   // =========================
-  // MOONSHOT — TELEMETRY (READ-ONLY)
+  // MOONSHOT — TELEMETRY
   // =========================
   import("./asymmetryTelemetryIpc.js").then(module => {
     module.registerAsymmetryTelemetryIpc(ipcMain);
   });
 
   // =========================
-  // 🟢 MOONSHOT — REGISTRY (READ-ONLY, APPEND-ONLY)
+  // MOONSHOT — REGISTRY
   // =========================
   registerMoonshotRegistryIpc(ipcMain);
 }
