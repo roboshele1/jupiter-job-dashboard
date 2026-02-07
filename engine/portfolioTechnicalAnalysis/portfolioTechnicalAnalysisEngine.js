@@ -1,18 +1,24 @@
 // engine/portfolioTechnicalAnalysis/portfolioTechnicalAnalysisEngine.js
-// Portfolio Technical Analysis Engine — V1 (ALWAYS-ON)
+// Portfolio Technical Analysis Engine — V1 (ALWAYS-ON, EQUITIES ONLY)
 //
 // Contract:
 // - Deterministic
 // - Read-only
-// - Runs for EVERY holding (no silence)
-// - No trading advice, no actions
+// - ALWAYS runs for ALL holdings
+// - Explicitly scoped to EQUITIES
+// - Crypto is EXCLUDED by design (not failure)
+//
+// Invariants:
+// - No silence
+// - No mixed asset semantics
+// - No trading advice
 //
 // Inputs:
 // - portfolio.positions
 // - portfolio.marketData (MARKETDATA_SNAPSHOT_V1)
 //
 // Outputs:
-// - Per-symbol technical state (trend, momentum, location)
+// - Per-symbol technical state or explicit exclusion
 
 function sma(values, period) {
   if (!Array.isArray(values) || values.length < period) return null;
@@ -21,10 +27,10 @@ function sma(values, period) {
   return sum / period;
 }
 
-function classifyTrend(price, sma50, sma200) {
-  if (!price || !sma50 || !sma200) return "UNKNOWN";
-  if (price > sma50 && sma50 > sma200) return "UPTREND";
-  if (price < sma50 && sma50 < sma200) return "DOWNTREND";
+function classifyTrend(price, sma50, sma200w) {
+  if (!price || !sma50 || !sma200w) return "UNKNOWN";
+  if (price > sma50 && sma50 > sma200w) return "UPTREND";
+  if (price < sma50 && sma50 < sma200w) return "DOWNTREND";
   return "RANGE";
 }
 
@@ -35,11 +41,11 @@ function classifyMomentum(price, sma20) {
   return "NEUTRAL";
 }
 
-function classifyLocation(price, highs, lows) {
-  if (!price || !highs.length || !lows.length) return "UNKNOWN";
+function classifyLocation(price, highs) {
+  if (!price || !Array.isArray(highs) || highs.length === 0) return "UNKNOWN";
 
   const high = Math.max(...highs);
-  const low = Math.min(...lows);
+  const low = Math.min(...highs);
   const range = high - low;
 
   if (range === 0) return "UNKNOWN";
@@ -55,7 +61,12 @@ function classifyLocation(price, highs, lows) {
  * PUBLIC API
  */
 export function buildPortfolioTechnicalAnalysis(portfolioSnapshot) {
-  if (!portfolioSnapshot?.positions || !portfolioSnapshot?.marketData) {
+  if (
+    !portfolioSnapshot ||
+    !Array.isArray(portfolioSnapshot.positions) ||
+    !portfolioSnapshot.marketData ||
+    !portfolioSnapshot.marketData.symbols
+  ) {
     throw new Error("PORTFOLIO_TECHNICAL_ANALYSIS_INVALID_INPUT");
   }
 
@@ -64,21 +75,35 @@ export function buildPortfolioTechnicalAnalysis(portfolioSnapshot) {
 
   for (const position of portfolioSnapshot.positions) {
     const symbol = position.symbol;
-    const md = portfolioSnapshot.marketData.symbols?.[symbol];
 
-    if (!md) {
-      out[symbol] = {
+    // 🔒 HARD SCOPE: EQUITIES ONLY
+    if (position.assetClass !== "equity") {
+      out[symbol] = Object.freeze({
         symbol,
-        state: "UNAVAILABLE",
-        reason: "NO_MARKET_DATA",
-      };
+        state: "EXCLUDED",
+        reason: "ASSET_CLASS_NOT_SUPPORTED",
+        assetClass: position.assetClass,
+      });
       continue;
     }
 
-    const daily = md.dailyCloses || [];
-    const weekly = md.weeklyCloses || [];
+    const md = portfolioSnapshot.marketData.symbols[symbol];
 
-    const price = daily[daily.length - 1] || null;
+    if (!md || !Array.isArray(md.dailyCloses) || md.dailyCloses.length === 0) {
+      out[symbol] = Object.freeze({
+        symbol,
+        state: "UNAVAILABLE",
+        reason: "NO_MARKET_DATA",
+        assetClass: "equity",
+        source: md?.source || "unavailable",
+      });
+      continue;
+    }
+
+    const daily = md.dailyCloses;
+    const weekly = Array.isArray(md.weeklyCloses) ? md.weeklyCloses : [];
+
+    const price = daily[daily.length - 1] ?? null;
 
     const sma20 = sma(daily, 20);
     const sma50 = sma(daily, 50);
@@ -86,10 +111,12 @@ export function buildPortfolioTechnicalAnalysis(portfolioSnapshot) {
 
     out[symbol] = Object.freeze({
       symbol,
+      assetClass: "equity",
+      state: "ANALYZED",
       price,
       trend: classifyTrend(price, sma50, sma200w),
       momentum: classifyMomentum(price, sma20),
-      location: classifyLocation(price, daily, daily),
+      location: classifyLocation(price, daily),
       movingAverages: {
         sma20,
         sma50,
@@ -101,9 +128,10 @@ export function buildPortfolioTechnicalAnalysis(portfolioSnapshot) {
 
   return Object.freeze({
     contract: "PORTFOLIO_TECHNICAL_ANALYSIS_V1",
+    scope: "EQUITIES_ONLY",
     asOf,
     symbols: Object.freeze(out),
   });
 }
 
-module.exports = Object.freeze({ buildPortfolioTechnicalAnalysis });
+export default Object.freeze({ buildPortfolioTechnicalAnalysis });
