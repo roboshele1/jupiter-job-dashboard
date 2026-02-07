@@ -1,36 +1,22 @@
-// engine/portfolioTechnicalAnalysis/portfolioTechnicalAnalysisEngine.js
-// Portfolio Technical Analysis Engine — V1 (ALWAYS-ON, EQUITIES ONLY)
+// Portfolio Technical Analysis Engine — V1 (ALWAYS-ON + INTERPRETATION)
 //
 // Contract:
 // - Deterministic
 // - Read-only
-// - ALWAYS runs for ALL holdings
-// - Explicitly scoped to EQUITIES
-// - Crypto is EXCLUDED by design (not failure)
-//
-// Invariants:
-// - No silence
-// - No mixed asset semantics
-// - No trading advice
-//
-// Inputs:
-// - portfolio.positions
-// - portfolio.marketData (MARKETDATA_SNAPSHOT_V1)
-//
-// Outputs:
-// - Per-symbol technical state or explicit exclusion
+// - Runs for EVERY holding
+// - No actions, no buy/sell/hold
+// - Interpretation is descriptive, not prescriptive
 
 function sma(values, period) {
   if (!Array.isArray(values) || values.length < period) return null;
   const slice = values.slice(-period);
-  const sum = slice.reduce((a, b) => a + b, 0);
-  return sum / period;
+  return slice.reduce((a, b) => a + b, 0) / period;
 }
 
-function classifyTrend(price, sma50, sma200w) {
-  if (!price || !sma50 || !sma200w) return "UNKNOWN";
-  if (price > sma50 && sma50 > sma200w) return "UPTREND";
-  if (price < sma50 && sma50 < sma200w) return "DOWNTREND";
+function classifyTrend(price, sma50, sma200) {
+  if (!price || !sma50 || !sma200) return "UNKNOWN";
+  if (price > sma50 && sma50 > sma200) return "UPTREND";
+  if (price < sma50 && sma50 < sma200) return "DOWNTREND";
   return "RANGE";
 }
 
@@ -41,32 +27,67 @@ function classifyMomentum(price, sma20) {
   return "NEUTRAL";
 }
 
-function classifyLocation(price, highs) {
-  if (!price || !Array.isArray(highs) || highs.length === 0) return "UNKNOWN";
-
+function classifyLocation(price, highs, lows) {
+  if (!price || !highs.length || !lows.length) return "UNKNOWN";
   const high = Math.max(...highs);
-  const low = Math.min(...highs);
+  const low = Math.min(...lows);
   const range = high - low;
-
   if (range === 0) return "UNKNOWN";
-
   const pct = (price - low) / range;
-
   if (pct > 0.8) return "NEAR_HIGHS";
   if (pct < 0.2) return "NEAR_LOWS";
   return "MID_RANGE";
 }
 
-/**
- * PUBLIC API
- */
+/* =========================
+   INTERPRETATION (APPENDED)
+   ========================= */
+
+function interpret(trend, momentum, location) {
+  return {
+    summary:
+      trend === "UPTREND"
+        ? "Price structure is positive with higher-level support intact."
+        : trend === "DOWNTREND"
+        ? "Price structure is under pressure with downside dominance."
+        : "Price is consolidating without a clear directional bias.",
+
+    trendContext:
+      trend === "UPTREND"
+        ? "Longer-term averages are aligned upward."
+        : trend === "DOWNTREND"
+        ? "Longer-term averages are stacked bearishly."
+        : "Longer-term averages are mixed or flat.",
+
+    momentumContext:
+      momentum === "STRONG"
+        ? "Short-term strength is elevated relative to recent history."
+        : momentum === "WEAK"
+        ? "Short-term momentum is deteriorating."
+        : "Short-term momentum is neutral.",
+
+    locationContext:
+      location === "NEAR_HIGHS"
+        ? "Price is trading near the upper end of its recent range."
+        : location === "NEAR_LOWS"
+        ? "Price is trading near the lower end of its recent range."
+        : "Price is positioned near the middle of its recent range.",
+
+    riskNote:
+      location === "NEAR_HIGHS"
+        ? "Upside continuation may require sustained momentum."
+        : location === "NEAR_LOWS"
+        ? "Downside risk remains elevated without structural improvement."
+        : "Range resolution will determine the next directional move."
+  };
+}
+
+/* =========================
+   PUBLIC API
+   ========================= */
+
 export function buildPortfolioTechnicalAnalysis(portfolioSnapshot) {
-  if (
-    !portfolioSnapshot ||
-    !Array.isArray(portfolioSnapshot.positions) ||
-    !portfolioSnapshot.marketData ||
-    !portfolioSnapshot.marketData.symbols
-  ) {
+  if (!portfolioSnapshot?.positions || !portfolioSnapshot?.marketData) {
     throw new Error("PORTFOLIO_TECHNICAL_ANALYSIS_INVALID_INPUT");
   }
 
@@ -75,63 +96,40 @@ export function buildPortfolioTechnicalAnalysis(portfolioSnapshot) {
 
   for (const position of portfolioSnapshot.positions) {
     const symbol = position.symbol;
+    const md = portfolioSnapshot.marketData.symbols?.[symbol];
 
-    // 🔒 HARD SCOPE: EQUITIES ONLY
-    if (position.assetClass !== "equity") {
-      out[symbol] = Object.freeze({
-        symbol,
-        state: "EXCLUDED",
-        reason: "ASSET_CLASS_NOT_SUPPORTED",
-        assetClass: position.assetClass,
-      });
+    if (!md) {
+      out[symbol] = { symbol, state: "UNAVAILABLE" };
       continue;
     }
 
-    const md = portfolioSnapshot.marketData.symbols[symbol];
-
-    if (!md || !Array.isArray(md.dailyCloses) || md.dailyCloses.length === 0) {
-      out[symbol] = Object.freeze({
-        symbol,
-        state: "UNAVAILABLE",
-        reason: "NO_MARKET_DATA",
-        assetClass: "equity",
-        source: md?.source || "unavailable",
-      });
-      continue;
-    }
-
-    const daily = md.dailyCloses;
-    const weekly = Array.isArray(md.weeklyCloses) ? md.weeklyCloses : [];
-
-    const price = daily[daily.length - 1] ?? null;
+    const daily = md.dailyCloses || [];
+    const weekly = md.weeklyCloses || [];
+    const price = daily[daily.length - 1] || null;
 
     const sma20 = sma(daily, 20);
     const sma50 = sma(daily, 50);
-    const sma200w = sma(weekly, 40); // ~200 trading weeks
+    const sma200w = sma(weekly, 40);
+
+    const trend = classifyTrend(price, sma50, sma200w);
+    const momentum = classifyMomentum(price, sma20);
+    const location = classifyLocation(price, daily, daily);
 
     out[symbol] = Object.freeze({
       symbol,
-      assetClass: "equity",
-      state: "ANALYZED",
       price,
-      trend: classifyTrend(price, sma50, sma200w),
-      momentum: classifyMomentum(price, sma20),
-      location: classifyLocation(price, daily),
-      movingAverages: {
-        sma20,
-        sma50,
-        sma200w,
-      },
-      source: md.source,
+      trend,
+      momentum,
+      location,
+      movingAverages: { sma20, sma50, sma200w },
+      interpretation: interpret(trend, momentum, location),
+      source: md.source
     });
   }
 
   return Object.freeze({
     contract: "PORTFOLIO_TECHNICAL_ANALYSIS_V1",
-    scope: "EQUITIES_ONLY",
     asOf,
-    symbols: Object.freeze(out),
+    symbols: Object.freeze(out)
   });
 }
-
-export default Object.freeze({ buildPortfolioTechnicalAnalysis });

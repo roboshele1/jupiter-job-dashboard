@@ -1,34 +1,35 @@
 // engine/market/marketDataSnapshotEngine.js
-// D10.1 — Canonical Market Data Snapshot Engine (READ-ONLY)
-
-/**
- * Purpose:
- * - Provide deterministic historical market data per symbol
- * - Used by portfolio technical signals & analytics
- * - NO pricing, NO valuation, NO UI
- *
- * Contract:
- * - Engine-only
- * - Read-only
- * - Safe to call on every valuation refresh
- */
+// D10.5 — Canonical Market Data Snapshot Engine (POLYGON-STABLE)
 
 import fetch from "node-fetch";
 
 const POLYGON_API_KEY = process.env.POLYGON_API_KEY;
 
-/**
- * Fetch historical OHLC + volume needed for technical analysis
- */
+function isoDaysAgo(days) {
+  const d = new Date();
+  d.setUTCDate(d.getUTCDate() - days);
+  return d.toISOString().slice(0, 10); // YYYY-MM-DD
+}
+
+function todayISO() {
+  return new Date().toISOString().slice(0, 10);
+}
+
 async function fetchEquityHistory(symbol) {
   if (!POLYGON_API_KEY) return null;
 
-  try {
-    // 1y daily bars (safe for SMA / percentiles)
-    const dailyUrl = `https://api.polygon.io/v2/aggs/ticker/${symbol}/range/1/day/365/0?adjusted=true&apiKey=${POLYGON_API_KEY}`;
+  const dailyFrom = isoDaysAgo(420);   // ~1.15y
+  const weeklyFrom = isoDaysAgo(2200); // ~6y
+  const to = todayISO();
 
-    // 5y weekly bars (safe for SMA200W)
-    const weeklyUrl = `https://api.polygon.io/v2/aggs/ticker/${symbol}/range/1/week/260/0?adjusted=true&apiKey=${POLYGON_API_KEY}`;
+  try {
+    const dailyUrl =
+      `https://api.polygon.io/v2/aggs/ticker/${symbol}/range/1/day/${dailyFrom}/${to}` +
+      `?adjusted=true&sort=asc&limit=50000&apiKey=${POLYGON_API_KEY}`;
+
+    const weeklyUrl =
+      `https://api.polygon.io/v2/aggs/ticker/${symbol}/range/1/week/${weeklyFrom}/${to}` +
+      `?adjusted=true&sort=asc&limit=50000&apiKey=${POLYGON_API_KEY}`;
 
     const [dailyRes, weeklyRes] = await Promise.all([
       fetch(dailyUrl),
@@ -40,19 +41,20 @@ async function fetchEquityHistory(symbol) {
     const dailyJson = await dailyRes.json();
     const weeklyJson = await weeklyRes.json();
 
+    if (!Array.isArray(dailyJson.results) || !Array.isArray(weeklyJson.results)) {
+      return null;
+    }
+
     return {
-      dailyCloses: dailyJson?.results?.map(r => r.c) ?? [],
-      weeklyCloses: weeklyJson?.results?.map(r => r.c) ?? [],
-      volumes: dailyJson?.results?.map(r => r.v) ?? [],
+      dailyCloses: dailyJson.results.map(r => r.c),
+      weeklyCloses: weeklyJson.results.map(r => r.c),
+      volumes: dailyJson.results.map(r => r.v),
     };
   } catch {
     return null;
   }
 }
 
-/**
- * PUBLIC API
- */
 export async function fetchHistoricalMarketData(symbols = []) {
   const out = {};
   const asOf = new Date().toISOString();

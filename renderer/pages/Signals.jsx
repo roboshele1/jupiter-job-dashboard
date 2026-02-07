@@ -4,9 +4,9 @@ import React, { useEffect, useState } from "react";
  * SIGNALS — PORTFOLIO TECHNICAL ANALYSIS
  *
  * Invariants:
- * - Renders ONLY engine-emitted technical analysis
- * - Never reads holdings directly
- * - Crypto never appears unless engine explicitly emits it
+ * - Renders engine-emitted technical analysis only
+ * - Append-only UI logic
+ * - Interpretation is displayed if present, ignored if absent
  */
 
 export default function Signals() {
@@ -21,9 +21,7 @@ export default function Signals() {
         const result = await window.jupiter.invoke(
           "portfolio:technicalSignals:getSnapshot"
         );
-
         if (!alive) return;
-
         setSnapshot(result);
         setStatus("ready");
       } catch (e) {
@@ -60,7 +58,14 @@ export default function Signals() {
         </div>
       )}
 
-      <div style={{ marginTop: 24, display: "flex", flexDirection: "column", gap: 16 }}>
+      <div
+        style={{
+          marginTop: 24,
+          display: "flex",
+          flexDirection: "column",
+          gap: 16,
+        }}
+      >
         {symbols.map((s) => (
           <div
             key={s.symbol}
@@ -85,6 +90,44 @@ export default function Signals() {
               SMA50: {s.movingAverages?.sma50 ?? "—"} &nbsp;|&nbsp;
               SMA200W: {s.movingAverages?.sma200w ?? "—"}
             </div>
+
+            {/* 🔹 INTERPRETATION (APPEND-ONLY) */}
+            {s.interpretation && (
+              <div
+                style={{
+                  marginTop: 14,
+                  paddingTop: 12,
+                  borderTop: "1px solid #1f2937",
+                  fontSize: 13,
+                  lineHeight: 1.5,
+                }}
+              >
+                <div style={{ fontWeight: 600, marginBottom: 6 }}>
+                  Interpretation
+                </div>
+
+                {s.interpretation.summary && (
+                  <div style={{ opacity: 0.85 }}>
+                    {s.interpretation.summary}
+                  </div>
+                )}
+
+                {Array.isArray(s.interpretation.details) &&
+                  s.interpretation.details.length > 0 && (
+                    <ul
+                      style={{
+                        marginTop: 8,
+                        paddingLeft: 18,
+                        opacity: 0.75,
+                      }}
+                    >
+                      {s.interpretation.details.map((d, i) => (
+                        <li key={i}>{d}</li>
+                      ))}
+                    </ul>
+                  )}
+              </div>
+            )}
           </div>
         ))}
       </div>
