@@ -1,9 +1,16 @@
 // engine/portfolio/portfolioValuation.js
-// D9.3 — Portfolio valuation with freshness (AUTHORITATIVE)
+// D9.4 — Portfolio valuation + canonical market data snapshot (AUTHORITATIVE, APPEND-ONLY)
 
 import { resolvePrices } from "../market/priceResolver.js";
 import { applyPriceFreshness } from "../market/priceFreshnessEngine.js";
+import { fetchHistoricalMarketData } from "../market/marketDataSnapshotEngine.js";
 
+/**
+ * 🔒 AUTHORITATIVE PORTFOLIO SNAPSHOT
+ * - Existing valuation logic preserved
+ * - Market data appended (non-breaking)
+ * - Deterministic, read-only
+ */
 export async function valuePortfolio(holdings = []) {
   if (!Array.isArray(holdings)) holdings = [];
 
@@ -12,6 +19,9 @@ export async function valuePortfolio(holdings = []) {
     type: h.assetClass === "crypto" ? "crypto" : "equity"
   }));
 
+  // =========================
+  // PRICE SNAPSHOT (EXISTING)
+  // =========================
   const resolved = await resolvePrices(resolverInput);
 
   // 🔒 Apply freshness ONCE at engine boundary
@@ -61,12 +71,24 @@ export async function valuePortfolio(holdings = []) {
       ? (totals.delta / totals.snapshotValue) * 100
       : 0;
 
+  // =========================
+  // 🟢 APPENDED: MARKET DATA
+  // =========================
+  const symbols = positions.map(p => p.symbol);
+
+  const marketData = await fetchHistoricalMarketData(symbols);
+
   return {
-    contract: "PORTFOLIO_VALUATION_DETERMINISTIC_V2",
+    contract: "PORTFOLIO_VALUATION_DETERMINISTIC_V3",
     currency: "CAD",
     fetchedAt: enrichedSnapshot.fetchedAt,
+
     totals,
     positions,
+
+    // ⬇️ NEW — SAFE APPEND
+    marketData: Object.freeze(marketData),
+
     priceSnapshotMeta: {
       contract: enrichedSnapshot.contract,
       source: enrichedSnapshot.source,
@@ -74,4 +96,3 @@ export async function valuePortfolio(holdings = []) {
     }
   };
 }
-
