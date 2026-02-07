@@ -27,13 +27,13 @@ function computeDelta(currentRank, previousRank) {
 }
 
 /* =========================
-   NORMALIZATION
+   NORMALIZATION — SIGNALS V2
    ========================= */
 
-function normalizeSignalsV2(snapshot) {
-  if (!Array.isArray(snapshot?.signals)) return snapshot;
+function normalizeSignalsV2(signalsV2Snapshot) {
+  if (!Array.isArray(signalsV2Snapshot?.signals)) return signalsV2Snapshot;
 
-  const normalizedSignals = snapshot.signals.map((s) => {
+  const normalizedSignals = signalsV2Snapshot.signals.map((s) => {
     const prev = lastSnapshot?.signalsV2?.signals?.find(
       (p) => p.symbol === s.symbol
     );
@@ -48,10 +48,14 @@ function normalizeSignalsV2(snapshot) {
   });
 
   return {
-    ...snapshot,
+    ...signalsV2Snapshot,
     signals: normalizedSignals,
   };
 }
+
+/* =========================
+   NORMALIZATION — TECHNICAL
+   ========================= */
 
 function normalizePortfolioTechnicalSignals(techSnapshot) {
   if (!techSnapshot?.signals) return null;
@@ -69,25 +73,22 @@ function normalizePortfolioTechnicalSignals(techSnapshot) {
 }
 
 /* =========================
-   PUBLIC API
+   PUBLIC API — AUTHORITATIVE
    ========================= */
 
-function recordSnapshot(snapshot) {
+function recordSnapshot(snapshot = {}) {
   const next = {
     timestamp: snapshot.timestamp ?? Date.now(),
 
-    // -------- Signals V2 (unchanged semantics)
-    signalsV2: snapshot.signals
-      ? normalizeSignalsV2(snapshot)
+    // -------- Signals V2 (authoritative, unchanged semantics)
+    signalsV2: snapshot.signalsV2
+      ? normalizeSignalsV2(snapshot.signalsV2)
       : lastSnapshot?.signalsV2 ?? null,
 
-    // -------- Portfolio Technical Signals (append-only)
-    portfolioTechnicalSignals:
-      snapshot.portfolioTechnicalSignals
-        ? normalizePortfolioTechnicalSignals(
-            snapshot.portfolioTechnicalSignals
-          )
-        : lastSnapshot?.portfolioTechnicalSignals ?? null,
+    // -------- Portfolio Technical Signals (append-only, parallel)
+    portfolioTechnicalSignals: snapshot.portfolioTechnicalSignals
+      ? normalizePortfolioTechnicalSignals(snapshot.portfolioTechnicalSignals)
+      : lastSnapshot?.portfolioTechnicalSignals ?? null,
   };
 
   lastSnapshot = next;
