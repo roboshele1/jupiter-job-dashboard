@@ -1,98 +1,89 @@
-// engine/portfolio/portfolioValuation.js
-// D9.4 — Portfolio valuation + canonical market data snapshot (AUTHORITATIVE, APPEND-ONLY)
+/**
+ * engine/portfolio/portfolioValuation.js
+ *
+ * PORTFOLIO — SINGLE SOURCE OF TRUTH
+ *
+ * Responsibilities:
+ * - Resolve prices
+ * - Build positions
+ * - Attach market data
+ * - Invoke technical + interpretation engine using REAL portfolio snapshot
+ *
+ * Invariants:
+ * - No UI logic
+ * - No IPC logic
+ * - No technical engine contract changes
+ */
 
 import { resolvePrices } from "../market/priceResolver.js";
-import { applyPriceFreshness } from "../market/priceFreshnessEngine.js";
-import { fetchHistoricalMarketData } from "../market/marketDataSnapshotEngine.js";
+import { buildPortfolioTechnicalAnalysis } from "../portfolioTechnicalAnalysis/portfolioTechnicalAnalysisEngine.js";
 
-/**
- * 🔒 AUTHORITATIVE PORTFOLIO SNAPSHOT
- * - Existing valuation logic preserved
- * - Market data appended (non-breaking)
- * - Deterministic, read-only
- */
+const CONTRACT = "PORTFOLIO_VALUATION_V2_WITH_TECHNICAL";
+
 export async function valuePortfolio(holdings = []) {
-  if (!Array.isArray(holdings)) holdings = [];
+  if (!Array.isArray(holdings)) {
+    throw new Error("HOLDINGS_INVALID");
+  }
 
-  const resolverInput = holdings.map(h => ({
-    symbol: h.symbol,
-    type: h.assetClass === "crypto" ? "crypto" : "equity"
-  }));
+  const asOf = new Date().toISOString();
 
-  // =========================
-  // PRICE SNAPSHOT (EXISTING)
-  // =========================
-  const resolved = await resolvePrices(resolverInput);
+  // -------------------------
+  // PRICE RESOLUTION
+  // -------------------------
+  const priceSnapshot = await resolvePrices(holdings);
 
-  // 🔒 Apply freshness ONCE at engine boundary
-  const enrichedSnapshot = applyPriceFreshness(resolved);
+  // -------------------------
+  // POSITIONS
+  // -------------------------
+  const positions = holdings.map((h) => {
+    const symbol = String(h.symbol || "").toUpperCase();
+    const row = priceSnapshot.prices?.[symbol];
 
-  const positions = holdings.map(h => {
-    const r = enrichedSnapshot.prices?.[h.symbol] ?? {
-      price: 0,
-      source: "unknown",
-      currency: h.currency ?? "CAD",
-      freshness: null
-    };
-
-    const livePrice = Number(r.price) || 0;
-    const snapshotValue = Number(h.totalCostBasis) || 0;
-    const liveValue = (Number(h.qty) || 0) * livePrice;
-    const delta = liveValue - snapshotValue;
-    const deltaPct = snapshotValue > 0 ? (delta / snapshotValue) * 100 : 0;
+    const price = Number(row?.price) || 0;
+    const qty = Number(h.quantity) || 0;
 
     return {
-      symbol: h.symbol,
-      qty: h.qty,
+      symbol,
       assetClass: h.assetClass,
-      snapshotValue,
-      livePrice,
-      liveValue,
-      delta,
-      deltaPct,
-      currency: r.currency ?? "CAD",
-      priceSource: r.source,
-      priceFreshness: r.freshness
+      quantity: qty,
+      livePrice: price,
+      marketValue: price * qty,
+      priceSource: row?.source || "unknown",
+      priceFreshness: {
+        fetchedAt: row?.fetchedAt || asOf,
+      },
     };
   });
 
-  const totals = positions.reduce(
-    (acc, p) => {
-      acc.snapshotValue += p.snapshotValue;
-      acc.liveValue += p.liveValue;
-      acc.delta += p.delta;
-      return acc;
-    },
-    { snapshotValue: 0, liveValue: 0, delta: 0 }
-  );
+  // -------------------------
+  // CANONICAL PORTFOLIO SNAPSHOT
+  // -------------------------
+  const portfolioSnapshot = Object.freeze({
+    contract: "PORTFOLIO_SNAPSHOT_V1",
+    asOf,
+    positions: Object.freeze(positions),
+    marketData: Object.freeze({
+      contract: priceSnapshot.contract,
+      asOf: priceSnapshot.fetchedAt,
+      prices: priceSnapshot.prices,
+    }),
+  });
 
-  totals.deltaPct =
-    totals.snapshotValue > 0
-      ? (totals.delta / totals.snapshotValue) * 100
-      : 0;
+  // -------------------------
+  // TECHNICAL + INTERPRETATION
+  // -------------------------
+  const technical = await buildPortfolioTechnicalAnalysis(portfolioSnapshot);
 
-  // =========================
-  // 🟢 APPENDED: MARKET DATA
-  // =========================
-  const symbols = positions.map(p => p.symbol);
-
-  const marketData = await fetchHistoricalMarketData(symbols);
-
-  return {
-    contract: "PORTFOLIO_VALUATION_DETERMINISTIC_V3",
-    currency: "CAD",
-    fetchedAt: enrichedSnapshot.fetchedAt,
-
-    totals,
+  // -------------------------
+  // FINAL OUTPUT
+  // -------------------------
+  return Object.freeze({
+    contract: CONTRACT,
+    asOf,
     positions,
-
-    // ⬇️ NEW — SAFE APPEND
-    marketData: Object.freeze(marketData),
-
-    priceSnapshotMeta: {
-      contract: enrichedSnapshot.contract,
-      source: enrichedSnapshot.source,
-      fetchedAt: enrichedSnapshot.fetchedAt
-    }
-  };
+    marketData: priceSnapshot,
+    technical,
+  });
 }
+
+export default Object.freeze({ valuePortfolio });

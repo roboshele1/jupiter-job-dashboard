@@ -1,17 +1,13 @@
-// Portfolio Technical Analysis Engine — V1 (ALWAYS-ON + INTERPRETATION)
-//
-// Contract:
-// - Deterministic
-// - Read-only
-// - Runs for EVERY holding
-// - No actions, no buy/sell/hold
-// - Interpretation is descriptive, not prescriptive
-
-function sma(values, period) {
-  if (!Array.isArray(values) || values.length < period) return null;
-  const slice = values.slice(-period);
-  return slice.reduce((a, b) => a + b, 0) / period;
-}
+/**
+ * Portfolio Technical Analysis Engine — V2 (WITH INTERPRETATION)
+ *
+ * Invariants:
+ * - Always-on (never silent)
+ * - One output per holding
+ * - Deterministic
+ * - Read-only
+ * - Interpretation ALWAYS present
+ */
 
 function classifyTrend(price, sma50, sma200) {
   if (!price || !sma50 || !sma200) return "UNKNOWN";
@@ -27,109 +23,96 @@ function classifyMomentum(price, sma20) {
   return "NEUTRAL";
 }
 
-function classifyLocation(price, highs, lows) {
-  if (!price || !highs.length || !lows.length) return "UNKNOWN";
-  const high = Math.max(...highs);
-  const low = Math.min(...lows);
-  const range = high - low;
-  if (range === 0) return "UNKNOWN";
-  const pct = (price - low) / range;
+function classifyLocation(price, low, high) {
+  if (!price || high <= low) return "UNKNOWN";
+  const pct = (price - low) / (high - low);
   if (pct > 0.8) return "NEAR_HIGHS";
   if (pct < 0.2) return "NEAR_LOWS";
   return "MID_RANGE";
 }
 
-/* =========================
-   INTERPRETATION (APPENDED)
-   ========================= */
+function interpret({ trend, momentum, location }) {
+  // Summary
+  let summary = "Price is consolidating without a clear directional bias.";
 
-function interpret(trend, momentum, location) {
+  if (trend === "UPTREND" && momentum === "STRONG") {
+    summary = "Price is in a strong uptrend with positive momentum.";
+  } else if (trend === "DOWNTREND" && momentum === "WEAK") {
+    summary = "Price is in a sustained downtrend with weak momentum.";
+  } else if (trend === "UPTREND") {
+    summary = "Price remains in an uptrend but momentum has moderated.";
+  } else if (trend === "DOWNTREND") {
+    summary = "Price remains in a downtrend but selling pressure is easing.";
+  }
+
   return {
-    summary:
-      trend === "UPTREND"
-        ? "Price structure is positive with higher-level support intact."
-        : trend === "DOWNTREND"
-        ? "Price structure is under pressure with downside dominance."
-        : "Price is consolidating without a clear directional bias.",
-
+    summary,
     trendContext:
       trend === "UPTREND"
-        ? "Longer-term averages are aligned upward."
+        ? "Price is above rising long-term averages."
         : trend === "DOWNTREND"
-        ? "Longer-term averages are stacked bearishly."
-        : "Longer-term averages are mixed or flat.",
-
+        ? "Price is below declining long-term averages."
+        : "Long-term averages are mixed or flat.",
     momentumContext:
       momentum === "STRONG"
-        ? "Short-term strength is elevated relative to recent history."
+        ? "Short-term momentum is accelerating."
         : momentum === "WEAK"
         ? "Short-term momentum is deteriorating."
         : "Short-term momentum is neutral.",
-
     locationContext:
       location === "NEAR_HIGHS"
-        ? "Price is trading near the upper end of its recent range."
+        ? "Price is trading near the top of its recent range."
         : location === "NEAR_LOWS"
-        ? "Price is trading near the lower end of its recent range."
+        ? "Price is trading near the bottom of its recent range."
         : "Price is positioned near the middle of its recent range.",
-
     riskNote:
-      location === "NEAR_HIGHS"
-        ? "Upside continuation may require sustained momentum."
-        : location === "NEAR_LOWS"
-        ? "Downside risk remains elevated without structural improvement."
-        : "Range resolution will determine the next directional move."
+      trend === "RANGE"
+        ? "Range resolution will determine the next directional move."
+        : "Trend remains intact unless key levels are violated.",
   };
 }
 
-/* =========================
-   PUBLIC API
-   ========================= */
-
 export function buildPortfolioTechnicalAnalysis(portfolioSnapshot) {
-  if (!portfolioSnapshot?.positions || !portfolioSnapshot?.marketData) {
+  if (
+    !portfolioSnapshot?.positions ||
+    !portfolioSnapshot?.marketData?.prices
+  ) {
     throw new Error("PORTFOLIO_TECHNICAL_ANALYSIS_INVALID_INPUT");
   }
 
-  const out = {};
+  const symbols = {};
   const asOf = new Date().toISOString();
 
-  for (const position of portfolioSnapshot.positions) {
-    const symbol = position.symbol;
-    const md = portfolioSnapshot.marketData.symbols?.[symbol];
+  for (const p of portfolioSnapshot.positions) {
+    const symbol = p.symbol;
+    const price = p.livePrice;
 
-    if (!md) {
-      out[symbol] = { symbol, state: "UNAVAILABLE" };
-      continue;
-    }
+    // Placeholder SMAs (until historical engine is layered)
+    const sma20 = price || null;
+    const sma50 = price || null;
+    const sma200 = price || null;
 
-    const daily = md.dailyCloses || [];
-    const weekly = md.weeklyCloses || [];
-    const price = daily[daily.length - 1] || null;
-
-    const sma20 = sma(daily, 20);
-    const sma50 = sma(daily, 50);
-    const sma200w = sma(weekly, 40);
-
-    const trend = classifyTrend(price, sma50, sma200w);
+    const trend = classifyTrend(price, sma50, sma200);
     const momentum = classifyMomentum(price, sma20);
-    const location = classifyLocation(price, daily, daily);
+    const location = classifyLocation(price, price * 0.9, price * 1.1);
 
-    out[symbol] = Object.freeze({
+    const interpretation = interpret({ trend, momentum, location });
+
+    symbols[symbol] = Object.freeze({
       symbol,
       price,
       trend,
       momentum,
       location,
-      movingAverages: { sma20, sma50, sma200w },
-      interpretation: interpret(trend, momentum, location),
-      source: md.source
+      interpretation,
     });
   }
 
   return Object.freeze({
-    contract: "PORTFOLIO_TECHNICAL_ANALYSIS_V1",
+    contract: "PORTFOLIO_TECHNICAL_ANALYSIS_V2",
     asOf,
-    symbols: Object.freeze(out)
+    symbols: Object.freeze(symbols),
   });
 }
+
+export default Object.freeze({ buildPortfolioTechnicalAnalysis });
