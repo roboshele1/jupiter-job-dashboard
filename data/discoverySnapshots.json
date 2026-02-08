@@ -1,165 +1,5 @@
 [
   {
-    "timestamp": "2026-02-07T23:38:35.619Z",
-    "regime": "TIGHT_MONETARY",
-    "counts": {
-      "ranked": 1,
-      "trajectory": 1,
-      "themes": 0,
-      "watchlist": 0
-    }
-  },
-  {
-    "timestamp": "2026-02-07T23:38:35.673Z",
-    "regime": "TIGHT_MONETARY",
-    "counts": {
-      "ranked": 1,
-      "trajectory": 1,
-      "themes": 0,
-      "watchlist": 0
-    }
-  },
-  {
-    "timestamp": "2026-02-07T23:38:35.674Z",
-    "regime": "TIGHT_MONETARY",
-    "counts": {
-      "ranked": 1,
-      "trajectory": 1,
-      "themes": 0,
-      "watchlist": 0
-    }
-  },
-  {
-    "timestamp": "2026-02-07T23:38:35.726Z",
-    "regime": "TIGHT_MONETARY",
-    "counts": {
-      "ranked": 1,
-      "trajectory": 1,
-      "themes": 0,
-      "watchlist": 0
-    }
-  },
-  {
-    "timestamp": "2026-02-07T23:38:35.728Z",
-    "regime": "TIGHT_MONETARY",
-    "counts": {
-      "ranked": 1,
-      "trajectory": 1,
-      "themes": 0,
-      "watchlist": 0
-    }
-  },
-  {
-    "timestamp": "2026-02-07T23:38:35.776Z",
-    "regime": "TIGHT_MONETARY",
-    "counts": {
-      "ranked": 1,
-      "trajectory": 1,
-      "themes": 0,
-      "watchlist": 0
-    }
-  },
-  {
-    "timestamp": "2026-02-07T23:38:35.777Z",
-    "regime": "TIGHT_MONETARY",
-    "counts": {
-      "ranked": 1,
-      "trajectory": 1,
-      "themes": 0,
-      "watchlist": 0
-    }
-  },
-  {
-    "timestamp": "2026-02-07T23:38:35.829Z",
-    "regime": "TIGHT_MONETARY",
-    "counts": {
-      "ranked": 1,
-      "trajectory": 1,
-      "themes": 0,
-      "watchlist": 0
-    }
-  },
-  {
-    "timestamp": "2026-02-07T23:38:35.830Z",
-    "regime": "TIGHT_MONETARY",
-    "counts": {
-      "ranked": 1,
-      "trajectory": 1,
-      "themes": 0,
-      "watchlist": 0
-    }
-  },
-  {
-    "timestamp": "2026-02-07T23:38:35.969Z",
-    "regime": "TIGHT_MONETARY",
-    "counts": {
-      "ranked": 1,
-      "trajectory": 1,
-      "themes": 0,
-      "watchlist": 0
-    }
-  },
-  {
-    "timestamp": "2026-02-07T23:38:35.971Z",
-    "regime": "TIGHT_MONETARY",
-    "counts": {
-      "ranked": 1,
-      "trajectory": 1,
-      "themes": 0,
-      "watchlist": 0
-    }
-  },
-  {
-    "timestamp": "2026-02-07T23:38:36.014Z",
-    "regime": "TIGHT_MONETARY",
-    "counts": {
-      "ranked": 1,
-      "trajectory": 1,
-      "themes": 0,
-      "watchlist": 0
-    }
-  },
-  {
-    "timestamp": "2026-02-07T23:38:36.021Z",
-    "regime": "TIGHT_MONETARY",
-    "counts": {
-      "ranked": 1,
-      "trajectory": 1,
-      "themes": 0,
-      "watchlist": 0
-    }
-  },
-  {
-    "timestamp": "2026-02-07T23:43:05.433Z",
-    "regime": "TIGHT_MONETARY",
-    "counts": {
-      "ranked": 1,
-      "trajectory": 1,
-      "themes": 0,
-      "watchlist": 0
-    }
-  },
-  {
-    "timestamp": "2026-02-07T23:43:05.436Z",
-    "regime": "TIGHT_MONETARY",
-    "counts": {
-      "ranked": 1,
-      "trajectory": 1,
-      "themes": 0,
-      "watchlist": 0
-    }
-  },
-  {
-    "timestamp": "2026-02-07T23:43:05.492Z",
-    "regime": "TIGHT_MONETARY",
-    "counts": {
-      "ranked": 1,
-      "trajectory": 1,
-      "themes": 0,
-      "watchlist": 0
-    }
-  },
-  {
     "timestamp": "2026-02-07T23:43:05.494Z",
     "regime": "TIGHT_MONETARY",
     "counts": {
@@ -291,6 +131,166 @@
   },
   {
     "timestamp": "2026-02-07T23:43:12.751Z",
+    "regime": "TIGHT_MONETARY",
+    "counts": {
+      "ranked": 1,
+      "trajectory": 1,
+      "themes": 0,
+      "watchlist": 0
+    }
+  },
+  {
+    "timestamp": "2026-02-08T13:02:02.419Z",
+    "regime": "TIGHT_MONETARY",
+    "counts": {
+      "ranked": 1,
+      "trajectory": 1,
+      "themes": 0,
+      "watchlist": 0
+    }
+  },
+  {
+    "timestamp": "2026-02-08T13:02:02.421Z",
+    "regime": "TIGHT_MONETARY",
+    "counts": {
+      "ranked": 1,
+      "trajectory": 1,
+      "themes": 0,
+      "watchlist": 0
+    }
+  },
+  {
+    "timestamp": "2026-02-08T13:02:02.472Z",
+    "regime": "TIGHT_MONETARY",
+    "counts": {
+      "ranked": 1,
+      "trajectory": 1,
+      "themes": 0,
+      "watchlist": 0
+    }
+  },
+  {
+    "timestamp": "2026-02-08T13:02:02.487Z",
+    "regime": "TIGHT_MONETARY",
+    "counts": {
+      "ranked": 1,
+      "trajectory": 1,
+      "themes": 0,
+      "watchlist": 0
+    }
+  },
+  {
+    "timestamp": "2026-02-08T13:02:02.523Z",
+    "regime": "TIGHT_MONETARY",
+    "counts": {
+      "ranked": 1,
+      "trajectory": 1,
+      "themes": 0,
+      "watchlist": 0
+    }
+  },
+  {
+    "timestamp": "2026-02-08T13:02:02.542Z",
+    "regime": "TIGHT_MONETARY",
+    "counts": {
+      "ranked": 1,
+      "trajectory": 1,
+      "themes": 0,
+      "watchlist": 0
+    }
+  },
+  {
+    "timestamp": "2026-02-08T13:02:02.577Z",
+    "regime": "TIGHT_MONETARY",
+    "counts": {
+      "ranked": 1,
+      "trajectory": 1,
+      "themes": 0,
+      "watchlist": 0
+    }
+  },
+  {
+    "timestamp": "2026-02-08T13:02:02.603Z",
+    "regime": "TIGHT_MONETARY",
+    "counts": {
+      "ranked": 1,
+      "trajectory": 1,
+      "themes": 0,
+      "watchlist": 0
+    }
+  },
+  {
+    "timestamp": "2026-02-08T13:02:02.627Z",
+    "regime": "TIGHT_MONETARY",
+    "counts": {
+      "ranked": 1,
+      "trajectory": 1,
+      "themes": 0,
+      "watchlist": 0
+    }
+  },
+  {
+    "timestamp": "2026-02-08T13:02:02.658Z",
+    "regime": "TIGHT_MONETARY",
+    "counts": {
+      "ranked": 1,
+      "trajectory": 1,
+      "themes": 0,
+      "watchlist": 0
+    }
+  },
+  {
+    "timestamp": "2026-02-08T13:02:02.681Z",
+    "regime": "TIGHT_MONETARY",
+    "counts": {
+      "ranked": 1,
+      "trajectory": 1,
+      "themes": 0,
+      "watchlist": 0
+    }
+  },
+  {
+    "timestamp": "2026-02-08T13:02:02.788Z",
+    "regime": "TIGHT_MONETARY",
+    "counts": {
+      "ranked": 1,
+      "trajectory": 1,
+      "themes": 0,
+      "watchlist": 0
+    }
+  },
+  {
+    "timestamp": "2026-02-08T13:02:02.790Z",
+    "regime": "TIGHT_MONETARY",
+    "counts": {
+      "ranked": 1,
+      "trajectory": 1,
+      "themes": 0,
+      "watchlist": 0
+    }
+  },
+  {
+    "timestamp": "2026-02-08T13:02:02.845Z",
+    "regime": "TIGHT_MONETARY",
+    "counts": {
+      "ranked": 1,
+      "trajectory": 1,
+      "themes": 0,
+      "watchlist": 0
+    }
+  },
+  {
+    "timestamp": "2026-02-08T13:02:02.849Z",
+    "regime": "TIGHT_MONETARY",
+    "counts": {
+      "ranked": 1,
+      "trajectory": 1,
+      "themes": 0,
+      "watchlist": 0
+    }
+  },
+  {
+    "timestamp": "2026-02-08T13:02:02.849Z",
     "regime": "TIGHT_MONETARY",
     "counts": {
       "ranked": 1,

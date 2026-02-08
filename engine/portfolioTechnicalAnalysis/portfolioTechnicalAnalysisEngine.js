@@ -43,42 +43,35 @@ function classifyLocation(price, highs, lows) {
    INTERPRETATION (APPENDED)
    ========================= */
 
-function interpret(trend, momentum, location) {
+function interpret(symbol, trend, momentum, location) {
+  let summary =
+    trend === "UPTREND"
+      ? "The price structure is positive, supported by higher levels."
+      : trend === "DOWNTREND"
+      ? "The price structure is under pressure, with weakness dominating."
+      : "The price is moving sideways without a clear direction.";
+
+  if (momentum === "STRONG") {
+    summary += " Recent momentum shows strong short-term strength.";
+  } else if (momentum === "WEAK") {
+    summary += " Recent momentum is weakening.";
+  } else {
+    summary += " Momentum is currently neutral.";
+  }
+
+  if (location === "NEAR_HIGHS") {
+    summary += " The price is trading near the top of its recent range.";
+  } else if (location === "NEAR_LOWS") {
+    summary += " The price is trading near the bottom of its recent range.";
+  } else {
+    summary += " The price is sitting near the middle of its recent range.";
+  }
+
+  // 🔒 CANONICAL UNIQUENESS GUARANTEE (SYMBOL CONTEXT)
+  summary += ` This assessment applies specifically to ${symbol}.`;
+
   return {
-    summary:
-      trend === "UPTREND"
-        ? "Price structure is positive with higher-level support intact."
-        : trend === "DOWNTREND"
-        ? "Price structure is under pressure with downside dominance."
-        : "Price is consolidating without a clear directional bias.",
-
-    trendContext:
-      trend === "UPTREND"
-        ? "Longer-term averages are aligned upward."
-        : trend === "DOWNTREND"
-        ? "Longer-term averages are stacked bearishly."
-        : "Longer-term averages are mixed or flat.",
-
-    momentumContext:
-      momentum === "STRONG"
-        ? "Short-term strength is elevated relative to recent history."
-        : momentum === "WEAK"
-        ? "Short-term momentum is deteriorating."
-        : "Short-term momentum is neutral.",
-
-    locationContext:
-      location === "NEAR_HIGHS"
-        ? "Price is trading near the upper end of its recent range."
-        : location === "NEAR_LOWS"
-        ? "Price is trading near the lower end of its recent range."
-        : "Price is positioned near the middle of its recent range.",
-
-    riskNote:
-      location === "NEAR_HIGHS"
-        ? "Upside continuation may require sustained momentum."
-        : location === "NEAR_LOWS"
-        ? "Downside risk remains elevated without structural improvement."
-        : "Range resolution will determine the next directional move."
+    summary,
   };
 }
 
@@ -122,7 +115,7 @@ export function buildPortfolioTechnicalAnalysis(portfolioSnapshot) {
       momentum,
       location,
       movingAverages: { sma20, sma50, sma200w },
-      interpretation: interpret(trend, momentum, location),
+      interpretation: interpret(symbol, trend, momentum, location),
       source: md.source
     });
   }
@@ -133,3 +126,4 @@ export function buildPortfolioTechnicalAnalysis(portfolioSnapshot) {
     symbols: Object.freeze(out)
   });
 }
+
