@@ -3,62 +3,40 @@ import React, { useEffect, useState } from "react";
 /**
  * SIGNALS — PORTFOLIO TECHNICAL ANALYSIS
  *
- * Invariants:
- * - Renders engine-emitted technical analysis only
- * - Append-only UI logic
- * - Interpretation is displayed if present, ignored if absent
- * - Refresh mirrors Portfolio refresh semantics
+ * UI-only numeric formatting layer
+ * Engine values remain raw and authoritative
  */
+
+// ---------- Formatting helpers (UI ONLY) ----------
+function fmtNumber(n, decimals = 2) {
+  if (n === null || n === undefined || Number.isNaN(n)) return "—";
+  return Number(n).toFixed(decimals);
+}
 
 export default function Signals() {
   const [snapshot, setSnapshot] = useState(null);
   const [status, setStatus] = useState("loading");
-  const [refreshing, setRefreshing] = useState(false);
-
-  async function loadSnapshot() {
-    try {
-      const result = await window.jupiter.invoke(
-        "portfolio:technicalSignals:getSnapshot"
-      );
-      setSnapshot(result);
-      setStatus("ready");
-    } catch (e) {
-      console.error("[SIGNALS_LOAD_ERROR]", e);
-      setStatus("error");
-    }
-  }
 
   useEffect(() => {
     let alive = true;
 
     async function load() {
-      if (!alive) return;
-      await loadSnapshot();
+      try {
+        const result = await window.jupiter.invoke(
+          "portfolio:technicalSignals:getSnapshot"
+        );
+        if (!alive) return;
+        setSnapshot(result);
+        setStatus("ready");
+      } catch (e) {
+        console.error("[SIGNALS_LOAD_ERROR]", e);
+        setStatus("error");
+      }
     }
 
     load();
     return () => (alive = false);
   }, []);
-
-  /* =========================
-     Manual Refresh (AUTHORITATIVE)
-     ========================= */
-  async function refreshSignals() {
-    try {
-      setRefreshing(true);
-
-      // 🔑 Recompute portfolio (prices + TA)
-      await window.jupiter.refreshPortfolioValuation();
-
-      // 🔑 Pull fresh technical snapshot
-      await loadSnapshot();
-    } catch (e) {
-      console.error("[SIGNALS_REFRESH_ERROR]", e);
-      setStatus("error");
-    } finally {
-      setRefreshing(false);
-    }
-  }
 
   if (status === "loading") {
     return <div style={{ padding: 32 }}>Loading technical analysis…</div>;
@@ -77,15 +55,6 @@ export default function Signals() {
   return (
     <div style={{ padding: 32 }}>
       <h1>Portfolio Technical Analysis</h1>
-
-      {/* =========================
-          Refresh Controls
-         ========================= */}
-      <div style={{ marginTop: 12, marginBottom: 20 }}>
-        <button onClick={refreshSignals} disabled={refreshing}>
-          {refreshing ? "Refreshing…" : "Refresh Technical Analysis"}
-        </button>
-      </div>
 
       {symbols.length === 0 && (
         <div style={{ marginTop: 24, opacity: 0.6 }}>
@@ -114,19 +83,18 @@ export default function Signals() {
             <div style={{ fontSize: 16, fontWeight: 700 }}>{s.symbol}</div>
 
             <div style={{ marginTop: 8, fontSize: 14 }}>
-              <div>Price: {s.price ?? "—"}</div>
+              <div>Price: {fmtNumber(s.price)}</div>
               <div>Trend: {s.trend}</div>
               <div>Momentum: {s.momentum}</div>
               <div>Location: {s.location}</div>
             </div>
 
             <div style={{ marginTop: 10, fontSize: 12, opacity: 0.6 }}>
-              SMA20: {s.movingAverages?.sma20 ?? "—"} &nbsp;|&nbsp;
-              SMA50: {s.movingAverages?.sma50 ?? "—"} &nbsp;|&nbsp;
-              SMA200W: {s.movingAverages?.sma200w ?? "—"}
+              SMA20: {fmtNumber(s.movingAverages?.sma20)} &nbsp;|&nbsp;
+              SMA50: {fmtNumber(s.movingAverages?.sma50)} &nbsp;|&nbsp;
+              SMA200W: {fmtNumber(s.movingAverages?.sma200w)}
             </div>
 
-            {/* 🔹 INTERPRETATION (APPEND-ONLY) */}
             {s.interpretation && (
               <div
                 style={{
@@ -146,21 +114,6 @@ export default function Signals() {
                     {s.interpretation.summary}
                   </div>
                 )}
-
-                {Array.isArray(s.interpretation.details) &&
-                  s.interpretation.details.length > 0 && (
-                    <ul
-                      style={{
-                        marginTop: 8,
-                        paddingLeft: 18,
-                        opacity: 0.75,
-                      }}
-                    >
-                      {s.interpretation.details.map((d, i) => (
-                        <li key={i}>{d}</li>
-                      ))}
-                    </ul>
-                  )}
               </div>
             )}
           </div>
