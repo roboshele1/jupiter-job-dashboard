@@ -8,6 +8,7 @@ import React, { useEffect, useState } from "react";
  * - Append-only UI logic
  * - Interpretation is displayed if present, ignored if absent
  * - Refresh mirrors Portfolio refresh semantics
+ * - Regime signals are explicit, emotionless, and visible
  */
 
 export default function Signals() {
@@ -30,12 +31,10 @@ export default function Signals() {
 
   useEffect(() => {
     let alive = true;
-
     async function load() {
       if (!alive) return;
       await loadSnapshot();
     }
-
     load();
     return () => (alive = false);
   }, []);
@@ -46,11 +45,7 @@ export default function Signals() {
   async function refreshSignals() {
     try {
       setRefreshing(true);
-
-      // 🔑 Recompute portfolio (prices + TA)
       await window.jupiter.refreshPortfolioValuation();
-
-      // 🔑 Pull fresh technical snapshot
       await loadSnapshot();
     } catch (e) {
       console.error("[SIGNALS_REFRESH_ERROR]", e);
@@ -78,9 +73,6 @@ export default function Signals() {
     <div style={{ padding: 32 }}>
       <h1>Portfolio Technical Analysis</h1>
 
-      {/* =========================
-          Refresh Controls
-         ========================= */}
       <div style={{ marginTop: 12, marginBottom: 20 }}>
         <button onClick={refreshSignals} disabled={refreshing}>
           {refreshing ? "Refreshing…" : "Refresh Technical Analysis"}
@@ -126,7 +118,9 @@ export default function Signals() {
               SMA200W: {s.movingAverages?.sma200w ?? "—"}
             </div>
 
-            {/* 🔹 INTERPRETATION (APPEND-ONLY) */}
+            {/* =========================
+                INTERPRETATION (EXISTING)
+               ========================= */}
             {s.interpretation && (
               <div
                 style={{
@@ -163,6 +157,40 @@ export default function Signals() {
                   )}
               </div>
             )}
+
+            {/* =========================
+                REGIME SIGNALS (NEW)
+               ========================= */}
+            <div
+              style={{
+                marginTop: 14,
+                paddingTop: 12,
+                borderTop: "1px dashed #334155",
+                fontSize: 13,
+              }}
+            >
+              <div style={{ fontWeight: 700, marginBottom: 6 }}>
+                Portfolio Action
+              </div>
+
+              {s.regime ? (
+                <>
+                  <div>
+                    <strong>Regime:</strong> {s.regime}
+                  </div>
+                  <div>
+                    <strong>Confidence:</strong> {s.confidence ?? "—"}
+                  </div>
+                  <div style={{ marginTop: 6, opacity: 0.85 }}>
+                    {s.rationale}
+                  </div>
+                </>
+              ) : (
+                <div style={{ opacity: 0.6 }}>
+                  Insufficient data to issue a BUY / HOLD / TRIM / SELL signal.
+                </div>
+              )}
+            </div>
           </div>
         ))}
       </div>
@@ -173,4 +201,3 @@ export default function Signals() {
     </div>
   );
 }
-
