@@ -7,32 +7,58 @@ import React, { useEffect, useState } from "react";
  * - Renders engine-emitted technical analysis only
  * - Append-only UI logic
  * - Interpretation is displayed if present, ignored if absent
+ * - Refresh mirrors Portfolio refresh semantics
  */
 
 export default function Signals() {
   const [snapshot, setSnapshot] = useState(null);
   const [status, setStatus] = useState("loading");
+  const [refreshing, setRefreshing] = useState(false);
+
+  async function loadSnapshot() {
+    try {
+      const result = await window.jupiter.invoke(
+        "portfolio:technicalSignals:getSnapshot"
+      );
+      setSnapshot(result);
+      setStatus("ready");
+    } catch (e) {
+      console.error("[SIGNALS_LOAD_ERROR]", e);
+      setStatus("error");
+    }
+  }
 
   useEffect(() => {
     let alive = true;
 
     async function load() {
-      try {
-        const result = await window.jupiter.invoke(
-          "portfolio:technicalSignals:getSnapshot"
-        );
-        if (!alive) return;
-        setSnapshot(result);
-        setStatus("ready");
-      } catch (e) {
-        console.error("[SIGNALS_LOAD_ERROR]", e);
-        setStatus("error");
-      }
+      if (!alive) return;
+      await loadSnapshot();
     }
 
     load();
     return () => (alive = false);
   }, []);
+
+  /* =========================
+     Manual Refresh (AUTHORITATIVE)
+     ========================= */
+  async function refreshSignals() {
+    try {
+      setRefreshing(true);
+
+      // 🔑 Recompute portfolio (prices + TA)
+      await window.jupiter.refreshPortfolioValuation();
+
+      // 🔑 Pull fresh technical snapshot
+      await loadSnapshot();
+    } catch (e) {
+      console.error("[SIGNALS_REFRESH_ERROR]", e);
+      setStatus("error");
+    } finally {
+      setRefreshing(false);
+    }
+  }
 
   if (status === "loading") {
     return <div style={{ padding: 32 }}>Loading technical analysis…</div>;
@@ -51,6 +77,15 @@ export default function Signals() {
   return (
     <div style={{ padding: 32 }}>
       <h1>Portfolio Technical Analysis</h1>
+
+      {/* =========================
+          Refresh Controls
+         ========================= */}
+      <div style={{ marginTop: 12, marginBottom: 20 }}>
+        <button onClick={refreshSignals} disabled={refreshing}>
+          {refreshing ? "Refreshing…" : "Refresh Technical Analysis"}
+        </button>
+      </div>
 
       {symbols.length === 0 && (
         <div style={{ marginTop: 24, opacity: 0.6 }}>
@@ -138,3 +173,4 @@ export default function Signals() {
     </div>
   );
 }
+
