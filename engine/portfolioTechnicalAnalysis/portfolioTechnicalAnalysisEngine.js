@@ -1,11 +1,10 @@
-// Portfolio Technical Analysis Engine — V1 (ALWAYS-ON + INTERPRETATION)
+// Portfolio Technical Analysis Engine — V1 (DETERMINISTIC)
 //
 // Contract:
-// - Deterministic
-// - Read-only
-// - Runs for EVERY holding
-// - No actions, no buy/sell/hold
-// - Interpretation is descriptive, not prescriptive
+// - Pure technical computation ONLY
+// - No BUY / SELL / HOLD logic
+// - No side effects
+// - Safe for regime engines to consume
 
 function sma(values, period) {
   if (!Array.isArray(values) || values.length < period) return null;
@@ -13,10 +12,10 @@ function sma(values, period) {
   return slice.reduce((a, b) => a + b, 0) / period;
 }
 
-function classifyTrend(price, sma50, sma200) {
-  if (!price || !sma50 || !sma200) return "UNKNOWN";
-  if (price > sma50 && sma50 > sma200) return "UPTREND";
-  if (price < sma50 && sma50 < sma200) return "DOWNTREND";
+function classifyTrend(price, sma50, sma200w) {
+  if (!price || !sma50 || !sma200w) return "UNKNOWN";
+  if (price > sma50 && sma50 > sma200w) return "UPTREND";
+  if (price < sma50 && sma50 < sma200w) return "DOWNTREND";
   return "RANGE";
 }
 
@@ -39,66 +38,37 @@ function classifyLocation(price, highs, lows) {
   return "MID_RANGE";
 }
 
-/* =========================
-   INTERPRETATION (APPENDED)
-   ========================= */
-
-function interpret(symbol, trend, momentum, location) {
-  let summary =
-    trend === "UPTREND"
-      ? "The price structure is positive, supported by higher levels."
-      : trend === "DOWNTREND"
-      ? "The price structure is under pressure, with weakness dominating."
-      : "The price is moving sideways without a clear direction.";
-
-  if (momentum === "STRONG") {
-    summary += " Recent momentum shows strong short-term strength.";
-  } else if (momentum === "WEAK") {
-    summary += " Recent momentum is weakening.";
-  } else {
-    summary += " Momentum is currently neutral.";
-  }
-
-  if (location === "NEAR_HIGHS") {
-    summary += " The price is trading near the top of its recent range.";
-  } else if (location === "NEAR_LOWS") {
-    summary += " The price is trading near the bottom of its recent range.";
-  } else {
-    summary += " The price is sitting near the middle of its recent range.";
-  }
-
-  // 🔒 CANONICAL UNIQUENESS GUARANTEE (SYMBOL CONTEXT)
-  summary += ` This assessment applies specifically to ${symbol}.`;
-
+function interpret(trend, momentum, location, symbol) {
   return {
-    summary,
+    summary: `${symbol}: ${trend.toLowerCase()} trend, ${momentum.toLowerCase()} momentum, trading ${location.replace("_", " ").toLowerCase()}.`
   };
 }
 
-/* =========================
-   PUBLIC API
-   ========================= */
-
-export function buildPortfolioTechnicalAnalysis(portfolioSnapshot) {
-  if (!portfolioSnapshot?.positions || !portfolioSnapshot?.marketData) {
+export function buildPortfolioTechnicalAnalysis({ positions = [], marketData = {} }) {
+  if (!Array.isArray(positions)) {
     throw new Error("PORTFOLIO_TECHNICAL_ANALYSIS_INVALID_INPUT");
   }
 
   const out = {};
   const asOf = new Date().toISOString();
 
-  for (const position of portfolioSnapshot.positions) {
-    const symbol = position.symbol;
-    const md = portfolioSnapshot.marketData.symbols?.[symbol];
+  for (const p of positions) {
+    const symbol = p.symbol;
+    const md = marketData?.symbols?.[symbol];
 
     if (!md) {
-      out[symbol] = { symbol, state: "UNAVAILABLE" };
+      out[symbol] = Object.freeze({
+        symbol,
+        trend: "UNKNOWN",
+        momentum: "UNKNOWN",
+        location: "UNKNOWN"
+      });
       continue;
     }
 
     const daily = md.dailyCloses || [];
     const weekly = md.weeklyCloses || [];
-    const price = daily[daily.length - 1] || null;
+    const price = daily[daily.length - 1] ?? null;
 
     const sma20 = sma(daily, 20);
     const sma50 = sma(daily, 50);
@@ -115,7 +85,7 @@ export function buildPortfolioTechnicalAnalysis(portfolioSnapshot) {
       momentum,
       location,
       movingAverages: { sma20, sma50, sma200w },
-      interpretation: interpret(symbol, trend, momentum, location),
+      interpretation: interpret(trend, momentum, location, symbol),
       source: md.source
     });
   }
@@ -127,3 +97,4 @@ export function buildPortfolioTechnicalAnalysis(portfolioSnapshot) {
   });
 }
 
+export default Object.freeze({ buildPortfolioTechnicalAnalysis });
