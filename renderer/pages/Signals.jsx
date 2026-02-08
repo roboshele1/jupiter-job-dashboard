@@ -9,7 +9,16 @@ import React, { useEffect, useState } from "react";
  * - Interpretation is displayed if present, ignored if absent
  * - Refresh mirrors Portfolio refresh semantics
  * - Regime signals are explicit, emotionless, and visible
+ * - Decimal formatting is UI-only and deterministic
  */
+
+/* =========================
+   Institutional numeric formatting (UI ONLY)
+   ========================= */
+function fmt(n, decimals = 2) {
+  if (n === null || n === undefined || Number.isNaN(n)) return "—";
+  return Number(n).toFixed(decimals);
+}
 
 export default function Signals() {
   const [snapshot, setSnapshot] = useState(null);
@@ -106,21 +115,18 @@ export default function Signals() {
             <div style={{ fontSize: 16, fontWeight: 700 }}>{s.symbol}</div>
 
             <div style={{ marginTop: 8, fontSize: 14 }}>
-              <div>Price: {s.price ?? "—"}</div>
+              <div>Price: {fmt(s.price)}</div>
               <div>Trend: {s.trend}</div>
               <div>Momentum: {s.momentum}</div>
               <div>Location: {s.location}</div>
             </div>
 
             <div style={{ marginTop: 10, fontSize: 12, opacity: 0.6 }}>
-              SMA20: {s.movingAverages?.sma20 ?? "—"} &nbsp;|&nbsp;
-              SMA50: {s.movingAverages?.sma50 ?? "—"} &nbsp;|&nbsp;
-              SMA200W: {s.movingAverages?.sma200w ?? "—"}
+              SMA20: {fmt(s.movingAverages?.sma20)} &nbsp;|&nbsp;
+              SMA50: {fmt(s.movingAverages?.sma50)} &nbsp;|&nbsp;
+              SMA200W: {fmt(s.movingAverages?.sma200w)}
             </div>
 
-            {/* =========================
-                INTERPRETATION (EXISTING)
-               ========================= */}
             {s.interpretation && (
               <div
                 style={{
@@ -158,9 +164,6 @@ export default function Signals() {
               </div>
             )}
 
-            {/* =========================
-                REGIME SIGNALS (NEW)
-               ========================= */}
             <div
               style={{
                 marginTop: 14,
