@@ -3,6 +3,9 @@ import { classifyDetection } from "../detection/classifierEngine.js";
 import { generateAlerts } from "./alertsFoundationEngine.js";
 import { deliverAlerts } from "./alertDeliveryEngine.js";
 
+/* APPEND-ONLY: Desktop Notification Bridge */
+import { pushDesktopNotifications } from "./desktopNotifier.js";
+
 const CHECK_INTERVAL_MS = 60 * 1000; // every 60 seconds
 
 async function runAlertCycle() {
@@ -11,6 +14,9 @@ async function runAlertCycle() {
     const classification = classifyDetection(detection);
     const alerts = generateAlerts(classification);
     const result = deliverAlerts(alerts);
+
+    /* APPEND-ONLY: Trigger OS notifications */
+    pushDesktopNotifications(alerts);
 
     if (result.delivered > 0) {
       console.log(`[ALERT RUNNER] ${result.delivered} alert(s) delivered.`);
