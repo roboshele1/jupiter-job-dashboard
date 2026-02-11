@@ -9,6 +9,9 @@ import { pushDesktopNotifications } from "./desktopNotifier.js";
 /* APPEND-ONLY: Alert Intelligence Layer */
 import { interpretAlerts } from "./alertIntelligenceEngine.js";
 
+/* APPEND-ONLY: Discord Alert Bridge */
+import { pushDiscordAlerts } from "./discordBridge.js";
+
 const CHECK_INTERVAL_MS = 60 * 1000; // every 60 seconds
 
 async function runAlertCycle() {
@@ -24,6 +27,12 @@ async function runAlertCycle() {
 
     /* APPEND-ONLY: Trigger OS notifications */
     pushDesktopNotifications(alerts);
+
+    /* APPEND-ONLY: Discord escalation */
+    pushDiscordAlerts({
+      alerts,
+      intelligence
+    });
 
     /* APPEND-ONLY: Log human intelligence output */
     if (intelligence?.severity !== "INFO") {
