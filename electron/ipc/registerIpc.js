@@ -6,6 +6,9 @@
 
 import { createRequire } from "module";
 
+/* ✅ PORTFOLIO MUTATION IPC (AUTHORITATIVE) */
+import { registerPortfolioIpc } from "./portfolioIpc.js";
+
 import { registerGrowthEngineIpc } from "./growthEngineIpc.js";
 import { registerSignalsIpc } from "./signalsIpc.js";
 import { registerGrowthCapitalTrajectoryV2Ipc } from "./growthCapitalTrajectoryV2Ipc.js";
@@ -56,27 +59,6 @@ function loadHoldingsFull() {
   }));
 }
 
-function persistHoldingsFull(next) {
-  const fs = require("fs");
-  const path = require("path");
-
-  const abs = path.resolve(process.cwd(), "engine/data/holdings.js");
-
-  const content = `/**
- * JUPITER — Canonical Holdings Authority (V1)
- * AUTO-GENERATED — DO NOT EDIT MANUALLY
- */
-module.exports = ${JSON.stringify(next, null, 2)};
-`;
-
-  fs.writeFileSync(abs, String(content), "utf8");
-}
-
-function findIndexBySymbol(holdings, symbol) {
-  const sym = normalizeSymbol(symbol);
-  return holdings.findIndex(h => h.symbol === sym);
-}
-
 /* =========================
    SNAPSHOT AUTHORITY
    ========================= */
@@ -120,6 +102,10 @@ function registerHandler(ipcMain, channel, fn) {
    REGISTER ALL IPC
    ============================ */
 export function registerAllIpc(ipcMain) {
+  // ✅ 1) PORTFOLIO MUTATION CONTRACTS (add/update/remove)
+  // Must be registered so portfolio:add, portfolio:update, portfolio:remove exist.
+  registerPortfolioIpc();
+
   // Existing registries
   registerGrowthEngineIpc(ipcMain);
 
@@ -132,8 +118,10 @@ export function registerAllIpc(ipcMain) {
   });
 
   // =========================
-  // PORTFOLIO — AUTHORITATIVE
+  // PORTFOLIO — AUTHORITATIVE (READ)
   // =========================
+  // We intentionally re-register portfolio:getSnapshot using safe removeHandler
+  // so it never collides and always returns the cached snapshot form expected by UI.
   registerHandler(ipcMain, "portfolio:getSnapshot", async () => {
     return await getCachedSnapshot();
   });
@@ -165,7 +153,7 @@ export function registerAllIpc(ipcMain) {
   });
 
   // =========================
-  // DISCOVERY — AUTONOMOUS
+  // DISCOVERY — AUTONOMOUS ✅ (THIS FIXES discovery:run)
   // =========================
   registerHandler(ipcMain, "discovery:run", async () => {
     const discoveryModule = await import("../../engine/discovery/runDiscoveryScan.js");
@@ -234,7 +222,7 @@ export function registerAllIpc(ipcMain) {
   });
 
   // =========================
-  // MOONSHOT — TELEMETRY
+  // MOONSHOT — TELEMETRY ✅ (THIS FIXES asymmetry:telemetry:get)
   // =========================
   import("./asymmetryTelemetryIpc.js").then(module => {
     module.registerAsymmetryTelemetryIpc(ipcMain);
@@ -245,3 +233,4 @@ export function registerAllIpc(ipcMain) {
   // =========================
   registerMoonshotRegistryIpc(ipcMain);
 }
+

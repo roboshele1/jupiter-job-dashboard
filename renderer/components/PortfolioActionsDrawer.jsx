@@ -3,11 +3,21 @@ import { useEffect, useState } from "react";
 /**
  * PortfolioActionsDrawer — EXECUTION ENABLED (CANONICAL)
  * -----------------------------------------------------
- * FIX:
- * - Correctly read snapshot.portfolio.positions
- * - Existing holdings now render
- * - Update / Remove now visible and functional
+ * FIX (authoritative, non-regressing):
+ * - Calls the correct IPC channels:
+ *     portfolio:add | portfolio:update | portfolio:remove
+ * - Enforces cost basis for NEW holdings:
+ *     add requires { symbol, qty, cost }
+ * - Update uses QTY DELTA model:
+ *     update requires { symbol, qtyDelta }
+ * - Reads existing holdings from snapshot.positions (engine snapshot),
+ *   but also tolerates snapshot.portfolio.positions if present.
  */
+
+function asNum(v) {
+  const n = Number(String(v ?? "").trim());
+  return Number.isFinite(n) ? n : NaN;
+}
 
 export default function PortfolioActionsDrawer({ open, onClose }) {
   const [snapshot, setSnapshot] = useState(null);
@@ -16,14 +26,16 @@ export default function PortfolioActionsDrawer({ open, onClose }) {
 
   const [newSymbol, setNewSymbol] = useState("");
   const [newQty, setNewQty] = useState("");
-  const [editQty, setEditQty] = useState({});
+  const [newCost, setNewCost] = useState("");
+
+  const [editQtyDelta, setEditQtyDelta] = useState({});
 
   async function loadSnapshot() {
     try {
       const snap = await window.jupiter.invoke("portfolio:getSnapshot");
       setSnapshot(snap);
     } catch (err) {
-      setError(err.message);
+      setError(err?.message || String(err));
     }
   }
 
@@ -37,25 +49,35 @@ export default function PortfolioActionsDrawer({ open, onClose }) {
 
   if (!open) return null;
 
-  // ✅ THIS IS THE FIX
-  const positions = snapshot?.portfolio?.positions || [];
+  // Engine snapshot is: { timestamp, positions: [...] }
+  // Some other screens may pass: { portfolio: { positions: [...] } }
+  const positions =
+    snapshot?.positions ||
+    snapshot?.portfolio?.positions ||
+    [];
 
   async function handleAdd() {
     try {
       setError(null);
       setStatus(null);
 
-      await window.jupiter.invoke("portfolio:addHolding", {
-        symbol: newSymbol.trim().toUpperCase(),
-        qty: Number(newQty)
-      });
+      const symbol = String(newSymbol || "").trim().toUpperCase();
+      const qty = asNum(newQty);
+      const cost = asNum(newCost);
+
+      if (!symbol) throw new Error("SYMBOL_REQUIRED");
+      if (!Number.isFinite(qty) || qty <= 0) throw new Error("INVALID_QTY");
+      if (!Number.isFinite(cost) || cost <= 0) throw new Error("INVALID_COST");
+
+      await window.jupiter.invoke("portfolio:add", { symbol, qty, cost });
 
       setNewSymbol("");
       setNewQty("");
+      setNewCost("");
       await loadSnapshot();
-      setStatus("Holding added");
+      setStatus(`Added ${symbol}`);
     } catch (err) {
-      setError(err.message);
+      setError(err?.message || String(err));
     }
   }
 
@@ -64,15 +86,18 @@ export default function PortfolioActionsDrawer({ open, onClose }) {
       setError(null);
       setStatus(null);
 
-      await window.jupiter.invoke("portfolio:updateHolding", {
-        symbol,
-        qty: Number(editQty[symbol])
-      });
+      const qtyDelta = asNum(editQtyDelta[symbol]);
+
+      if (!Number.isFinite(qtyDelta) || qtyDelta === 0) {
+        throw new Error("INVALID_QTY_DELTA");
+      }
+
+      await window.jupiter.invoke("portfolio:update", { symbol, qtyDelta });
 
       await loadSnapshot();
       setStatus(`Updated ${symbol}`);
     } catch (err) {
-      setError(err.message);
+      setError(err?.message || String(err));
     }
   }
 
@@ -81,12 +106,12 @@ export default function PortfolioActionsDrawer({ open, onClose }) {
       setError(null);
       setStatus(null);
 
-      await window.jupiter.invoke("portfolio:removeHolding", { symbol });
+      await window.jupiter.invoke("portfolio:remove", { symbol });
 
       await loadSnapshot();
       setStatus(`Removed ${symbol}`);
     } catch (err) {
-      setError(err.message);
+      setError(err?.message || String(err));
     }
   }
 
@@ -96,7 +121,7 @@ export default function PortfolioActionsDrawer({ open, onClose }) {
         position: "fixed",
         top: 0,
         right: 0,
-        width: 380,
+        width: 420,
         height: "100%",
         background: "#0f172a",
         borderLeft: "1px solid #1e293b",
@@ -124,18 +149,28 @@ export default function PortfolioActionsDrawer({ open, onClose }) {
       {/* ADD */}
       <div style={{ marginTop: 20 }}>
         <div style={{ fontSize: 12, opacity: 0.7 }}>Add Holding</div>
+
         <input
           placeholder="Symbol (e.g. MSFT)"
           value={newSymbol}
           onChange={e => setNewSymbol(e.target.value)}
           style={{ width: "100%", marginTop: 6 }}
         />
+
         <input
-          placeholder="Qty"
+          placeholder="Qty (e.g. 10)"
           value={newQty}
           onChange={e => setNewQty(e.target.value)}
           style={{ width: "100%", marginTop: 6 }}
         />
+
+        <input
+          placeholder="Total Cost Basis (e.g. 1043.40)"
+          value={newCost}
+          onChange={e => setNewCost(e.target.value)}
+          style={{ width: "100%", marginTop: 6 }}
+        />
+
         <button style={{ marginTop: 8 }} onClick={handleAdd}>
           Add
         </button>
@@ -162,10 +197,10 @@ export default function PortfolioActionsDrawer({ open, onClose }) {
             <div style={{ opacity: 0.7 }}>Qty: {p.qty}</div>
 
             <input
-              placeholder="New Qty"
-              value={editQty[p.symbol] ?? ""}
+              placeholder="Qty Delta (+ / -)"
+              value={editQtyDelta[p.symbol] ?? ""}
               onChange={e =>
-                setEditQty(prev => ({
+                setEditQtyDelta(prev => ({
                   ...prev,
                   [p.symbol]: e.target.value
                 }))

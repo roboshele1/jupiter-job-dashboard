@@ -46,13 +46,6 @@ module.exports = [
     "currency": "USD"
   },
   {
-    "symbol": "APLD",
-    "qty": 114.0854,
-    "totalCostBasis": 1765.13,
-    "assetClass": "equity",
-    "currency": "USD"
-  },
-  {
     "symbol": "BTC",
     "qty": 0.281212,
     "totalCostBasis": 24764.31,
@@ -67,9 +60,16 @@ module.exports = [
     "currency": "USD"
   },
   {
-    "symbol": "MSFT",
-    "qty": 0.5789,
-    "totalCostBasis": 99.96,
+    "symbol": "NOW",
+    "qty": 12,
+    "totalCostBasis": 106.66,
+    "assetClass": "equity",
+    "currency": "USD"
+  },
+  {
+    "symbol": "APLD",
+    "qty": 87.88,
+    "totalCostBasis": 15.47,
     "assetClass": "equity",
     "currency": "USD"
   }
