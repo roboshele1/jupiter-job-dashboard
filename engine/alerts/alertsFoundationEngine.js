@@ -74,30 +74,17 @@ export function generateAlerts(classification = {}) {
   }
 
   // -----------------------------
-  // DRIFT ALERTS
+  // DRIFT ALERTS (UPDATED CONTRACT)
   // -----------------------------
   driftSignals.forEach(signal => {
-    if (signal.state === "DRIFT") {
-      alerts.push({
-        type: "ALLOCATION_DRIFT",
-        severity: "LOW",
-        source: signal.symbol,
-        message: `Allocation drift detected for ${signal.symbol}.`,
-        drift: signal.drift,
-        timestamp: Date.now()
-      });
-    }
-
-    if (signal.state === "REBALANCE_ZONE") {
-      alerts.push({
-        type: "REBALANCE_CANDIDATE",
-        severity: "MEDIUM",
-        source: signal.symbol,
-        message: `Rebalance candidate identified for ${signal.symbol}.`,
-        drift: signal.drift,
-        timestamp: Date.now()
-      });
-    }
+    alerts.push({
+      type: "ALLOCATION_DRIFT",
+      severity: signal.severity || "LOW",
+      source: signal.symbol,
+      message: `Allocation drift detected for ${signal.symbol} (${signal.direction}).`,
+      magnitude: signal.magnitude,
+      timestamp: Date.now()
+    });
   });
 
   return alerts;

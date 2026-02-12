@@ -1,28 +1,23 @@
 // engine/alerts/desktopNotifier.js
-// Desktop Notification Bridge (V1)
-// Emits native macOS notifications when alerts are produced.
-// Pure delivery layer — no logic, no math, no classification.
+// Jupiter — macOS Desktop Notification Bridge (DET)
 
-import { exec } from "child_process";
+import notifier from 'node-notifier';
 
-function sendMacNotification(title, message) {
-  const script = `osascript -e 'display notification "${message}" with title "${title}"'`;
-  exec(script);
-}
+/**
+ * Push a macOS notification
+ * @param {Object} alert Alert object
+ */
+export function pushDesktopNotification(alert) {
+  if (!alert) return;
 
-export function pushDesktopNotifications(alerts = []) {
-  if (!Array.isArray(alerts) || alerts.length === 0) {
-    return { status: "NO_NOTIFICATIONS_SENT" };
-  }
+  const title = `[${alert.severity || 'INFO'}] ${alert.symbol || 'N/A'}`;
+  const message = alert.message || 'No message';
 
-  alerts.forEach(alert => {
-    const title = "JUPITER Alert";
-    const message = alert.message || JSON.stringify(alert);
-    sendMacNotification(title, message);
+  notifier.notify({
+    title,
+    message,
+    wait: false
   });
 
-  return {
-    status: "NOTIFICATIONS_SENT",
-    count: alerts.length
-  };
+  console.log(`[DESKTOP NOTIFICATION] ${title} — ${message}`);
 }

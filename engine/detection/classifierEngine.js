@@ -1,53 +1,54 @@
-export function classifyDetection(detection = {}) {
-  if (!detection || detection.status === "INSUFFICIENT_DATA") {
-    return {
-      status: "NO_CLASSIFICATION",
-      reason: "Insufficient detection data"
-    };
-  }
+/**
+ * CLASSIFIER ENGINE — DRIFT + PORTFOLIO STATES
+ * Deterministic conversion:
+ * detection → classification signals
+ */
 
-  const {
-    drawdown = 0,
-    concentrationChange = 0,
-    allocationDrift = {}
-  } = detection;
+const DRIFT_ALERT_THRESHOLD = 0.002; // 0.2% allocation move
 
-  // -----------------------------
-  // DRAWNDOWN CLASSIFICATION
-  // -----------------------------
-  let drawdownState = "NORMAL";
+function classifyDrawdown(drawdown) {
+  if (drawdown < -0.1) return "CRITICAL";
+  if (drawdown < -0.05) return "ELEVATED";
+  return "NORMAL";
+}
 
-  if (drawdown <= -0.10) drawdownState = "RISK_EVENT";
-  else if (drawdown <= -0.06) drawdownState = "RISK_BUILDING";
-  else if (drawdown <= -0.03) drawdownState = "WATCH";
-  else drawdownState = "NORMAL";
+function classifyConcentration(change) {
+  if (Math.abs(change) > 0.1) return "HIGH";
+  if (Math.abs(change) > 0.05) return "ELEVATED";
+  return "STABLE";
+}
 
-  // -----------------------------
-  // CONCENTRATION CLASSIFICATION
-  // -----------------------------
-  let concentrationState = "STABLE";
-
-  if (concentrationChange >= 0.30) concentrationState = "CRITICAL";
-  else if (concentrationChange >= 0.25) concentrationState = "WARNING";
-  else if (concentrationChange >= 0.20) concentrationState = "NOTICE";
-  else concentrationState = "STABLE";
-
-  // -----------------------------
-  // DRIFT CLASSIFICATION
-  // -----------------------------
-  let driftFlags = [];
+function classifyDrift(allocationDrift = {}) {
+  const signals = [];
 
   Object.entries(allocationDrift).forEach(([symbol, drift]) => {
-    if (Math.abs(drift) >= 0.025) {
-      driftFlags.push({ symbol, state: "REBALANCE_ZONE", drift });
-    } else if (Math.abs(drift) >= 0.01) {
-      driftFlags.push({ symbol, state: "DRIFT", drift });
+    if (Math.abs(drift) >= DRIFT_ALERT_THRESHOLD) {
+      signals.push({
+        type: "ALLOCATION_DRIFT",
+        symbol,
+        magnitude: drift,
+        direction: drift > 0 ? "INCREASE" : "DECREASE",
+        severity:
+          Math.abs(drift) > 0.02
+            ? "HIGH"
+            : Math.abs(drift) > 0.01
+            ? "MEDIUM"
+            : "LOW"
+      });
     }
   });
 
-  // -----------------------------
-  // FINAL CLASSIFICATION OBJECT
-  // -----------------------------
+  return signals;
+}
+
+export function classifyDetection(detection = {}) {
+  const drawdownState = classifyDrawdown(detection.drawdown || 0);
+  const concentrationState = classifyConcentration(
+    detection.concentrationChange || 0
+  );
+
+  const driftSignals = classifyDrift(detection.allocationDrift);
+
   return {
     timestamp: Date.now(),
 
@@ -56,6 +57,6 @@ export function classifyDetection(detection = {}) {
       concentration: concentrationState
     },
 
-    driftSignals: driftFlags
+    driftSignals
   };
 }
