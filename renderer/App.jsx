@@ -15,7 +15,8 @@ import GrowthEngine from "./pages/GrowthEngine";
 import Insights from "./pages/Insights";
 import RiskCentre from "./pages/RiskCentre";
 import MarketMonitor from "./pages/MarketMonitor";
-import MoonshotLab from "./pages/MoonshotLab"; // ← ADDITIVE
+import MoonshotLab from "./pages/MoonshotLab";
+import SystemState from "./pages/SystemState"; // ← ADDITIVE
 
 import Sidebar from "./components/Sidebar";
 import SystemHeartbeat from "./components/SystemHeartbeat";
@@ -41,10 +42,6 @@ const RAW_SNAPSHOT = {
   ]
 };
 
-/**
- * NORMALIZE SNAPSHOT FOR ALL CONSUMERS
- * (App shell responsibility only)
- */
 function normalizeSnapshot(raw) {
   const holdings = raw.positions.map(p => ({
     symbol: p.symbol,
@@ -75,7 +72,6 @@ export default function App() {
       <div style={{ display: "flex", height: "100vh" }}>
         <Sidebar />
         <main style={{ flex: 1, overflowY: "auto" }}>
-          {/* GLOBAL SYSTEM HEARTBEAT (persistent across all tabs) */}
           <SystemHeartbeat />
 
           <Routes>
@@ -88,7 +84,10 @@ export default function App() {
             <Route path="/insights" element={<Insights />} />
             <Route path="/risk" element={<RiskCentre />} />
             <Route path="/market" element={<MarketMonitor />} />
-            <Route path="/moonshot" element={<MoonshotLab />} /> {/* ← ADDITIVE */}
+            <Route path="/moonshot" element={<MoonshotLab />} />
+
+            {/* 🟢 NEW TAB */}
+            <Route path="/system" element={<SystemState />} />
           </Routes>
         </main>
       </div>

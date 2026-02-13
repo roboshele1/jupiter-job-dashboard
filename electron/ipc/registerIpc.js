@@ -16,6 +16,9 @@ import { registerGrowthCapitalTrajectoryV2Ipc } from "./growthCapitalTrajectoryV
 /* 🟢 APPEND-ONLY: PORTFOLIO TECHNICAL SIGNALS IPC */
 import { registerPortfolioTechnicalSignalsIpc } from "./portfolioTechnicalSignalsIpc.js";
 
+/* 🟢 SYSTEM STATE IPC */
+import { registerSystemStateIpc } from "./systemStateIpc.js";
+
 import { valuePortfolio } from "../../engine/portfolio/portfolioValuation.js";
 import { computeInsights } from "../../engine/insights/insightsEngine.js";
 import { resolveInvestableSymbol } from "../../engine/symbolUniverse/resolveInvestableSymbol.js";
@@ -103,7 +106,6 @@ function registerHandler(ipcMain, channel, fn) {
    ============================ */
 export function registerAllIpc(ipcMain) {
   // ✅ 1) PORTFOLIO MUTATION CONTRACTS (add/update/remove)
-  // Must be registered so portfolio:add, portfolio:update, portfolio:remove exist.
   registerPortfolioIpc();
 
   // Existing registries
@@ -120,8 +122,6 @@ export function registerAllIpc(ipcMain) {
   // =========================
   // PORTFOLIO — AUTHORITATIVE (READ)
   // =========================
-  // We intentionally re-register portfolio:getSnapshot using safe removeHandler
-  // so it never collides and always returns the cached snapshot form expected by UI.
   registerHandler(ipcMain, "portfolio:getSnapshot", async () => {
     return await getCachedSnapshot();
   });
@@ -145,6 +145,11 @@ export function registerAllIpc(ipcMain) {
   });
 
   // =========================
+  // SYSTEM STATE — INTELLIGENCE SURFACE
+  // =========================
+  registerSystemStateIpc(ipcMain);
+
+  // =========================
   // INSIGHTS
   // =========================
   registerHandler(ipcMain, "insights:compute", async () => {
@@ -153,7 +158,7 @@ export function registerAllIpc(ipcMain) {
   });
 
   // =========================
-  // DISCOVERY — AUTONOMOUS ✅ (THIS FIXES discovery:run)
+  // DISCOVERY — AUTONOMOUS
   // =========================
   registerHandler(ipcMain, "discovery:run", async () => {
     const discoveryModule = await import("../../engine/discovery/runDiscoveryScan.js");
@@ -222,7 +227,7 @@ export function registerAllIpc(ipcMain) {
   });
 
   // =========================
-  // MOONSHOT — TELEMETRY ✅ (THIS FIXES asymmetry:telemetry:get)
+  // MOONSHOT — TELEMETRY
   // =========================
   import("./asymmetryTelemetryIpc.js").then(module => {
     module.registerAsymmetryTelemetryIpc(ipcMain);
@@ -233,4 +238,3 @@ export function registerAllIpc(ipcMain) {
   // =========================
   registerMoonshotRegistryIpc(ipcMain);
 }
-

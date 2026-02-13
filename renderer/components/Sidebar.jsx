@@ -12,9 +12,11 @@ const items = [
   { label: "Growth Engine", path: "/growth" },
   { label: "Insights", path: "/insights" },
   { label: "Risk Centre", path: "/risk" },
-  // ✅ FIX: must match router exactly
   { label: "Market Monitor", path: "/market" },
   { label: "Moonshot Lab", path: "/moonshot" },
+
+  // 🟢 NEW
+  { label: "System State", path: "/system" },
 ];
 
 export default function Sidebar() {
