@@ -2,10 +2,9 @@
  * V2 Intelligence Public Interface
  * --------------------------------
  * Single import point.
+ * ESM-safe exports only.
  */
 
-export { summarizePortfolio } from "./intelligenceEngine";
-export { requiredContribution } from "./planningEngine";
-export { compareTrajectory } from "./trajectoryEngine";
-export { INTELLIGENCE_MODES } from "./contracts";
-
+export { runIntelligence } from "./intelligenceEngine.js";
+export { requiredContribution } from "./planningEngine.js";
+export { compareTrajectory } from "./trajectoryEngine.js";
