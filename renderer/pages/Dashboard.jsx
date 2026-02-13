@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import "../styles/dashboard.css";
+import AssetSystemStatePanel from "../components/AssetSystemStatePanel.jsx";
 
 const BUCKET_COLORS = {
   Semiconductors: "#4cc9f0",
@@ -21,10 +22,6 @@ function safeNum(n) {
   return Number.isFinite(num) ? num : 0;
 }
 
-/**
- * Market data freshness precedence.
- * (UI-only inference; does NOT change engine logic.)
- */
 const FRESHNESS_RANK = {
   LIVE: 3,
   DELAYED: 2,
@@ -53,13 +50,8 @@ function pickBestFreshness(positions) {
 export default function Dashboard() {
   const [valuation, setValuation] = useState(null);
   const [lastRefreshAt, setLastRefreshAt] = useState(null);
-
-  // 🟢 NEW — System State (dashboard card)
   const [systemState, setSystemState] = useState(null);
 
-  // =========================
-  // LOAD ENGINE VALUATION
-  // =========================
   useEffect(() => {
     let alive = true;
 
@@ -76,7 +68,7 @@ export default function Dashboard() {
     }
 
     load();
-    const id = setInterval(load, 15_000);
+    const id = setInterval(load, 15000);
 
     return () => {
       alive = false;
@@ -84,9 +76,6 @@ export default function Dashboard() {
     };
   }, []);
 
-  // =========================
-  // 🟢 NEW — LOAD SYSTEM STATE (IPC)
-  // =========================
   useEffect(() => {
     let alive = true;
 
@@ -102,7 +91,7 @@ export default function Dashboard() {
     }
 
     loadSystemState();
-    const id = setInterval(loadSystemState, 15_000);
+    const id = setInterval(loadSystemState, 15000);
 
     return () => {
       alive = false;
@@ -110,17 +99,11 @@ export default function Dashboard() {
     };
   }, []);
 
-  /* =========================
-     ENGINE POSITIONS (AUTHORITATIVE)
-     ========================= */
   const positions = useMemo(
     () => (Array.isArray(valuation?.positions) ? valuation.positions : []),
     [valuation]
   );
 
-  /* =========================
-     ENGINE TOTALS (AUTHORITATIVE)
-     ========================= */
   const totals = valuation?.totals || {
     snapshotValue: 0,
     liveValue: 0,
@@ -135,9 +118,6 @@ export default function Dashboard() {
       ? "pl-negative"
       : "pl-neutral";
 
-  /* =========================
-     SNAPSHOT + FRESHNESS
-     ========================= */
   const snapshotTime =
     valuation?.priceSnapshotMeta?.fetchedAt || valuation?.snapshotAt || null;
 
@@ -165,9 +145,6 @@ export default function Dashboard() {
       ? "STALE"
       : "UNKNOWN";
 
-  /* =========================
-     TOP HOLDINGS (ENGINE DATA)
-     ========================= */
   const topHoldings = useMemo(
     () =>
       positions
@@ -178,9 +155,6 @@ export default function Dashboard() {
     [positions]
   );
 
-  /* =========================
-     ALLOCATION (DISPLAY ONLY)
-     ========================= */
   const allocationBands = useMemo(() => {
     if (!positions.length || totals.liveValue <= 0) return [];
 
@@ -217,9 +191,6 @@ export default function Dashboard() {
     return bands;
   }, [positions, totals.liveValue]);
 
-  /* =========================
-     RENDER
-     ========================= */
   return (
     <div className="dashboard">
       <h1>Dashboard</h1>
@@ -283,59 +254,34 @@ export default function Dashboard() {
       <div className="card wide">
         <div className="label">SYSTEM STATUS</div>
         <div className="value">
-          Market Data:{" "}
-          <strong
-            style={{
-              color:
-                marketStatus === "LIVE"
-                  ? "#22c55e"
-                  : marketStatus === "DELAYED"
-                  ? "#60a5fa"
-                  : marketStatus === "STALE"
-                  ? "#facc15"
-                  : "#9ca3af",
-            }}
-          >
-            {marketStatus}
-          </strong>
-          <span style={{ opacity: 0.6, marginLeft: 8, fontSize: 12 }}>
-            ({chosenFreshness.level}
-            {chosenFreshness.confidence
-              ? ` • ${chosenFreshness.confidence}`
-              : ""}
-            )
-          </span>
+          Market Data: <strong>{marketStatus}</strong>
         </div>
       </div>
 
-      {/* =========================
-          🟢 NEW — SYSTEM STATE CARD
-         ========================= */}
       <div className="card wide">
         <div className="label">SYSTEM STATE</div>
         {!systemState ? (
           <div className="value">Loading…</div>
         ) : (
-          <div className="value" style={{ lineHeight: 1.6 }}>
-            <div>
+          <div style={{ lineHeight: 1.6 }}>
+            <div className="value">
               Posture: <strong>{systemState?.decision?.systemPosture}</strong>
             </div>
-            <div>
+            <div className="value">
               Capital: <strong>{systemState?.decision?.capitalState}</strong>
             </div>
-            <div>
+            <div className="value">
               Risk: <strong>{systemState?.risk?.regime}</strong>
             </div>
-            <div>
+            <div className="value">
               Signals:{" "}
               <strong>
                 {systemState?.signals?.available ? "ACTIVE" : "QUIET"}
               </strong>
             </div>
-            <div>
-              Awareness:{" "}
-              <strong>{systemState?.awareness?.systemState}</strong>
-            </div>
+
+            {/* Awareness + Asset posture injected cleanly */}
+            <AssetSystemStatePanel state={systemState} />
           </div>
         )}
       </div>

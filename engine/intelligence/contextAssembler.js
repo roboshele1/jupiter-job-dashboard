@@ -1,51 +1,64 @@
 /**
  * Context Assembler — Portfolio Intelligence Bridge
  * -------------------------------------------------
- * D4 — Intelligence Real Portfolio Wiring
- *
- * Purpose:
- * - Convert authoritative portfolio valuation into intelligence-ready context
- * - No scoring, no reasoning, no forecasting
- * - Deterministic data bridge only
- *
- * Inputs:
- * - Live portfolio valuation engine
- *
- * Outputs:
- * - Canonical intelligence context object
+ * D5 — Portfolio Authority Wiring (Deterministic)
  */
 
-import { loadLatestSnapshot } from "../snapshots/latestSnapshotResolver.js";
 import { valuePortfolio } from "../portfolio/portfolioValuation.js";
+import { createRequire } from "module";
 
-/**
- * assembleIntelligenceContext
- * Returns deterministic portfolio context for intelligence layer.
- */
+const require = createRequire(import.meta.url);
+const HOLDINGS_PATH = "../data/holdings.js";
+
+function normalizeSymbol(symbol) {
+  return String(symbol || "").trim().toUpperCase();
+}
+
+function asNumber(v) {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : 0;
+}
+
+function loadHoldingsAuthority() {
+  const resolved = require.resolve(HOLDINGS_PATH);
+  delete require.cache[resolved];
+
+  const raw = require(HOLDINGS_PATH);
+  if (!Array.isArray(raw)) return [];
+
+  return raw.map(h => ({
+    symbol: normalizeSymbol(h.symbol),
+    qty: asNumber(h.qty),
+    assetClass:
+      normalizeSymbol(h.symbol) === "BTC" ||
+      normalizeSymbol(h.symbol) === "ETH"
+        ? "crypto"
+        : "equity",
+    totalCostBasis: asNumber(h.totalCostBasis),
+    currency: String(h.currency || "USD")
+  }));
+}
+
 export async function assembleIntelligenceContext() {
-  const snapshot = loadLatestSnapshot();
+  const holdings = loadHoldingsAuthority();
 
-  if (!snapshot?.holdings) {
+  if (!holdings.length) {
     return {
       contextAvailable: false,
       portfolioValue: 0,
       positions: [],
       totals: null,
-      source: "no-snapshot"
+      source: "portfolio-authority-empty"
     };
   }
 
-  // Use authoritative valuation engine
   const valuation = await valuePortfolio(
-    snapshot.holdings.map(h => ({
+    holdings.map(h => ({
       symbol: h.symbol,
-      qty: h.qty ?? h.quantity ?? 0,
-      assetClass:
-        h.symbol === "BTC" || h.symbol === "ETH"
-          ? "crypto"
-          : "equity",
-      totalCostBasis: h.totalCostBasis ?? 0,
-      currency: "USD"
+      qty: h.qty,
+      assetClass: h.assetClass,
+      totalCostBasis: h.totalCostBasis,
+      currency: h.currency
     }))
   );
 
@@ -55,6 +68,6 @@ export async function assembleIntelligenceContext() {
     positions: valuation?.positions || [],
     totals: valuation?.totals || null,
     fetchedAt: valuation?.fetchedAt || null,
-    source: "portfolioValuationAuthority"
+    source: "portfolio-authority"
   });
 }
