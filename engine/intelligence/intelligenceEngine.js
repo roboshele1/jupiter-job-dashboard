@@ -3,21 +3,19 @@
  * -------------------
  * Central coordinator (read-only).
  *
- * Now wired to canonical latest snapshot authority.
+ * D4.1 — Real Portfolio Intelligence Wiring
+ * Now consumes canonical assembled portfolio context.
  */
 
-import { loadLatestSnapshot } from "../snapshots/latestSnapshotResolver.js";
+import { assembleIntelligenceContext } from "./contextAssembler.js";
 import { requiredContribution } from "./planningEngine.js";
 import { createEmptyIntelligenceInsight } from "./INTELLIGENCE_V2_CONTRACT.js";
 
-export function runIntelligence() {
+export async function runIntelligence() {
 
-  const snapshot = loadLatestSnapshot();
+  const context = await assembleIntelligenceContext();
 
-  const portfolioValue =
-    snapshot?.portfolioValue ||
-    snapshot?.totals?.portfolioValue ||
-    0;
+  const portfolioValue = context?.portfolioValue || 0;
 
   const contribution = requiredContribution({
     targetAmount: 250000,
@@ -31,10 +29,10 @@ export function runIntelligence() {
   insight.domain = "PORTFOLIO";
   insight.insightType = "FEASIBILITY";
   insight.summary =
-    "Contribution feasibility computed using canonical latest portfolio snapshot.";
+    "Contribution feasibility computed using real portfolio valuation context.";
 
   insight.explanation.rationale =
-    "Monthly contribution derived from planning engine using authoritative snapshot.";
+    "Monthly contribution derived from planning engine using live portfolio authority.";
   insight.explanation.drivers = [
     "portfolioValue",
     "targetAmount",
@@ -53,19 +51,19 @@ export function runIntelligence() {
 
   insight.evidence.sources = [
     "planningEngine",
-    "latestSnapshotResolver"
+    "contextAssembler",
+    "portfolioValuation"
   ];
-  insight.evidence.snapshotTimestamp =
-    snapshot?.timestamp || null;
+  insight.evidence.snapshotTimestamp = context?.fetchedAt || null;
   insight.evidence.dataFreshness =
-    snapshot ? "SNAPSHOT" : "STALE";
+    context?.contextAvailable ? "LIVE_CONTEXT" : "STALE";
 
-  insight.confidence.level = snapshot ? "HIGH" : "LOW";
-  insight.confidence.score = snapshot ? 0.88 : 0.35;
+  insight.confidence.level = context?.contextAvailable ? "HIGH" : "LOW";
+  insight.confidence.score = context?.contextAvailable ? 0.9 : 0.35;
   insight.confidence.uncertaintyDrivers = [
     "Return variability",
     "Contribution consistency",
-    "Snapshot frequency"
+    "Portfolio volatility"
   ];
 
   insight.governance.adviceAllowed = false;
@@ -73,11 +71,11 @@ export function runIntelligence() {
   insight.governance.reasoningAllowed = true;
 
   insight.metadata.generatedAt = Date.now();
-  insight.metadata.engineVersion = "INTELLIGENCE_OBSERVER_V3";
-  insight.metadata.authority = "LATEST_SNAPSHOT_PIPELINE";
+  insight.metadata.engineVersion = "INTELLIGENCE_REAL_PORTFOLIO_V1";
+  insight.metadata.authority = "CONTEXT_ASSEMBLER_PIPELINE";
 
   return {
-    snapshotLoaded: !!snapshot,
+    contextLoaded: !!context?.contextAvailable,
     portfolioValue,
     requiredContribution: contribution,
     insight
