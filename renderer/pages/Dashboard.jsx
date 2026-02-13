@@ -54,6 +54,9 @@ export default function Dashboard() {
   const [valuation, setValuation] = useState(null);
   const [lastRefreshAt, setLastRefreshAt] = useState(null);
 
+  // 🟢 NEW — System State (dashboard card)
+  const [systemState, setSystemState] = useState(null);
+
   // =========================
   // LOAD ENGINE VALUATION
   // =========================
@@ -74,6 +77,32 @@ export default function Dashboard() {
 
     load();
     const id = setInterval(load, 15_000);
+
+    return () => {
+      alive = false;
+      clearInterval(id);
+    };
+  }, []);
+
+  // =========================
+  // 🟢 NEW — LOAD SYSTEM STATE (IPC)
+  // =========================
+  useEffect(() => {
+    let alive = true;
+
+    async function loadSystemState() {
+      try {
+        if (!window?.jupiter?.invoke) return;
+        const res = await window.jupiter.invoke("system:getState");
+        if (!alive) return;
+        setSystemState(res);
+      } catch (e) {
+        console.error("[SYSTEM_STATE_LOAD_ERROR]", e);
+      }
+    }
+
+    loadSystemState();
+    const id = setInterval(loadSystemState, 15_000);
 
     return () => {
       alive = false;
@@ -277,6 +306,38 @@ export default function Dashboard() {
             )
           </span>
         </div>
+      </div>
+
+      {/* =========================
+          🟢 NEW — SYSTEM STATE CARD
+         ========================= */}
+      <div className="card wide">
+        <div className="label">SYSTEM STATE</div>
+        {!systemState ? (
+          <div className="value">Loading…</div>
+        ) : (
+          <div className="value" style={{ lineHeight: 1.6 }}>
+            <div>
+              Posture: <strong>{systemState?.decision?.systemPosture}</strong>
+            </div>
+            <div>
+              Capital: <strong>{systemState?.decision?.capitalState}</strong>
+            </div>
+            <div>
+              Risk: <strong>{systemState?.risk?.regime}</strong>
+            </div>
+            <div>
+              Signals:{" "}
+              <strong>
+                {systemState?.signals?.available ? "ACTIVE" : "QUIET"}
+              </strong>
+            </div>
+            <div>
+              Awareness:{" "}
+              <strong>{systemState?.awareness?.systemState}</strong>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
