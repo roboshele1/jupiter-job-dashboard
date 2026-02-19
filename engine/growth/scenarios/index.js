@@ -24,7 +24,7 @@ export const SCENARIO_REGISTRY = {
    * TARGET VALUE SCENARIO
    * ---------------------------------------------------------
    * Example:
-   * "I want $1M by 2030"
+   * "I want $1M by 2037"
    */
   TARGET_VALUE: {
     id: "TARGET_VALUE",

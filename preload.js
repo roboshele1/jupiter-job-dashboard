@@ -1,21 +1,29 @@
-// preload.js — JUPITER (env bridge + IPC bridge)
-// Goal: expose a safe, minimal env surface to renderer WITHOUT touching Risk/Portfolio authority
-
+// preload.js
+// Full replacement file — Append-only
 const { contextBridge, ipcRenderer } = require("electron");
 
-// Only expose the specific keys we intentionally allow in the renderer.
-// (Do NOT dump full process.env into window.)
+// Expose minimal environment safely
 const SAFE_ENV = {
   POLYGON_API_KEY:
     process.env.POLYGON_API_KEY ||
     process.env.POLYGON_KEY ||
-    process.env.VITE_POLYGON_API_KEY || // ← MISSING LINK (THIS WAS THE BUG)
+    process.env.VITE_POLYGON_API_KEY ||
     process.env.POLYGON ||
     null
 };
 
+// Append-only: expose IPC channels safely to renderer
 const ipc = {
-  invoke: (channel, payload) => ipcRenderer.invoke(channel, payload),
+  invoke: (channel, payload) => {
+    const validChannels = [
+      'systemState:get',
+      'portfolio:get',
+      'signals:get',
+      'decisions:get'
+    ];
+    if (!validChannels.includes(channel)) throw new Error(`Invalid IPC channel: ${channel}`);
+    return ipcRenderer.invoke(channel, payload);
+  },
   send: (channel, ...args) => ipcRenderer.send(channel, ...args),
   on: (channel, handler) => {
     const wrapped = (_event, ...args) => handler(...args);
@@ -24,11 +32,10 @@ const ipc = {
   }
 };
 
-// Primary
+// Primary exposure
 contextBridge.exposeInMainWorld("env", SAFE_ENV);
 contextBridge.exposeInMainWorld("jupiter", ipc);
 
 // Backward-compat aliases
 contextBridge.exposeInMainWorld("api", ipc);
 contextBridge.exposeInMainWorld("electronAPI", ipc);
-

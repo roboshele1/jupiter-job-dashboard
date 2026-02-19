@@ -1,17 +1,12 @@
 // engine/market/getLivePrices.js
 // D8.6 — Source-aware price routing (INTRADAY-ENABLED, HARDENED)
-// -------------------------------------------------------------
+// Canadian stocks supported via Polygon ticker format conversion
 // Equity  → Polygon intraday (15-min delayed) → fallback prev close
 // Crypto  → Coinbase (spot)
 // Read-only, deterministic, NO THROW guarantee
 
 import fetch from "node-fetch";
 
-const POLYGON_KEY = process.env.POLYGON_API_KEY;
-
-/* =========================
-   SAFE FETCH
-   ========================= */
 async function safeFetchJSON(url) {
   try {
     const res = await fetch(url);
@@ -22,80 +17,71 @@ async function safeFetchJSON(url) {
   }
 }
 
-/* =========================
-   TIME HELPERS
-   ========================= */
 function oneHourWindow() {
   const end = Date.now();
   const start = end - 60 * 60 * 1000;
   return { start, end };
 }
 
-/* =========================
-   PUBLIC API
-   ========================= */
+// Convert user-facing symbol to Polygon ticker format
+// CSU.TO → X:CSU.TO is wrong — Polygon uses CSU for TSX on global endpoint
+// For Canadian stocks ending in .TO, strip the suffix for prev-close lookup
+function toPolygonTicker(symbol) {
+  if (symbol.endsWith(".TO"))  return symbol.replace(".TO", "");
+  if (symbol.endsWith(".TSX")) return symbol.replace(".TSX", "");
+  if (symbol.endsWith(".V"))   return symbol.replace(".V", "");
+  return symbol;
+}
+
 export async function getLivePrices(symbols = []) {
-  if (!Array.isArray(symbols)) {
-    return Object.freeze({});
-  }
+  const POLYGON_KEY = process.env.POLYGON_API_KEY;
+  if (!Array.isArray(symbols)) return Object.freeze({});
 
   const prices = {};
 
   for (const symbol of symbols) {
-    // -----------------------------
     // CRYPTO → COINBASE (SPOT)
-    // -----------------------------
     if (symbol === "BTC" || symbol === "ETH") {
       const json = await safeFetchJSON(
         `https://api.coinbase.com/v2/prices/${symbol}-USD/spot`
       );
-
       prices[symbol] = Object.freeze({
-        price: json?.data?.amount ? Number(json.data.amount) : null,
+        price:  json?.data?.amount ? Number(json.data.amount) : null,
         source: json ? "coinbase-spot" : "unavailable",
       });
-
       continue;
     }
 
-    // -----------------------------
-    // EQUITY → POLYGON
-    // Priority: intraday → prev close
-    // -----------------------------
-    if (!POLYGON_KEY) {
-      prices[symbol] = Object.freeze({
-        price: null,
-        source: "polygon-unavailable",
-      });
-      continue;
-    }
-
-    // ---- 1️⃣ INTRADAY (15-min delayed, minute bars)
+    // EQUITY + CANADIAN → POLYGON INTRADAY → FALLBACK PREV CLOSE
+    const polygonTicker = toPolygonTicker(symbol);
     const { start, end } = oneHourWindow();
-    const intraday = await safeFetchJSON(
-      `https://api.polygon.io/v2/aggs/ticker/${symbol}/range/1/minute/${start}/${end}?adjusted=true&limit=1&apiKey=${POLYGON_KEY}`
-    );
+    let resolved = null;
 
-    const intradayPrice = intraday?.results?.[0]?.c;
-    if (typeof intradayPrice === "number") {
-      prices[symbol] = Object.freeze({
-        price: intradayPrice,
-        source: "polygon-intraday-delayed",
-      });
-      continue;
+    if (POLYGON_KEY) {
+      // Try intraday first
+      const intraday = await safeFetchJSON(
+        `https://api.polygon.io/v2/aggs/ticker/${polygonTicker}/range/1/minute/${start}/${end}?adjusted=true&limit=1&apiKey=${POLYGON_KEY}`
+      );
+      const candle = intraday?.results?.[0];
+      if (candle && typeof candle.c === "number") {
+        resolved = { price: candle.c, source: "polygon-intraday-delayed" };
+      }
+
+      // Fallback to prev close
+      if (!resolved) {
+        const prev = await safeFetchJSON(
+          `https://api.polygon.io/v2/aggs/ticker/${polygonTicker}/prev?adjusted=true&apiKey=${POLYGON_KEY}`
+        );
+        const bar = prev?.results?.[0];
+        if (bar && typeof bar.c === "number") {
+          resolved = { price: bar.c, source: "polygon-prev-close" };
+        }
+      }
     }
 
-    // ---- 2️⃣ FALLBACK → PREV CLOSE
-    const prev = await safeFetchJSON(
-      `https://api.polygon.io/v2/aggs/ticker/${symbol}/prev?adjusted=true&apiKey=${POLYGON_KEY}`
+    prices[symbol] = Object.freeze(
+      resolved ?? { price: null, source: "unavailable" }
     );
-
-    const close = prev?.results?.[0]?.c;
-
-    prices[symbol] = Object.freeze({
-      price: typeof close === "number" ? close : null,
-      source: prev ? "polygon-prev-close" : "polygon-unavailable",
-    });
   }
 
   return Object.freeze(prices);

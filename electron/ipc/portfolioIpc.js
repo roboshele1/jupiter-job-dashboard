@@ -1,77 +1,50 @@
 /**
- * Portfolio IPC — Mutation Layer V1 (CANONICAL)
- * ---------------------------------------------
+ * Portfolio IPC — Mutation Layer
  * Engine-first, disk-backed, deterministic.
- *
- * FIX (authoritative):
- * - Channel names are: portfolio:add | portfolio:update | portfolio:remove
- * - Payloads are delegated EXACTLY to engine contract:
- *     addHolding({ symbol, qty, cost })
- *     updateHolding({ symbol, qtyDelta })
- *     removeHolding({ symbol })
- * - Safe re-registration: removeHandler first to prevent duplicates
+ * Book cost is taken directly from user input — no overrides.
  */
 
-import electronPkg from "electron";
-import path from "path";
-import { fileURLToPath } from "url";
+import electronPkg from 'electron';
+import pathModule from 'path';
+import { fileURLToPath } from 'url';
 
 const { ipcMain } = electronPkg;
 
-/* =========================
-   RESOLVE ENGINE PATH SAFELY
-   ========================= */
 const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+const __dirname = pathModule.dirname(__filename);
 
 const portfolioEngine = await import(
-  path.resolve(__dirname, "../../engine/portfolio/portfolioEngine.js")
+  pathModule.resolve(__dirname, '../../engine/portfolio/portfolioEngine.js')
 );
 
-// portfolioEngine is CommonJS default export object
 const engine = portfolioEngine?.default || portfolioEngine;
+const { getPortfolioSnapshot, addHolding, updateHolding, removeHolding } = engine;
 
-const {
-  getPortfolioSnapshot,
-  addHolding,
-  updateHolding,
-  removeHolding
-} = engine;
-
-/* =========================
-   SAFE HANDLER REGISTRATION
-   ========================= */
 function safeHandle(channel, fn) {
-  try {
-    ipcMain.removeHandler(channel);
-  } catch {}
+  try { ipcMain.removeHandler(channel); } catch {}
   ipcMain.handle(channel, fn);
 }
 
-/* =========================
-   IPC REGISTRATION
-   ========================= */
 export function registerPortfolioIpc() {
-  // READ (engine snapshot)
-  safeHandle("portfolio:getSnapshot", async () => {
+  safeHandle('portfolio:getSnapshot', async () => {
     return getPortfolioSnapshot();
   });
 
-  // MUTATIONS — aligned to engine contract
-  safeHandle("portfolio:add", async (_e, payload) => {
-    // payload must be { symbol, qty, cost }
+  safeHandle('portfolio:add', async (_e, payload) => {
+    // payload: { symbol, qty, cost } — cost comes directly from user, no override
+    if (!payload?.symbol) throw new Error('MISSING_SYMBOL');
+    if (!payload?.qty)    throw new Error('MISSING_QTY');
+    if (!payload?.cost && payload.cost !== 0) throw new Error('MISSING_COST');
     return addHolding(payload);
   });
 
-  safeHandle("portfolio:update", async (_e, payload) => {
-    // payload must be { symbol, qtyDelta }
+  safeHandle('portfolio:update', async (_e, payload) => {
     return updateHolding(payload);
   });
 
-  safeHandle("portfolio:remove", async (_e, payload) => {
-    // payload must be { symbol }
+  safeHandle('portfolio:remove', async (_e, payload) => {
     return removeHolding(payload);
   });
 
-  console.log("[IPC] Portfolio mutation layer registered (portfolio:add/update/remove)");
+  console.log('[IPC] Portfolio mutation layer registered (portfolio:add/update/remove) ✓');
 }

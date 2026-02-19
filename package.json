@@ -2,13 +2,20 @@
   "name": "jupiter",
   "version": "1.0.0",
   "private": true,
-  "main": "electron/main.js",
+  "main": "main.js",
   "scripts": {
     "dev": "vite",
     "electron": "electron .",
-    "start": "concurrently \"npm run dev\" \"npm run electron\""
+    "start": "concurrently \"npm run dev\" \"npm run electron\"",
+    "build": "vite build",
+    "gen-icons": "node scripts/gen-icons.js",
+    "pack": "electron-builder --dir",
+    "dist": "npm run build && electron-builder",
+    "dist:arm64": "npm run build && electron-builder --arm64",
+    "dist:x64": "npm run build && electron-builder --x64"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.74.0",
     "axios": "^1.13.2",
     "cors": "^2.8.5",
     "dotenv": "^17.2.3",
@@ -18,14 +25,21 @@
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-router-dom": "^7.10.1",
+    "react-sparklines": "^1.7.0",
     "uuid": "^13.0.0",
     "zustand": "^5.0.9"
   },
   "devDependencies": {
+    "@electron/notarize": "^2.5.0",
     "@vitejs/plugin-react": "^4.2.0",
     "concurrently": "^8.2.0",
     "electron": "^39.2.7",
-    "electron-builder": "^26.4.0",
+    "electron-builder": "^26.7.0",
     "vite": "^7.2.7"
-  }
+  },
+  "author": {
+    "name": "JUPITER",
+    "email": "hello@jupiter.app"
+  },
+  "description": "JUPITER \u2014 Portfolio Intelligence"
 }

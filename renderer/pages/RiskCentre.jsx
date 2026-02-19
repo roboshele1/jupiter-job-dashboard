@@ -1,472 +1,340 @@
-import React, { useEffect, useState } from "react";
-import { usePortfolioSnapshotStore } from "../state/portfolioSnapshotStore";
-import { buildRiskCentre } from "../engine/riskCentreEngine";
-
 /**
- * RISK CENTRE — READ ONLY
- * V8 — UX ENHANCEMENTS (TOOLTIPS ONLY)
- * ------------------------------------------------
- * - V7 logic preserved 100%
- * - No UI removed
- * - No calculations changed
- * - Tooltips are additive only
- * - Deterministic, renderer-safe
+ * RiskCentre.jsx — Session 6c
+ * Full institutional risk intelligence display
  */
 
-/** CANONICAL COLOR TOKENS */
-const COLORS = {
-  bg: "#0B1220",
-  panel: "#111827",
-  panelAlt: "#0F172A",
-  border: "#1F2937",
-  textPrimary: "#E5E7EB",
-  textSecondary: "#9CA3AF",
-  accentBlue: "#3B82F6",
-  accentGreen: "#22C55E",
-  accentYellow: "#FACC15",
-  accentRed: "#EF4444",
-  accentPurple: "#8B5CF6",
+import { useState, useEffect } from 'react';
+
+const C = {
+  bg:        '#060910',
+  surface:   '#0c1220',
+  panel:     '#0f172a',
+  border:    '#1a2540',
+  borderAcc: '#2d3f55',
+  text:      '#e2e8f0',
+  textSec:   '#94a3b8',
+  textMuted: '#6b7280',
+  green:     '#22c55e',
+  red:       '#ef4444',
+  blue:      '#3b82f6',
+  gold:      '#f59e0b',
+  cyan:      '#06b6d4',
+  purple:    '#a855f7',
 };
 
-export default function RiskCentre() {
-  const snapshot = usePortfolioSnapshotStore((s) => s.snapshot);
+const mono = { fontFamily: 'IBM Plex Mono' };
 
-  /* =========================
-     V7 — AUTHORITATIVE VALUATION
-     ========================= */
-  const [valuation, setValuation] = useState(null);
+const fmtUSD = n => typeof n === 'number'
+  ? (n < 0 ? '−' : '') + '$' + Math.abs(n).toLocaleString('en-US', { maximumFractionDigits: 0 })
+  : '—';
 
-  useEffect(() => {
-    let alive = true;
+const fmt = (n, d=1) => typeof n === 'number' ? n.toFixed(d) : '—';
 
-    async function loadValuation() {
-      if (!window.jupiter?.invoke) return;
-      const v = await window.jupiter.invoke("portfolio:getValuation");
-      if (alive) setValuation(v);
-    }
+function postureColor(p) {
+  return { STABLE:'#22c55e', ELEVATED:'#f59e0b', TENSE:'#ef4444', STRETCHED:'#a855f7' }[p] ?? '#94a3b8';
+}
+function pressureColor(p) {
+  return { NORMAL:'#22c55e', MODERATE:'#f59e0b', ELEVATED:'#ef4444', UNAVAILABLE:'#6b7280', UNKNOWN:'#6b7280' }[p] ?? '#94a3b8';
+}
+function heatColor(s) {
+  return { NORMAL:'#22c55e', ELEVATED:'#f59e0b', OVERHEATED:'#ef4444' }[s] ?? '#94a3b8';
+}
+function hhiColor(l) {
+  return { DIVERSIFIED:'#22c55e', MODERATE:'#06b6d4', CONCENTRATED:'#f59e0b', HIGH_CONCENTRATION:'#ef4444' }[l] ?? '#94a3b8';
+}
+function warnColor(l) {
+  return { CRITICAL:'#ef4444', HIGH:'#f59e0b', MODERATE:'#06b6d4' }[l] ?? '#94a3b8';
+}
+function clusterRiskColor(r) {
+  return { HIGH:'#ef4444', MODERATE:'#f59e0b', LOW:'#22c55e' }[r] ?? '#94a3b8';
+}
 
-    loadValuation();
-    return () => {
-      alive = false;
-    };
-  }, []);
-
-  /* =========================
-     ENGINE BUILD (INTELLIGENCE ONLY)
-     ========================= */
-  const riskCentreIntelligence =
-    snapshot && valuation
-      ? buildRiskCentre({ portfolioSnapshot: snapshot })
-      : null;
-
-  if (!snapshot || !valuation) {
-    return (
-      <div
-        style={{
-          padding: "32px",
-          background: COLORS.bg,
-          color: COLORS.textPrimary,
-          minHeight: "100vh",
-        }}
-      >
-        <h1>Risk Centre</h1>
-        <p style={{ color: COLORS.textSecondary }}>
-          Risk analytics unavailable — portfolio valuation not yet loaded.
-        </p>
+function Panel({ title, accent, children, fullWidth }) {
+  return (
+    <div style={{
+      background: C.surface, border: `1px solid ${C.border}`,
+      borderRadius: 10, overflow: 'hidden', marginBottom: 14,
+      gridColumn: fullWidth ? '1 / -1' : undefined,
+    }}>
+      <div style={{
+        background: C.panel, borderBottom: `1px solid ${C.border}`,
+        padding: '9px 16px', display: 'flex', alignItems: 'center', gap: 8,
+      }}>
+        <div style={{ width: 3, height: 13, background: accent ?? C.blue, borderRadius: 2 }} />
+        <span style={{ ...mono, fontSize: 10, color: C.textSec, letterSpacing: '0.08em' }}>{title}</span>
       </div>
-    );
-  }
-
-  /* =========================
-     V7 — SINGLE SOURCE OF TRUTH
-     ========================= */
-
-  const totalValue = valuation.totals.liveValue;
-  const positions = valuation.positions;
-
-  const equityPositions = positions.filter((p) => p.assetClass === "equity");
-  const cryptoPositions = positions.filter((p) => p.assetClass === "crypto");
-
-  const equityValue = equityPositions.reduce((s, p) => s + p.liveValue, 0);
-  const cryptoValue = cryptoPositions.reduce((s, p) => s + p.liveValue, 0);
-
-  const equityExposure =
-    totalValue > 0 ? (equityValue / totalValue) * 100 : 0;
-  const cryptoExposure =
-    totalValue > 0 ? (cryptoValue / totalValue) * 100 : 0;
-
-  const sortedHoldings = [...positions].sort(
-    (a, b) => b.liveValue - a.liveValue
+      <div style={{ padding: '13px 16px' }}>{children}</div>
+    </div>
   );
+}
 
-  const largestHolding = sortedHoldings[0];
-  const largestPct =
-    totalValue > 0 ? (largestHolding.liveValue / totalValue) * 100 : 0;
+function Row({ label, value, sub, accent, last }) {
+  return (
+    <div style={{
+      display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+      padding: '7px 0', borderBottom: last ? 'none' : `1px solid ${C.border}`,
+      ...mono, fontSize: 12,
+    }}>
+      <div>
+        <div style={{ color: C.textSec }}>{label}</div>
+        {sub && <div style={{ color: C.textMuted, fontSize: 10, marginTop: 1 }}>{sub}</div>}
+      </div>
+      <span style={{ color: accent ?? C.text, fontWeight: 600 }}>{value}</span>
+    </div>
+  );
+}
 
-  let posture = "Moderate";
-  let postureColor = COLORS.accentYellow;
+function DriverPill({ label, value, color }) {
+  return (
+    <div style={{
+      background: C.panel, border: `1px solid ${C.border}`, borderRadius: 8,
+      padding: '10px 14px', flex: 1,
+    }}>
+      <div style={{ ...mono, fontSize: 9, color: C.textMuted, letterSpacing: '0.08em', marginBottom: 6 }}>{label}</div>
+      <div style={{ ...mono, fontSize: 13, fontWeight: 700, color }}>{value}</div>
+    </div>
+  );
+}
 
-  if (largestPct > 40) {
-    posture = "Elevated";
-    postureColor = COLORS.accentRed;
-  }
+export default function RiskCentre() {
+  const [data,    setData]    = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error,   setError]   = useState(null);
 
-  if (largestPct < 25 && equityExposure < 70) {
-    posture = "Low";
-    postureColor = COLORS.accentGreen;
-  }
+  const load = async () => {
+    setLoading(true); setError(null);
+    try {
+      const r = await window.jupiter.invoke('riskCentre:intelligence:v2');
+      if (!r?.ok) throw new Error(r?.error ?? 'Engine error');
+      setData(r);
+    } catch(e) { setError(e.message); }
+    finally { setLoading(false); }
+  };
 
-  const equityDrawdown20 = equityValue * 0.2;
-  const cryptoDrawdown40 = cryptoValue * 0.4;
-  const topHoldingShock30 = largestHolding.liveValue * 0.3;
+  useEffect(() => { load(); }, []);
 
-  const donutData = sortedHoldings.map((h) => ({
-    symbol: h.symbol,
-    pct: totalValue > 0 ? (h.liveValue / totalValue) * 100 : 0,
-  }));
-
-  const donutColors = [
-    COLORS.accentBlue,
-    COLORS.accentPurple,
-    COLORS.accentGreen,
-    COLORS.accentYellow,
-    COLORS.accentRed,
-  ];
-
-  /* =========================
-     UI — FROZEN CONTRACT (V8 TOOLTIP ADDITIONS)
-     ========================= */
+  const posture  = data?.posture        ?? '—';
+  const drivers  = data?.drivers        ?? {};
+  const conc     = data?.concentration  ?? null;
+  const clusters = data?.correlationClusters ?? [];
+  const scenarios= data?.scenarios      ?? [];
+  const goal     = data?.goal           ?? null;
+  const pv       = data?.portfolioValue ?? 0;
 
   return (
-    <div
-      style={{
-        padding: "32px",
-        maxWidth: "1200px",
-        margin: "0 auto",
-        background: COLORS.bg,
-        color: COLORS.textPrimary,
-        minHeight: "100vh",
-      }}
-    >
-      <h1 style={{ marginBottom: "24px" }}>Risk Centre</h1>
+    <div style={{ background: C.bg, minHeight: '100vh', padding: '24px', color: C.text, ...mono }}>
 
-      <div
-        style={{
-          background: COLORS.panel,
-          border: `1px solid ${COLORS.border}`,
-          borderRadius: "12px",
-          padding: "20px",
-          marginBottom: "24px",
-          display: "flex",
-          justifyContent: "space-between",
-        }}
-      >
-        <p>
-          <strong>Snapshot timestamp:</strong>{" "}
-          <span style={{ color: COLORS.textSecondary }}>
-            {snapshot.timestamp ?? "N/A"}
-          </span>
-        </p>
-        <p>
-          <strong>Total portfolio value:</strong>{" "}
-          <span style={{ color: COLORS.accentBlue }}>
-            $
-            {totalValue.toLocaleString(undefined, {
-              maximumFractionDigits: 2,
-            })}
-          </span>
-        </p>
+      {/* Header */}
+      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom: 20 }}>
+        <div>
+          <h1 style={{ margin:0, fontSize:16, fontWeight:700, letterSpacing:'0.1em' }}>RISK CENTRE</h1>
+          <p style={{ margin:'3px 0 0', fontSize:11, color:C.textMuted }}>
+            Posture · Concentration · Correlation · Scenario Analysis
+          </p>
+        </div>
+        <button onClick={load} style={{
+          background:C.surface, border:`1px solid ${C.border}`, color:C.textSec,
+          padding:'6px 14px', borderRadius:6, cursor:'pointer', fontSize:11, ...mono,
+        }}>↻ Refresh</button>
       </div>
 
-      {/* GRID: POSTURE + CONCENTRATION */}
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "1fr 1fr",
-          gap: "24px",
-        }}
-      >
-        <div>
-          <section
-            style={{
-              background: COLORS.panelAlt,
-              border: `1px solid ${COLORS.border}`,
-              borderRadius: "12px",
-              padding: "24px",
-              marginBottom: "24px",
-            }}
-          >
-            <h2>Risk Posture</h2>
-            <p>
-              <strong>Overall posture:</strong>{" "}
-              <span style={{ color: postureColor }}>{posture}</span>
-            </p>
-            <ul>
-              <li>Elevated single-asset concentration.</li>
-              <li>Equity exposure dominates portfolio risk.</li>
-            </ul>
-          </section>
+      {error && (
+        <div style={{
+          background:'#ef44441a', border:`1px solid ${C.red}`, borderRadius:8,
+          padding:'12px 16px', marginBottom:16, fontSize:12, color:C.red,
+        }}>⚠ {error}</div>
+      )}
 
-          <section
-            style={{
-              background: COLORS.panel,
-              border: `1px solid ${COLORS.border}`,
-              borderRadius: "12px",
-              padding: "24px",
-            }}
-          >
-            <h2>Posture Support Metrics</h2>
-            <ul>
-              <li>
-                Largest position: <strong>{largestHolding.symbol}</strong>{" "}
-                ({largestPct.toFixed(1)}%)
-              </li>
-              <li>Equity exposure: {equityExposure.toFixed(1)}%</li>
-              <li>Crypto exposure: {cryptoExposure.toFixed(1)}%</li>
-              <li>Number of holdings: {positions.length}</li>
-            </ul>
-          </section>
+      {loading && (
+        <div style={{ textAlign:'center', padding:'60px 0', color:C.textMuted, fontSize:12 }}>
+          Computing risk intelligence...
         </div>
+      )}
 
-        <div>
-          <section
-            style={{
-              background: COLORS.panelAlt,
-              border: `1px solid ${COLORS.border}`,
-              borderRadius: "12px",
-              padding: "24px",
-              marginBottom: "24px",
-            }}
-          >
-            <h2>Holding Concentration</h2>
+      {!loading && data && (
+        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:14 }}>
 
-            <div
-              style={{
-                width: "200px",
-                height: "200px",
-                borderRadius: "50%",
-                background: `conic-gradient(${donutData
-                  .map((h, i) => {
-                    const start = donutData
-                      .slice(0, i)
-                      .reduce((s, x) => s + x.pct, 0);
-                    return `${donutColors[i % donutColors.length]} ${start}% ${
-                      start + h.pct
-                    }%`;
-                  })
-                  .join(",")})`,
-                margin: "16px auto",
-                position: "relative",
-              }}
-            >
-              <div
-                style={{
-                  position: "absolute",
-                  inset: "40px",
-                  background: COLORS.panelAlt,
-                  borderRadius: "50%",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  fontWeight: "bold",
-                  textAlign: "center",
-                }}
-              >
-                {largestHolding.symbol}
-                <br />
-                {largestPct.toFixed(1)}%
+          {/* ── POSTURE + DRIVERS ── */}
+          <Panel title="RISK POSTURE" accent={postureColor(posture)}>
+            {/* Big posture label */}
+            <div style={{ fontSize:30, fontWeight:700, color:postureColor(posture), letterSpacing:'0.06em', marginBottom:16 }}>
+              {posture}
+            </div>
+
+            {/* Driver pills */}
+            <div style={{ display:'flex', gap:8, marginBottom:14 }}>
+              <DriverPill
+                label="GROWTH PRESSURE"
+                value={drivers.growth?.pressure ?? '—'}
+                color={pressureColor(drivers.growth?.pressure)}
+              />
+              <DriverPill
+                label="SIGNAL PRESSURE"
+                value={drivers.signals?.pressure ?? '—'}
+                color={pressureColor(drivers.signals?.pressure)}
+              />
+              <DriverPill
+                label="KELLY HEAT"
+                value={drivers.heat?.status ?? 'N/A'}
+                color={heatColor(drivers.heat?.status)}
+              />
+            </div>
+
+            {/* Detail rows */}
+            {drivers.growth && (
+              <Row label="Required CAGR" sub="growth pressure driver"
+                value={`${drivers.growth.requiredCAGR}%/yr`}
+                accent={pressureColor(drivers.growth.pressure)} />
+            )}
+            {drivers.signals && (
+              <Row label="Material Signals" sub={`${drivers.signals.surfacedCount} total surfaced`}
+                value={`${drivers.signals.materialCount} material`}
+                accent={pressureColor(drivers.signals.pressure)} />
+            )}
+            {drivers.heat && (
+              <Row label="Portfolio Heat" sub={`max ${drivers.heat.maxAllowedHeat}%`}
+                value={`${fmt(drivers.heat.totalHeat)}%`}
+                accent={heatColor(drivers.heat.status)} last />
+            )}
+          </Panel>
+
+          {/* ── GOAL GAP RISK ── */}
+          {goal && (
+            <Panel title="GOAL GAP RISK · 2037" accent={C.gold}>
+              <Row label="Required CAGR to $1M" value={`${fmt(goal.requiredCAGR)}%`} accent={C.gold} />
+              <Row label="Gap Remaining"         value={fmtUSD(goal.gap)}            accent={C.red}  />
+              <Row label="Progress to $1M"       value={`${fmt(goal.progressPct)}%`} accent={C.cyan} />
+              <Row label="Years Remaining"       value={fmt(goal.yearsRemaining, 1)} />
+              <Row label="Current Value"         value={fmtUSD(pv)}                  accent={C.text} last />
+              <div style={{ marginTop:10, fontSize:10, color:C.textMuted, lineHeight:1.7 }}>
+                Sustaining {fmt(goal.requiredCAGR)}%/yr CAGR requires {pv < 100000 ? 'reaching $100k first, then' : ''} compounding
+                all high-conviction positions. A single year below target increases the required rate for remaining years.
               </div>
-            </div>
+            </Panel>
+          )}
 
-            <ul>
-              {donutData.slice(0, 5).map((h) => (
-                <li key={h.symbol}>
-                  {h.symbol}: {h.pct.toFixed(1)}%
-                </li>
+          {/* ── CONCENTRATION RISK ── */}
+          {conc && (
+            <Panel title="CONCENTRATION RISK (HHI)" accent={hhiColor(conc.label)}>
+              <div style={{ display:'flex', alignItems:'baseline', gap:10, marginBottom:8 }}>
+                <span style={{ fontSize:26, fontWeight:700, color:hhiColor(conc.label) }}>{conc.hhi.toFixed(3)}</span>
+                <span style={{ fontSize:11, color:hhiColor(conc.label), letterSpacing:'0.06em' }}>{conc.label}</span>
+              </div>
+              <div style={{ fontSize:10, color:C.textMuted, marginBottom:12 }}>
+                0 = perfectly diversified · 1 = single position · &lt;0.15 is healthy
+              </div>
+
+              {/* Warnings */}
+              {conc.warnings?.length > 0 && (
+                <div style={{ marginBottom:12 }}>
+                  {conc.warnings.map((w,i) => (
+                    <div key={i} style={{
+                      display:'flex', alignItems:'flex-start', gap:8,
+                      padding:'6px 10px', marginBottom:4,
+                      background:`${warnColor(w.level)}15`,
+                      border:`1px solid ${warnColor(w.level)}44`,
+                      borderRadius:6, fontSize:11, color:warnColor(w.level),
+                    }}>
+                      <span style={{ flexShrink:0 }}>
+                        {w.level === 'CRITICAL' ? '⚠' : w.level === 'HIGH' ? '▲' : '●'}
+                      </span>
+                      {w.message}
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Top positions */}
+              <div style={{ fontSize:10, color:C.textMuted, letterSpacing:'0.06em', marginBottom:6 }}>TOP POSITIONS BY WEIGHT</div>
+              {conc.top.map(p => {
+                const w = parseFloat(p.weight);
+                return (
+                  <div key={p.symbol} style={{
+                    display:'grid', gridTemplateColumns:'60px 1fr 60px 50px',
+                    gap:8, padding:'6px 0', borderBottom:`1px solid ${C.border}`, fontSize:12, alignItems:'center',
+                  }}>
+                    <span style={{ color:C.cyan }}>{p.symbol}</span>
+                    {/* Weight bar */}
+                    <div style={{ height:4, background:C.panel, borderRadius:2 }}>
+                      <div style={{ width:`${Math.min(w*2,100)}%`, height:'100%', background: w>25?C.red:w>15?C.gold:C.blue, borderRadius:2 }} />
+                    </div>
+                    <span style={{ color:C.textSec, textAlign:'right' }}>{fmtUSD(p.value)}</span>
+                    <span style={{ color:w>25?C.red:w>15?C.gold:C.textSec, textAlign:'right', fontWeight:w>15?700:400 }}>{p.weight}%</span>
+                  </div>
+                );
+              })}
+            </Panel>
+          )}
+
+          {/* ── CORRELATION CLUSTERS ── */}
+          {clusters.length > 0 && (
+            <Panel title="CORRELATION CLUSTERS" accent={C.purple}>
+              <div style={{ fontSize:10, color:C.textMuted, marginBottom:12, lineHeight:1.6 }}>
+                Assets that move together create hidden concentration risk.
+                Cluster weight compounds single-asset exposure.
+              </div>
+              {clusters.map((cl,i) => (
+                <div key={i} style={{
+                  padding:'10px 12px', marginBottom:8,
+                  background:C.panel, border:`1px solid ${C.border}`, borderRadius:8,
+                }}>
+                  <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:6 }}>
+                    <span style={{ fontSize:12, color:C.text, fontWeight:600 }}>{cl.name}</span>
+                    <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+                      <span style={{ fontSize:12, color:clusterRiskColor(cl.risk), fontWeight:700 }}>{cl.clusterPct}%</span>
+                      <span style={{
+                        fontSize:9, color:clusterRiskColor(cl.risk),
+                        border:`1px solid ${clusterRiskColor(cl.risk)}44`,
+                        borderRadius:4, padding:'1px 6px', letterSpacing:'0.06em',
+                      }}>{cl.risk}</span>
+                    </div>
+                  </div>
+                  <div style={{ display:'flex', gap:6, marginBottom:6 }}>
+                    {cl.positions.map(p => (
+                      <span key={p.symbol} style={{
+                        fontSize:10, color:C.cyan, background:`${C.cyan}15`,
+                        border:`1px solid ${C.cyan}33`, borderRadius:4, padding:'2px 7px',
+                      }}>{p.symbol} {p.weight}%</span>
+                    ))}
+                  </div>
+                  <div style={{ fontSize:10, color:C.textMuted, lineHeight:1.5 }}>{cl.note}</div>
+                </div>
               ))}
-            </ul>
-          </section>
+            </Panel>
+          )}
+
+          {/* ── STRESS SCENARIOS (full width) ── */}
+          {scenarios.length > 0 && (
+            <Panel title="STRESS SCENARIOS · SECTOR-AWARE" accent={C.purple} fullWidth>
+              <div style={{ display:'grid', gridTemplateColumns:'repeat(5,1fr)', gap:10 }}>
+                {scenarios.map((sc,i) => {
+                  const neg = parseFloat(sc.impactPct) < 0;
+                  const col = neg ? C.red : C.green;
+                  return (
+                    <div key={i} style={{
+                      background:C.panel, border:`1px solid ${C.border}`,
+                      borderRadius:8, padding:'12px',
+                    }}>
+                      <div style={{ fontSize:10, color:C.textMuted, marginBottom:8, lineHeight:1.5 }}>{sc.name}</div>
+                      <div style={{ fontSize:20, fontWeight:700, color:col, marginBottom:4 }}>
+                        {neg?'':'+'}{ fmt(parseFloat(sc.impactPct))}%
+                      </div>
+                      <div style={{ fontSize:11, color:col, marginBottom:6 }}>
+                        {neg?'−':'+'}{ fmtUSD(Math.abs(sc.affectedValue))}
+                      </div>
+                      <div style={{ fontSize:9, color:C.textMuted }}>↳ {sc.drivers}</div>
+                    </div>
+                  );
+                })}
+              </div>
+              <div style={{ marginTop:10, fontSize:10, color:C.textMuted }}>
+                Impact calculated from actual sector exposure in your portfolio. Not generic percentages.
+              </div>
+            </Panel>
+          )}
+
         </div>
-      </div>
-
-      {/* GRID: EXPOSURE + STRESS */}
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "1fr 1fr",
-          gap: "24px",
-          marginTop: "24px",
-        }}
-      >
-        <section
-          style={{
-            background: COLORS.panel,
-            border: `1px solid ${COLORS.border}`,
-            borderRadius: "12px",
-            padding: "24px",
-          }}
-        >
-          <h2>Exposure Distribution</h2>
-
-          <div style={{ marginBottom: "16px" }}>
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-              }}
-            >
-              <span>Equity exposure</span>
-              <strong>{equityExposure.toFixed(1)}%</strong>
-            </div>
-            <div
-              style={{
-                height: "8px",
-                background: COLORS.border,
-                borderRadius: "4px",
-              }}
-            >
-              <div
-                style={{
-                  width: `${equityExposure}%`,
-                  height: "100%",
-                  background: COLORS.accentBlue,
-                }}
-              />
-            </div>
-          </div>
-
-          <div>
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-              }}
-            >
-              <span>Crypto exposure</span>
-              <strong>{cryptoExposure.toFixed(1)}%</strong>
-            </div>
-            <div
-              style={{
-                height: "8px",
-                background: COLORS.border,
-                borderRadius: "4px",
-              }}
-            >
-              <div
-                style={{
-                  width: `${cryptoExposure}%`,
-                  height: "100%",
-                  background: COLORS.accentPurple,
-                }}
-              />
-            </div>
-          </div>
-        </section>
-
-        <section
-          style={{
-            background: COLORS.panel,
-            border: `1px solid ${COLORS.border}`,
-            borderRadius: "12px",
-            padding: "24px",
-          }}
-        >
-          <h2>Stress Scenarios</h2>
-          <ul>
-            <li>
-              Equity drawdown (-20%):{" "}
-              <span style={{ color: COLORS.accentRed }}>
-                -${equityDrawdown20.toLocaleString()}
-              </span>
-            </li>
-            <li>
-              Crypto drawdown (-40%):{" "}
-              <span style={{ color: COLORS.accentRed }}>
-                -${cryptoDrawdown40.toLocaleString()}
-              </span>
-            </li>
-            <li>
-              Top holding shock (-30% on {largestHolding.symbol}):{" "}
-              <span style={{ color: COLORS.accentRed }}>
-                -${topHoldingShock30.toLocaleString()}
-              </span>
-            </li>
-          </ul>
-        </section>
-      </div>
-
-      {/* V9.1 — RISK DRIVERS SUMMARY */}
-      <section
-        style={{
-          background: COLORS.panelAlt,
-          border: `1px solid ${COLORS.border}`,
-          borderRadius: "12px",
-          padding: "24px",
-          marginTop: "32px",
-        }}
-      >
-        <h2>Risk Drivers Summary</h2>
-        <ul>
-          <li>
-            Concentration risk: {largestHolding.symbol} makes up{" "}
-            {largestPct.toFixed(1)}% of the portfolio.
-          </li>
-          <li>Equity exposure: {equityExposure.toFixed(1)}%</li>
-          <li>Crypto exposure: {cryptoExposure.toFixed(1)}%</li>
-          <li>Diversification: {positions.length} assets.</li>
-        </ul>
-      </section>
-
-      {/* V9.2 — PORTFOLIO SENSITIVITY */}
-      <section
-        style={{
-          background: COLORS.panel,
-          border: `1px solid ${COLORS.border}`,
-          borderRadius: "12px",
-          padding: "24px",
-          marginTop: "32px",
-        }}
-      >
-        <h2>Portfolio Sensitivity</h2>
-        <ul>
-          <li>Performance is driven by the largest holding.</li>
-          <li>Each position has a noticeable impact.</li>
-          <li>Risk is concentrated in top positions.</li>
-          <li>Diversification reduces reliance on top holdings.</li>
-          <li>Daily movement driven by individual assets.</li>
-        </ul>
-      </section>
-
-      {/* V9.3 — REGIME CONTEXT */}
-      <section
-        style={{
-          marginTop: "24px",
-          display: "flex",
-          justifyContent: "flex-start",
-        }}
-      >
-        <span
-          style={{
-            padding: "6px 12px",
-            borderRadius: "999px",
-            fontSize: "13px",
-            fontWeight: "600",
-            background:
-              equityExposure >= 70
-                ? COLORS.accentBlue
-                : cryptoExposure >= 40
-                ? COLORS.accentPurple
-                : COLORS.accentGreen,
-            color: "#000",
-          }}
-        >
-          {equityExposure >= 70
-            ? "Equity-Dominant Regime"
-            : cryptoExposure >= 40
-            ? "Crypto-Heavy Regime"
-            : "Balanced Risk Regime"}
-        </span>
-      </section>
+      )}
     </div>
   );
 }

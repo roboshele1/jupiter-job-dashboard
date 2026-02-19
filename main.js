@@ -1,60 +1,60 @@
-// main.js — JUPITER (Canonical Electron Bootstrap)
-// -----------------------------------------------
-// Restores Electron lifecycle, preload bridge, and IPC authority.
-// NO business logic. NO engine logic. NO UI logic.
+// main.js — JUPITER Electron main process
+// Append-only: includes Decisions IPC registration
 
-import { app, BrowserWindow, ipcMain } from "electron";
-import path from "path";
-import { fileURLToPath } from "url";
-
-// IPC registry (authoritative)
-import { registerAllIpc } from "./electron/ipc/registerIpc.js";
-
-// 🔵 LIVE RUNTIME (Electron-owned)
-import { startLiveRuntime } from "./engine/runtime/liveRuntime.js";
-
+import { app, BrowserWindow, ipcMain } from 'electron';
+import { fileURLToPath } from 'url';
+import { dirname } from 'path';
 const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+const __dirname = dirname(__filename);
+import path from 'path';
+import { registerAllIpc } from './electron/ipc/registerIpc.js';
+import { registerDecisionsIpc } from './engine/ipc/registerDecisionsIpc.js';
+import { startLiveRuntime } from './engine/runtime/liveRuntime.js';
 
-let mainWindow = null;
+let mainWindow;
+
+// ── JUPITER DMG patch: path resolver for packaged app ──────────────────────
+
+// ───────────────────────────────────────────────────────────────────────────
+
 
 function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1400,
     height: 900,
     webPreferences: {
-      preload: path.join(__dirname, "preload.js"),
+      preload: path.join(__dirname, 'electron/preload.js'),
       contextIsolation: true,
       nodeIntegration: false
     }
   });
 
-  // Vite dev server
   if (process.env.VITE_DEV_SERVER_URL) {
     mainWindow.loadURL(process.env.VITE_DEV_SERVER_URL);
   } else {
-    mainWindow.loadFile(path.join(__dirname, "renderer/index.html"));
+    mainWindow.loadFile(path.join(__dirname, 'renderer/dist/index.html'));
   }
 }
 
 app.whenReady().then(() => {
-  // Register ALL IPC surfaces (Discovery, Portfolio, Chat, etc.)
+  
+  // Register all canonical IPC
   registerAllIpc(ipcMain);
 
-  // 🔵 Initialize live runtime ONCE (no scanners yet)
+  // 🔵 Append-only: register Decisions IPC handler
+  registerDecisionsIpc();
+
+  // Initialize live runtime
   startLiveRuntime();
 
+  // Launch renderer window
   createWindow();
 
-  app.on("activate", () => {
-    if (BrowserWindow.getAllWindows().length === 0) {
-      createWindow();
-    }
+  app.on('activate', () => {
+    if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });
 });
 
-app.on("window-all-closed", () => {
-  if (process.platform !== "darwin") {
-    app.quit();
-  }
+app.on('window-all-closed', () => {
+  if (process.platform !== 'darwin') app.quit();
 });

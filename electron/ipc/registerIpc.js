@@ -1,41 +1,36 @@
 // electron/ipc/registerIpc.js
 // IPC Registry — Authoritative (DET)
-// - Renderer calls window.jupiter.invoke(channel, payload)
-// - Handlers registered ONCE (we remove existing handler first)
-// - Must include stubs for tabs that expect IPC (Discovery/Watchlist)
+// Session 7: added registerMarketRegimeIpc
 
 import { createRequire } from "module";
+import fs from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
 
-/* ✅ PORTFOLIO MUTATION IPC (AUTHORITATIVE) */
 import { registerPortfolioIpc } from "./portfolioIpc.js";
-
 import { registerGrowthEngineIpc } from "./growthEngineIpc.js";
 import { registerSignalsIpc } from "./signalsIpc.js";
 import { registerGrowthCapitalTrajectoryV2Ipc } from "./growthCapitalTrajectoryV2Ipc.js";
-
-/* 🟢 APPEND-ONLY: PORTFOLIO TECHNICAL SIGNALS IPC */
 import { registerPortfolioTechnicalSignalsIpc } from "./portfolioTechnicalSignalsIpc.js";
-
-/* 🟢 SYSTEM STATE IPC */
 import { registerSystemStateIpc } from "./systemStateIpc.js";
+import { registerKellyDecisionsIpc } from "./kellyDecisionsIpc.js";
+import { registerCryptoPriceBridge } from "../../engine/ipc/cryptoPriceBridge.js";
+import { registerMarketRegimeIpc } from "./marketRegimeIpc.js";   // ← Session 7
 
 import { valuePortfolio } from "../../engine/portfolio/portfolioValuation.js";
 import { computeInsights } from "../../engine/insights/insightsEngine.js";
 import { resolveInvestableSymbol } from "../../engine/symbolUniverse/resolveInvestableSymbol.js";
-
-/* ============================
-   🟢 APPEND-ONLY: MOONSHOT REGISTRY IPC
-   ============================ */
+import { getLivePrices } from "../../engine/market/getLivePrices.js";
 import { registerMoonshotRegistryIpc } from "../../engine/asymmetry/registry/moonshotRegistryIpc.js";
+import { registerRiskCentreIpc } from "./riskCentreIpc.js";
 
 const require = createRequire(import.meta.url);
 
 let cachedSnapshot = null;
 
-/* =========================
-   HOLDINGS AUTHORITY (DISK)
-   ========================= */
-const HOLDINGS_PATH = "../../engine/data/holdings.js";
+const __ipc_filename = fileURLToPath(import.meta.url);
+const __ipc_dirname  = path.dirname(__ipc_filename);
+const HOLDINGS_JSON  = path.resolve(__ipc_dirname, "../../engine/data/users/default/holdings.json");
 
 function normalizeSymbol(symbol) {
   return String(symbol || "").trim().toUpperCase();
@@ -47,34 +42,38 @@ function asNumber(v) {
 }
 
 function loadHoldingsFull() {
-  const resolved = require.resolve(HOLDINGS_PATH);
-  delete require.cache[resolved];
+  let raw;
+  try {
+    raw = fs.readFileSync(HOLDINGS_JSON, "utf-8");
+  } catch (err) {
+    console.error("[registerIpc] Cannot read holdings.json:", err.message);
+    throw new Error("HOLDINGS_FILE_MISSING");
+  }
 
-  const h = require(HOLDINGS_PATH);
+  const h = JSON.parse(raw);
   if (!Array.isArray(h)) throw new Error("HOLDINGS_FILE_INVALID");
 
+  console.log(`[registerIpc] Loaded ${h.length} holdings from holdings.json`);
+
   return h.map(x => ({
-    symbol: normalizeSymbol(x.symbol),
-    qty: asNumber(x.qty),
+    symbol:         normalizeSymbol(x.symbol),
+    qty:            asNumber(x.qty),
     totalCostBasis: asNumber(x.totalCostBasis),
-    assetClass: x.assetClass === "crypto" ? "crypto" : "equity",
-    currency: String(x.currency || "CAD")
+    assetClass:     x.assetClass === "crypto" ? "crypto" : "equity",
+    currency:       String(x.currency || "CAD")
   }));
 }
 
-/* =========================
-   SNAPSHOT AUTHORITY
-   ========================= */
 async function computeSnapshot() {
   const HOLDINGS = loadHoldingsFull();
 
   const valuation = await valuePortfolio(
     HOLDINGS.map(h => ({
-      symbol: h.symbol,
-      qty: h.qty,
-      assetClass: h.assetClass,
+      symbol:         h.symbol,
+      qty:            h.qty,
+      assetClass:     h.assetClass,
       totalCostBasis: h.totalCostBasis,
-      currency: h.currency
+      currency:       h.currency
     }))
   );
 
@@ -91,9 +90,6 @@ async function getCachedSnapshot() {
   return cachedSnapshot;
 }
 
-/* =========================
-   SAFE REGISTRATION (NO DUPES)
-   ========================= */
 function registerHandler(ipcMain, channel, fn) {
   try {
     ipcMain.removeHandler(channel);
@@ -101,27 +97,24 @@ function registerHandler(ipcMain, channel, fn) {
   ipcMain.handle(channel, fn);
 }
 
-/* =========================
-   REGISTER ALL IPC
-   ============================ */
 export function registerAllIpc(ipcMain) {
-  // ✅ 1) PORTFOLIO MUTATION CONTRACTS (add/update/remove)
   registerPortfolioIpc();
-
-  // Existing registries
   registerGrowthEngineIpc(ipcMain);
-
   registerSignalsIpc(ipcMain, async () => {
     return await getCachedSnapshot();
   });
-
   registerGrowthCapitalTrajectoryV2Ipc(ipcMain, async () => {
     return await getCachedSnapshot();
   });
 
-  // =========================
-  // PORTFOLIO — AUTHORITATIVE (READ)
-  // =========================
+  registerKellyDecisionsIpc(ipcMain);
+
+  // ── Priority 1: Crypto live price (Coinbase) ──────────────────────────────
+  registerCryptoPriceBridge(ipcMain);
+
+  // ── Market Regime — macro context for MarketMonitor tab ───────────────────
+  registerMarketRegimeIpc(ipcMain);
+
   registerHandler(ipcMain, "portfolio:getSnapshot", async () => {
     return await getCachedSnapshot();
   });
@@ -137,32 +130,28 @@ export function registerAllIpc(ipcMain) {
     return snap.portfolio;
   });
 
-  // =========================
-  // 🟢 PORTFOLIO — TECHNICAL SIGNALS (READ-ONLY)
-  // =========================
+  // ── Holdings cache invalidation — call after Manage Holdings saves ────────
+  registerHandler(ipcMain, "holdings:invalidate", async () => {
+    console.log("[IPC] holdings:invalidate — busting snapshot cache");
+    cachedSnapshot = null;
+    return { success: true, timestamp: Date.now() };
+  });
+
   registerPortfolioTechnicalSignalsIpc(ipcMain, async () => {
     return await getCachedSnapshot();
   });
 
-  // =========================
-  // SYSTEM STATE — INTELLIGENCE SURFACE
-  // =========================
   registerSystemStateIpc(ipcMain);
+  registerRiskCentreIpc(ipcMain);
 
-  // =========================
-  // INSIGHTS
-  // =========================
   registerHandler(ipcMain, "insights:compute", async () => {
     const snap = await getCachedSnapshot();
     return computeInsights(snap);
   });
 
-  // =========================
-  // DISCOVERY — AUTONOMOUS
-  // =========================
   registerHandler(ipcMain, "discovery:run", async () => {
     const discoveryModule = await import("../../engine/discovery/runDiscoveryScan.js");
-    const themeModule = await import("../../engine/discovery/orchestrator/discoveryThemeOrchestrator.js");
+    const themeModule     = await import("../../engine/discovery/orchestrator/discoveryThemeOrchestrator.js");
 
     const runDiscoveryScan =
       discoveryModule.runDiscoveryScan || discoveryModule.default?.runDiscoveryScan;
@@ -182,9 +171,23 @@ export function registerAllIpc(ipcMain) {
     });
   });
 
-  // =========================
-  // DISCOVERY — MANUAL
-  // =========================
+  registerHandler(ipcMain, "discovery:evaluation:rejected", async () => {
+    const discoveryModule = await import("../../engine/discovery/runDiscoveryScan.js");
+
+    const runDiscoveryScan =
+      discoveryModule.runDiscoveryScan || discoveryModule.default?.runDiscoveryScan;
+
+    if (!runDiscoveryScan) throw new Error("DISCOVERY_PIPELINE_INVALID");
+
+    const results = await runDiscoveryScan();
+
+    return Object.freeze({
+      contract:  "DISCOVERY_REJECTED_V1",
+      timestamp: Date.now(),
+      rejected:  Array.isArray(results.rejected) ? results.rejected : []
+    });
+  });
+
   registerHandler(ipcMain, "discovery:analyze:symbol", async (_event, payload) => {
     if (!payload || typeof payload.symbol !== "string") {
       throw new Error("INVALID_PAYLOAD");
@@ -195,7 +198,7 @@ export function registerAllIpc(ipcMain) {
       throw new Error("INVALID_SYMBOL");
     }
 
-    const engineModule = await import("../../engine/discovery/discoveryEngine.js");
+    const engineModule     = await import("../../engine/discovery/discoveryEngine.js");
     const runDiscoveryEngine =
       engineModule.runDiscoveryEngine || engineModule.default?.runDiscoveryEngine;
 
@@ -203,38 +206,45 @@ export function registerAllIpc(ipcMain) {
       throw new Error("DISCOVERY_ENGINE_INVALID");
     }
 
+    const engineResult = await runDiscoveryEngine({
+      symbol:    resolution.symbol,
+      assetType: resolution.assetClass,
+      ownership: payload.ownership === true
+    });
+
+    const priceMap = await getLivePrices([resolution.symbol]).catch(() => ({}));
+    const priceData = priceMap[resolution.symbol] || { price: null, source: "unavailable" };
+
     return Object.freeze({
-      mode: "MANUAL_RESEARCH",
+      mode:       "MANUAL_RESEARCH",
       resolution,
-      result: await runDiscoveryEngine({
-        symbol: resolution.symbol,
-        assetType: resolution.assetClass,
-        ownership: payload.ownership === true
+      price:      priceData,
+      result: Object.freeze({
+        ...engineResult,
+        symbol: {
+          symbol:     resolution.symbol,
+          name:       resolution.name || resolution.symbol,
+          exchange:   resolution.exchange   || null,
+          assetClass: resolution.assetClass || null
+        }
       })
     });
   });
 
-  // =========================
-  // WATCHLIST (STUB)
-  // =========================
   registerHandler(ipcMain, "watchlist:candidates", async () => {
     return Object.freeze({
-      contract: "WATCHLIST_CANDIDATES_V0_STUB",
+      contract:  "WATCHLIST_CANDIDATES_V0_STUB",
       timestamp: Date.now(),
       candidates: [],
-      note: "Stubbed — engine to be wired later"
+      note:      "Stubbed — engine to be wired later"
     });
   });
 
-  // =========================
-  // MOONSHOT — TELEMETRY
-  // =========================
   import("./asymmetryTelemetryIpc.js").then(module => {
     module.registerAsymmetryTelemetryIpc(ipcMain);
   });
 
-  // =========================
-  // MOONSHOT — REGISTRY
-  // =========================
   registerMoonshotRegistryIpc(ipcMain);
+
+  console.log("[IPC] All handlers registered: crypto price bridge, discovery rejected, Kelly Decisions, Market Regime \u2713");
 }

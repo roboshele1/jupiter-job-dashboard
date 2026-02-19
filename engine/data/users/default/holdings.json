@@ -1,0 +1,92 @@
+[
+  {
+    "symbol": "NVDA",
+    "qty": 73.4588,
+    "totalCostBasis": 12967.25,
+    "assetClass": "equity",
+    "currency": "USD"
+  },
+  {
+    "symbol": "ASML",
+    "qty": 10.079,
+    "totalCostBasis": 8749.34,
+    "assetClass": "equity",
+    "currency": "USD"
+  },
+  {
+    "symbol": "HOOD",
+    "qty": 35,
+    "totalCostBasis": 3316.68,
+    "assetClass": "equity",
+    "currency": "USD"
+  },
+  {
+    "symbol": "BMNR",
+    "qty": 175,
+    "totalCostBasis": 6320.18,
+    "assetClass": "equity",
+    "currency": "USD"
+  },
+  {
+    "symbol": "BTC",
+    "qty": 0.281212,
+    "totalCostBasis": 24764.31,
+    "assetClass": "crypto",
+    "currency": "USD"
+  },
+  {
+    "symbol": "ETH",
+    "qty": 0.25,
+    "totalCostBasis": 597.9,
+    "assetClass": "crypto",
+    "currency": "USD"
+  },
+  {
+    "symbol": "AVGO",
+    "qty": 41.2876,
+    "totalCostBasis": 12989.22,
+    "assetClass": "equity",
+    "currency": "USD",
+    "addedAt": "2026-02-17T16:49:56.556Z"
+  },
+  {
+    "symbol": "MA",
+    "qty": 4,
+    "totalCostBasis": 2087.08,
+    "assetClass": "equity",
+    "currency": "USD",
+    "addedAt": "2026-02-17T20:25:55.826Z"
+  },
+  {
+    "symbol": "CNSWF",
+    "qty": 0.8,
+    "totalCostBasis": 1462.02,
+    "assetClass": "equity",
+    "currency": "USD",
+    "addedAt": "2026-02-18T16:27:07.681Z"
+  },
+  {
+    "symbol": "NOW",
+    "qty": 100,
+    "totalCostBasis": 10509.4,
+    "assetClass": "equity",
+    "currency": "USD",
+    "addedAt": "2026-02-18T16:32:17.267Z"
+  },
+  {
+    "symbol": "MSTR",
+    "qty": 35.4873,
+    "totalCostBasis": 8703.86,
+    "assetClass": "equity",
+    "currency": "USD",
+    "addedAt": "2026-02-18T16:34:09.058Z"
+  },
+  {
+    "symbol": "APLD",
+    "qty": 27.8812,
+    "totalCostBasis": 431.38,
+    "assetClass": "equity",
+    "currency": "USD",
+    "addedAt": "2026-02-18T17:43:54.688Z"
+  }
+]

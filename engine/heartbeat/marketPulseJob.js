@@ -4,12 +4,12 @@ import path from "path";
 import fs from "fs";
 
 // Canonical holdings authority path
-const HOLDINGS_PATH = path.resolve("engine/data/holdings.js");
+const HOLDINGS_PATH = path.resolve("engine/data/users/default/holdings.json");
 
 function loadHoldingsAuthority() {
   try {
     delete require.cache[require.resolve(HOLDINGS_PATH)];
-    const holdings = require(HOLDINGS_PATH);
+    const holdings = JSON.parse(fs.readFileSync(HOLDINGS_PATH, "utf-8"));
     return Array.isArray(holdings) ? holdings : [];
   } catch (err) {
     console.warn("[HEARTBEAT] Failed to load holdings authority:", err.message);

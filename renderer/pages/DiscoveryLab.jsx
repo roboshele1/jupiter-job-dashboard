@@ -1,524 +1,955 @@
-import React, { useEffect, useMemo, useState } from "react";
+/**
+ * DiscoveryLab.jsx — JUPITER Intelligence Surface (V2)
+ * Upgraded: per-asset differentiation, goal anchoring, re-entry watchlist,
+ * theme acceleration ranking, tactical signals layer.
+ * Drop into: renderer/pages/DiscoveryLab.jsx
+ *
+ * FIXES APPLIED:
+ *   - \u00d7 unicode escape now renders as × character (not literal text)
+ *   - ThemeCard confidence badge normalises case (high/medium/low → High/Medium/Low)
+ *   - ThemeCard badge colour handles lowercase confidence from runEmergingThemesScan
+ */
 
-const badgeStyle = (level) => {
-  const map = {
-    High: "#2ecc71",
-    Medium: "#f1c40f",
-    Low: "#e67e22",
-    AVOID: "#e74c3c",
-    HOLD: "#3498db",
-    BUY: "#2ecc71",
-    BUY_MORE: "#1abc9c",
-    NONE: "#777",
-    PASS: "#2ecc71",
-    WARN: "#f1c40f",
-    FAIL: "#e74c3c",
-    SURFACED: "#22c55e",
-    REJECTED: "#ef4444",
-  };
-  return {
-    display: "inline-block",
-    padding: "0.25rem 0.6rem",
-    borderRadius: "6px",
-    fontSize: "0.75rem",
-    background: map[level] || "#777",
-    color: "#000",
-    fontWeight: 700,
-  };
+import { useEffect, useMemo, useState, useCallback } from "react";
+
+// ─── Colour tokens (matches Portfolio + MoonshotLab system) ──────────────────
+const C = {
+  bg:          "#060910",
+  surface:     "#0c1220",
+  panel:       "#0f172a",
+  panelHov:    "#111a2e",
+  border:      "#1a2540",
+  borderAcc:   "#2d3f55",
+  text:        "#e2e8f0",
+  textSec:     "#94a3b8",
+  textMuted:   "#6b7280",
+  textDim:     "#374151",
+  green:       "#22c55e",
+  greenDim:    "rgba(34,197,94,0.10)",
+  red:         "#ef4444",
+  redDim:      "rgba(239,68,68,0.10)",
+  blue:        "#3b82f6",
+  blueDim:     "rgba(59,130,246,0.10)",
+  gold:        "#f59e0b",
+  goldDim:     "rgba(245,158,11,0.10)",
+  cyan:        "#06b6d4",
+  cyanDim:     "rgba(6,182,212,0.10)",
 };
 
-const cadenceStyle = () => ({
-  fontSize: "0.75rem",
-  opacity: 0.7,
-  marginLeft: "0.5rem",
-});
+const mono = { fontFamily: "'IBM Plex Mono', monospace" };
 
-const deltaStyle = (value) => ({
-  color: value > 0 ? "#2ecc71" : value < 0 ? "#e74c3c" : "#aaa",
-  fontWeight: 700,
-});
-
-function getSymbol(r) {
-  return r?.symbol?.symbol || r?.symbol || "";
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+function fmtPct(n)   { return (Number(n) * 100).toFixed(1) + "%"; }
+function fmtScore(n) { return Number(n ?? 0).toFixed(2); }
+function fmtMoney(n) {
+  return "$" + Number(n || 0).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 });
 }
-
-function formatDisplaySymbol({ input, resolution }) {
-  if (!resolution) return input || '';
-
-  const name = resolution.name || 'Unknown';
-  const symbol = resolution.symbol || input;
-  const exchangeMap = {
-    XNAS: 'NASDAQ',
-    XNYS: 'NYSE',
-    ARCX: 'NYSE Arca',
-    TSX: 'TSX',
-    CRYPTO: 'Crypto'
-  };
-  const exchange = exchangeMap[resolution.exchange] || resolution.exchange || '';
-
-  return input + ' → ' + name + ' (' + symbol + (exchange ? ' · ' + exchange : '') + ')';
+function deltaColor(v) {
+  const n = Number(v);
+  if (n > 0) return C.green;
+  if (n < 0) return C.red;
+  return C.textMuted;
 }
-
-function convictionLabelFromNormalized(n) {
+function convictionLabel(n) {
   const x = Number(n ?? 0);
-  if (x >= 0.7) return "High";
-  if (x >= 0.4) return "Medium";
-  return "Low";
+  if (x >= 0.7) return { label: "High",   color: C.green };
+  if (x >= 0.4) return { label: "Medium", color: C.gold  };
+  return              { label: "Low",    color: C.red   };
+}
+function decisionColor(d) {
+  if (d === "BUY" || d === "BUY_MORE")      return C.green;
+  if (d === "HOLD")                          return C.blue;
+  if (d === "TRIM" || d === "AVOID")         return C.gold;
+  if (d === "EXIT_OR_AVOID")                 return C.red;
+  return C.textMuted;
+}
+function getSymbol(r) { return r?.symbol?.symbol || r?.symbol || ""; }
+
+// Project 2037 growth on a position at given CAGR proxy
+function project2037(positionValue, cagrProxy) {
+  const years = Math.max(1, 2037 - new Date().getFullYear());
+  const cagr  = Math.max(0.05, cagrProxy);
+  return positionValue * Math.pow(1 + cagr, years);
 }
 
+// ─── Atoms ────────────────────────────────────────────────────────────────────
+function Badge({ label, color, bg }) {
+  return (
+    <span style={{
+      ...mono,
+      display: "inline-block",
+      padding: "2px 7px",
+      borderRadius: 3,
+      fontSize: 9,
+      fontWeight: 700,
+      letterSpacing: "0.1em",
+      color:      color || C.text,
+      background: bg   || (color ? color + "18" : C.surface),
+      border:     `1px solid ${color ? color + "40" : C.border}`,
+    }}>
+      {label}
+    </span>
+  );
+}
+
+function SectionLabel({ children, sub }) {
+  return (
+    <div style={{ marginBottom: 14 }}>
+      <div style={{ ...mono, fontSize: 10, fontWeight: 700, letterSpacing: "0.2em", color: C.textMuted, textTransform: "uppercase" }}>
+        {children}
+      </div>
+      {sub && <div style={{ ...mono, fontSize: 9, color: C.textDim, marginTop: 2 }}>{sub}</div>}
+    </div>
+  );
+}
+
+function Divider() {
+  return <div style={{ height: 1, background: C.border, margin: "24px 0" }} />;
+}
+
+// ─── Factor bar ───────────────────────────────────────────────────────────────
+function FactorRow({ label, value, max, color }) {
+  const safeMax = max || 3;
+  const pct = Math.min(Math.abs(Number(value)) / safeMax, 1) * 100;
+  const col = color || (Number(value) >= 0 ? C.green : C.red);
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 5 }}>
+      <div style={{ ...mono, fontSize: 9, color: C.textMuted, width: 72, flexShrink: 0, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+        {label}
+      </div>
+      <div style={{ flex: 1, height: 4, background: C.border, borderRadius: 2, overflow: "hidden" }}>
+        <div style={{
+          width: pct + "%", height: "100%",
+          background: col,
+          borderRadius: 2,
+          boxShadow: `0 0 4px ${col}60`,
+          transition: "width 0.5s ease",
+        }} />
+      </div>
+      <div style={{ ...mono, fontSize: 10, fontWeight: 700, color: col, width: 40, textAlign: "right" }}>
+        {Number(value) > 0 ? "+" : ""}{fmtScore(value)}
+      </div>
+    </div>
+  );
+}
+
+// ─── Tactical signals ─────────────────────────────────────────────────────────
+function TacticalSignals({ tactical }) {
+  if (!tactical) return null;
+  const breakdown = tactical.breakdown || {};
+  const score     = tactical.score ?? tactical.tacticalScore ?? null;
+  const entries   = Object.entries(breakdown).filter(([, v]) => typeof v === "number");
+  if (entries.length === 0 && score == null) return null;
+
+  return (
+    <div style={{ marginTop: 12 }}>
+      <div style={{ ...mono, fontSize: 9, color: C.textDim, letterSpacing: "0.12em", marginBottom: 7 }}>
+        TACTICAL SIGNALS
+      </div>
+      {score != null && (
+        <FactorRow label="overall" value={score} max={1} color={score >= 0.5 ? C.green : C.gold} />
+      )}
+      {entries.map(([k, v]) => (
+        <FactorRow key={k} label={k.replace(/([A-Z])/g, " $1").toLowerCase()} value={v} max={1} />
+      ))}
+    </div>
+  );
+}
+
+// ─── Fundamentals audit pills ─────────────────────────────────────────────────
+function AuditPills({ audit }) {
+  if (!audit?.categories) return null;
+  const statusColor = { PASS: C.green, WARN: C.gold, FAIL: C.red };
+  return (
+    <div style={{ display: "flex", flexWrap: "wrap", gap: 5, marginTop: 6 }}>
+      {Object.entries(audit.categories).map(([k, v]) => (
+        <span key={k} title={v.rationale} style={{
+          ...mono, fontSize: 8, padding: "2px 6px", borderRadius: 2, cursor: "help",
+          background: (statusColor[v.status] || C.textMuted) + "18",
+          border:     `1px solid ${(statusColor[v.status] || C.textMuted)}40`,
+          color:      statusColor[v.status] || C.textMuted,
+        }}>
+          {k.replace(/([A-Z])/g, " $1").trim()} · {v.status}
+        </span>
+      ))}
+    </div>
+  );
+}
+
+// ─── Goal contribution chip ───────────────────────────────────────────────────
+function GoalChip({ trajectoryScore, goalRemaining, positionValue }) {
+  if (!goalRemaining || !positionValue) return null;
+  const projected  = project2037(positionValue, trajectoryScore || 0.25);
+  const gain       = projected - positionValue;
+  const closePct   = goalRemaining > 0 ? Math.min((gain / goalRemaining) * 100, 999) : 0;
+  return (
+    <span style={{
+      ...mono, display: "inline-flex", alignItems: "center", gap: 5,
+      padding: "3px 8px", borderRadius: 3,
+      background: C.goldDim, border: `1px solid ${C.gold}30`,
+      fontSize: 9, color: C.gold,
+    }}>
+      ▲ 2037 · <strong>{fmtMoney(gain)}</strong> gain · closes {closePct.toFixed(1)}% of gap
+    </span>
+  );
+}
+
+// ─── Candidate card ───────────────────────────────────────────────────────────
+function CandidateCard({ r, expanded, onToggle, goalRemaining, portfolioValue, rank }) {
+  const sym        = getSymbol(r);
+  const decision   = r?.decision?.decision || "NONE";
+  const conv       = Number(r?.conviction?.normalized ?? 0);
+  const convInfo   = convictionLabel(conv);
+  const factors    = r?.factorAttribution || {};
+  const tactical   = r?.tactical     || null;
+  const trajectory = r?.trajectoryMatch || null;
+  const audit      = r?.fundamentalsAudit || null;
+  const regime     = r?.regime?.label || "—";
+  const summary    = r?.explanation?.plainEnglishSummary || null;
+  const decCol     = decisionColor(decision);
+  const cagrProxy  = trajectory?.score || 0.25;
+  const pos5pct    = portfolioValue ? portfolioValue * 0.05 : 5000;
+
+  const [hov, setHov] = useState(false);
+
+  return (
+    <div
+      onMouseEnter={() => setHov(true)}
+      onMouseLeave={() => setHov(false)}
+      style={{
+        background:   hov ? C.panelHov : C.surface,
+        border:       `1px solid ${expanded ? C.borderAcc : C.border}`,
+        borderLeft:   `3px solid ${decCol}`,
+        borderRadius: 8,
+        transition:   "all 0.18s ease",
+        overflow:     "hidden",
+      }}
+    >
+      {/* Always-visible header */}
+      <div onClick={onToggle} style={{ padding: "14px 18px", cursor: "pointer", display: "flex", alignItems: "flex-start", gap: 12 }}>
+
+        {/* Left: identity + conviction bar + goal chip */}
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+            {rank != null && <span style={{ ...mono, fontSize: 10, color: C.textDim, fontWeight: 700 }}>#{rank}</span>}
+            <span style={{ ...mono, fontSize: 16, fontWeight: 800, color: C.text, letterSpacing: "-0.01em" }}>{sym}</span>
+            <Badge label={decision}       color={decCol}       />
+            <Badge label={convInfo.label} color={convInfo.color} />
+            {trajectory?.label && trajectory.label !== "NO_MATCH" && (
+              <Badge label={trajectory.label.replace(/_/g, " ")} color={C.cyan} />
+            )}
+            <span style={{ ...mono, fontSize: 9, color: C.textDim }}>{regime}</span>
+          </div>
+
+          {/* Conviction bar */}
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 8 }}>
+            <div style={{ flex: 1, maxWidth: 200, height: 3, background: C.border, borderRadius: 2, overflow: "hidden" }}>
+              <div style={{
+                width: fmtPct(conv), height: "100%",
+                background: convInfo.color,
+                boxShadow: `0 0 5px ${convInfo.color}60`,
+                transition: "width 0.5s ease",
+              }} />
+            </div>
+            <span style={{ ...mono, fontSize: 11, fontWeight: 700, color: convInfo.color }}>
+              {(conv * 100).toFixed(1)}%
+            </span>
+            {trajectory?.confidence != null && (
+              <span style={{ ...mono, fontSize: 9, color: C.textMuted }}>
+                traj {(Number(trajectory.confidence) * 100).toFixed(0)}%
+              </span>
+            )}
+          </div>
+
+          {trajectory?.available && goalRemaining > 0 && (
+            <div style={{ marginTop: 7 }}>
+              <GoalChip trajectoryScore={cagrProxy} goalRemaining={goalRemaining} positionValue={pos5pct} />
+            </div>
+          )}
+        </div>
+
+        {/* Right: factor snapshot */}
+        <div style={{ flexShrink: 0, minWidth: 130 }}>
+          {Object.entries(factors).slice(0, 4).map(([k, v]) => (
+            <div key={k} style={{ display: "flex", justifyContent: "space-between", gap: 10, marginBottom: 4 }}>
+              <span style={{ ...mono, fontSize: 9, color: C.textMuted }}>{k}</span>
+              <span style={{ ...mono, fontSize: 9, fontWeight: 700, color: deltaColor(v) }}>
+                {Number(v) > 0 ? "+" : ""}{fmtScore(v)}
+              </span>
+            </div>
+          ))}
+        </div>
+
+        <div style={{ ...mono, fontSize: 11, color: C.textDim, flexShrink: 0 }}>
+          {expanded ? "▲" : "▼"}
+        </div>
+      </div>
+
+      {/* Expanded detail */}
+      {expanded && (
+        <div style={{
+          padding: "0 18px 18px", paddingTop: 14,
+          borderTop: `1px solid ${C.border}`,
+          display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20,
+          animation: "fadeIn 0.18s ease",
+        }}>
+          {/* Left col */}
+          <div>
+            <div style={{ ...mono, fontSize: 9, color: C.textDim, letterSpacing: "0.12em", marginBottom: 8 }}>
+              FACTOR ATTRIBUTION
+            </div>
+            {Object.entries(factors).length > 0
+              ? Object.entries(factors).map(([k, v]) => <FactorRow key={k} label={k} value={v} max={3} />)
+              : <span style={{ ...mono, fontSize: 10, color: C.textDim }}>No attribution data</span>
+            }
+            <TacticalSignals tactical={tactical} />
+          </div>
+
+          {/* Right col */}
+          <div>
+            {trajectory?.available && (
+              <div style={{ marginBottom: 14 }}>
+                <div style={{ ...mono, fontSize: 9, color: C.textDim, letterSpacing: "0.12em", marginBottom: 6 }}>
+                  TRAJECTORY MATCH
+                </div>
+                <div style={{ ...mono, fontSize: 12, fontWeight: 700, color: C.cyan }}>
+                  {trajectory.label?.replace(/_/g, " ") || "—"}
+                </div>
+                <div style={{ ...mono, fontSize: 10, color: C.textSec, marginTop: 4, lineHeight: 1.55 }}>
+                  {trajectory.explanation}
+                </div>
+                <div style={{ marginTop: 8 }}>
+                  <FactorRow label="confidence" value={trajectory.confidence ?? trajectory.score ?? 0} max={1} color={C.cyan} />
+                </div>
+              </div>
+            )}
+            {audit && (
+              <div style={{ marginBottom: 14 }}>
+                <div style={{ ...mono, fontSize: 9, color: C.textDim, letterSpacing: "0.12em", marginBottom: 4 }}>
+                  FUNDAMENTALS ·{" "}
+                  <span style={{ color: audit.overallStatus === "PASS" ? C.green : C.red }}>
+                    {audit.overallStatus}
+                  </span>
+                </div>
+                <AuditPills audit={audit} />
+              </div>
+            )}
+            {summary && (
+              <div>
+                <div style={{ ...mono, fontSize: 9, color: C.textDim, letterSpacing: "0.12em", marginBottom: 4 }}>
+                  ENGINE SYNTHESIS
+                </div>
+                <div style={{ ...mono, fontSize: 10, color: C.textSec, lineHeight: 1.6 }}>{summary}</div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Re-entry card ────────────────────────────────────────────────────────────
+function ReEntryCard({ r }) {
+  const sym = getSymbol(r);
+  const [open, setOpen] = useState(false);
+  const factors = r?.factorAttribution || {};
+  return (
+    <div
+      onClick={() => setOpen(o => !o)}
+      style={{
+        background: C.surface, border: `1px solid ${C.border}`,
+        borderLeft: `3px solid ${C.red}50`, borderRadius: 8,
+        padding: "12px 16px", cursor: "pointer",
+      }}
+    >
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <span style={{ ...mono, fontSize: 14, fontWeight: 800, color: C.text }}>{sym}</span>
+          <Badge label="REJECTED" color={C.red} />
+          {r?.regime?.label && <span style={{ ...mono, fontSize: 9, color: C.textDim }}>{r.regime.label}</span>}
+        </div>
+        <span style={{ ...mono, fontSize: 10, color: C.textDim }}>{open ? "▲" : "▼"}</span>
+      </div>
+
+      {r?.rejectionReason && (
+        <div style={{ ...mono, fontSize: 10, color: C.red, marginTop: 6 }}>
+          ⚠ {r.rejectionReason}
+        </div>
+      )}
+
+      {open && (
+        <div style={{ marginTop: 12, paddingTop: 12, borderTop: `1px solid ${C.border}`, animation: "fadeIn 0.18s ease" }}>
+          {Object.entries(factors).length > 0 && (
+            <div style={{ marginBottom: 12 }}>
+              <div style={{ ...mono, fontSize: 9, color: C.textDim, marginBottom: 7 }}>CURRENT FACTORS</div>
+              {Object.entries(factors).map(([k, v]) => <FactorRow key={k} label={k} value={v} max={3} />)}
+            </div>
+          )}
+          <div style={{ ...mono, fontSize: 9, color: C.textDim, marginBottom: 7 }}>WHAT NEEDS TO CHANGE</div>
+          {[
+            "Conviction normalization must rise above 0.40",
+            "Fundamental quality or growth factors must improve materially",
+            "Regime alignment must strengthen relative to scanning universe",
+          ].map((t, i) => (
+            <div key={i} style={{ display: "flex", gap: 6, marginBottom: 5 }}>
+              <span style={{ color: C.textDim }}>▷</span>
+              <span style={{ ...mono, fontSize: 10, color: C.textSec }}>{t}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Theme card ───────────────────────────────────────────────────────────────
+// FIX: normalise confidence case (engine may return "high"/"medium"/"low" or
+//      "High"/"Medium"/"Low") — always display consistently and colour correctly.
+function ThemeCard({ theme, accelerationScore }) {
+  const confidenceNorm = (theme.confidence || "").toUpperCase();
+  const col =
+    accelerationScore >= 0.6
+      ? C.green
+      : accelerationScore >= 0.35
+      ? C.gold
+      : confidenceNorm === "HIGH"
+      ? C.green
+      : confidenceNorm === "MEDIUM"
+      ? C.gold
+      : confidenceNorm === "LOW"
+      ? C.red
+      : C.textMuted;
+
+  // Display label: capitalise first letter only e.g. "High", "Medium", "Low"
+  const confidenceDisplay =
+    confidenceNorm.charAt(0) + confidenceNorm.slice(1).toLowerCase();
+
+  return (
+    <div style={{
+      background: C.surface, border: `1px solid ${C.border}`, borderRadius: 8,
+      padding: "14px 18px", display: "flex", justifyContent: "space-between",
+      alignItems: "flex-start", gap: 16,
+    }}>
+      <div style={{ flex: 1 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+          <span style={{ ...mono, fontSize: 13, fontWeight: 700, color: C.text }}>{theme.label}</span>
+          <Badge label={confidenceDisplay} color={col} />
+        </div>
+        <div style={{ ...mono, fontSize: 10, color: C.textSec, lineHeight: 1.6, marginBottom: 8 }}>
+          {theme.explanation}
+        </div>
+        <div style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>
+          {(theme.symbols || []).map(s => (
+            <span key={s} style={{ ...mono, fontSize: 9, color: C.cyan, background: C.cyanDim, padding: "1px 6px", borderRadius: 2, border: `1px solid ${C.cyan}30` }}>{s}</span>
+          ))}
+          {(theme.drivers || []).map(d => (
+            <span key={d} style={{ ...mono, fontSize: 9, color: C.textMuted, background: C.border + "80", padding: "1px 5px", borderRadius: 2 }}>{d}</span>
+          ))}
+        </div>
+      </div>
+      <div style={{ textAlign: "right", flexShrink: 0 }}>
+        <div style={{ ...mono, fontSize: 22, fontWeight: 800, color: col }}>
+          {(accelerationScore * 100).toFixed(0)}
+        </div>
+        <div style={{ ...mono, fontSize: 8, color: C.textDim }}>ACCEL</div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Goal banner ──────────────────────────────────────────────────────────────
+function GoalBanner({ goal, portfolioValue }) {
+  if (!goal) return null;
+  const prog = Math.min(Number(goal.progressPct || 0), 100);
+  return (
+    <div style={{
+      background: C.surface, border: `1px solid ${C.border}`, borderRadius: 8,
+      padding: "16px 20px", marginBottom: 20,
+    }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 16, flexWrap: "wrap" }}>
+        <div>
+          <div style={{ ...mono, fontSize: 9, color: C.textMuted, letterSpacing: "0.16em", marginBottom: 4 }}>
+            COMPOUNDING TARGET
+          </div>
+          <div style={{ ...mono, fontSize: 14, fontWeight: 700, color: C.text }}>
+            $100k → $1M by 2037
+          </div>
+          <div style={{ ...mono, fontSize: 11, color: C.textSec, marginTop: 4 }}>
+            {fmtMoney(goal.remaining)} remaining · requires {goal.requiredCAGR}% CAGR
+          </div>
+        </div>
+        <div style={{ textAlign: "right" }}>
+          <div style={{ ...mono, fontSize: 28, fontWeight: 800, color: C.blue }}>{prog.toFixed(1)}%</div>
+          <div style={{ ...mono, fontSize: 9, color: C.textDim }}>of goal</div>
+        </div>
+      </div>
+      <div style={{ marginTop: 12, height: 6, background: C.border, borderRadius: 3, overflow: "hidden" }}>
+        <div style={{
+          width: prog + "%", height: "100%", background: C.blue, borderRadius: 3,
+          boxShadow: `0 0 8px ${C.blue}60`, transition: "width 0.8s ease",
+        }} />
+      </div>
+      <div style={{ ...mono, fontSize: 9, color: C.textDim, marginTop: 6 }}>
+        Candidate projections use 5% position ({fmtMoney(portfolioValue * 0.05)}) as illustration
+      </div>
+    </div>
+  );
+}
+
+// ─── Manual research panel ────────────────────────────────────────────────────
+function ManualResearchPanel({ goalRemaining, portfolioValue }) {
+  const [sym,     setSym]     = useState("");
+  const [loading, setLoading] = useState(false);
+  const [result,  setResult]  = useState(null);
+  const [error,   setError]   = useState("");
+
+  async function run() {
+    const s = sym.trim().toUpperCase();
+    if (!s) return;
+    setLoading(true); setResult(null); setError("");
+    try {
+      const r = await window.jupiter.invoke("discovery:analyze:symbol", { symbol: s, ownership: true });
+      setResult(r || null);
+    } catch {
+      setError("Symbol not found or analysis unavailable.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  const manual     = result?.result || null;
+  const priceData  = result?.price || null;
+  const decision   = manual?.decision?.decision || "NONE";
+  const conv       = Number(manual?.conviction?.normalized ?? 0);
+  const convInfo   = convictionLabel(conv);
+  const factors    = manual?.factorAttribution || {};
+  const tactical   = manual?.tactical           || null;
+  const trajectory = manual?.trajectoryMatch    || null;
+  const audit      = manual?.fundamentalsAudit  || null;
+
+  return (
+    <div style={{
+      background: C.surface, border: `1px solid ${C.border}`, borderRadius: 8,
+      padding: "16px 20px", marginBottom: 20,
+    }}>
+      <SectionLabel sub="User-driven · Immediate">Manual Research</SectionLabel>
+
+      <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+        <input
+          value={sym}
+          onChange={e => setSym(e.target.value)}
+          onKeyDown={e => e.key === "Enter" && run()}
+          placeholder="Ticker (e.g. NVDA)"
+          style={{
+            flex: 1, ...mono, fontSize: 12, padding: "8px 12px",
+            background: C.panel, border: `1px solid ${C.border}`,
+            borderRadius: 6, color: C.text, outline: "none",
+          }}
+        />
+        <button
+          onClick={run} disabled={loading}
+          style={{
+            ...mono, fontSize: 10, fontWeight: 700, letterSpacing: "0.12em",
+            padding: "8px 18px", borderRadius: 6, cursor: loading ? "not-allowed" : "pointer",
+            background: loading ? C.panel   : C.blueDim,
+            border:     `1px solid ${loading ? C.border : C.blue + "60"}`,
+            color:      loading ? C.textMuted : C.blue,
+          }}
+        >
+          {loading ? "ANALYZING…" : "ANALYZE"}
+        </button>
+      </div>
+
+      {error && <div style={{ ...mono, fontSize: 11, color: C.red }}>⚠ {error}</div>}
+
+      {manual && (
+        <div style={{ borderTop: `1px solid ${C.border}`, paddingTop: 14 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10, flexWrap: "wrap" }}>
+            <span style={{ ...mono, fontSize: 18, fontWeight: 800, color: C.text }}>{sym.toUpperCase()}</span>
+            {result?.result?.symbol?.name && result.result.symbol.name !== sym.toUpperCase() && (
+              <span style={{ ...mono, fontSize: 11, color: C.textSec, fontWeight: 400 }}>{result.result.symbol.name}</span>
+            )}
+            {priceData?.price != null && (
+              <span style={{ ...mono, fontSize: 15, fontWeight: 700, color: '#4ade80' }}>
+                ${Number(priceData.price).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </span>
+            )}
+            {priceData?.price != null && priceData?.source && (
+              <span style={{ ...mono, fontSize: 10, color: '#6b7280', fontWeight: 400, letterSpacing: '0.05em' }}>
+                {priceData.source === 'coinbase-spot' ? 'LIVE'
+                  : priceData.source === 'polygon-intraday-delayed' ? '15-MIN DELAY'
+                  : 'PREV CLOSE'}
+              </span>
+            )}
+            <Badge label={decision}       color={decisionColor(decision)} />
+            <Badge label={`${convInfo.label} · ${(conv * 100).toFixed(1)}%`} color={convInfo.color} />
+            {trajectory?.label && trajectory.label !== "NO_MATCH" && (
+              <Badge label={trajectory.label.replace(/_/g, " ")} color={C.cyan} />
+            )}
+          </div>
+
+          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14, flexWrap: "wrap" }}>
+            <div style={{ flex: 1, maxWidth: 280, height: 4, background: C.border, borderRadius: 2, overflow: "hidden" }}>
+              <div style={{
+                width: fmtPct(conv), height: "100%",
+                background: convInfo.color, boxShadow: `0 0 5px ${convInfo.color}60`,
+              }} />
+            </div>
+            {trajectory?.available && goalRemaining > 0 && (
+              <GoalChip
+                trajectoryScore={trajectory.score}
+                goalRemaining={goalRemaining}
+                positionValue={portfolioValue * 0.05}
+              />
+            )}
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
+            <div>
+              <div style={{ ...mono, fontSize: 9, color: C.textDim, letterSpacing: "0.12em", marginBottom: 8 }}>
+                FACTOR ATTRIBUTION
+              </div>
+              {Object.entries(factors).length > 0
+                ? Object.entries(factors).map(([k, v]) => <FactorRow key={k} label={k} value={v} max={3} />)
+                : <span style={{ ...mono, fontSize: 10, color: C.textDim }}>None available</span>
+              }
+              <TacticalSignals tactical={tactical} />
+            </div>
+            <div>
+              {trajectory?.available && (
+                <div style={{ marginBottom: 12 }}>
+                  <div style={{ ...mono, fontSize: 9, color: C.textDim, marginBottom: 4 }}>TRAJECTORY</div>
+                  <div style={{ ...mono, fontSize: 12, fontWeight: 700, color: C.cyan }}>
+                    {trajectory.label?.replace(/_/g, " ")}
+                  </div>
+                  <div style={{ ...mono, fontSize: 10, color: C.textSec, marginTop: 4, lineHeight: 1.55 }}>
+                    {trajectory.explanation}
+                  </div>
+                </div>
+              )}
+              {audit && (
+                <div style={{ marginBottom: 12 }}>
+                  <div style={{ ...mono, fontSize: 9, color: C.textDim, marginBottom: 4 }}>
+                    FUNDAMENTALS ·{" "}
+                    <span style={{ color: audit.overallStatus === "PASS" ? C.green : C.red }}>
+                      {audit.overallStatus}
+                    </span>
+                  </div>
+                  <AuditPills audit={audit} />
+                </div>
+              )}
+              {manual?.explanation?.plainEnglishSummary && (
+                <div>
+                  <div style={{ ...mono, fontSize: 9, color: C.textDim, marginBottom: 4 }}>ENGINE SYNTHESIS</div>
+                  <div style={{ ...mono, fontSize: 10, color: C.textSec, lineHeight: 1.6 }}>
+                    {manual.explanation.plainEnglishSummary}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Main component ───────────────────────────────────────────────────────────
 export default function DiscoveryLab() {
-  const [rows, setRows] = useState([]);
-  const [themes, setThemes] = useState([]);
-  const [watchlistCandidates, setWatchlistCandidates] = useState([]);
-  const [divergenceMap, setDivergenceMap] = useState({});
-  const [selectedInsight, setSelectedInsight] = useState(null);
-  const [expanded, setExpanded] = useState({});
-  const [telemetry, setTelemetry] = useState(null);
-  const [loading, setLoading] = useState(true);
-
-  const [manualSymbol, setManualSymbol] = useState("");
-  const [manualLoading, setManualLoading] = useState(false);
-  const [manualResult, setManualResult] = useState(null);
-  const [manualError, setManualError] = useState("");
-
-  const [confidenceHistory, setConfidenceHistory] = useState([]);
-
-  /* ===== ADDITIVE BLOCK 1: evaluation filter ===== */
-  const [evalFilter, setEvalFilter] = useState("ALL"); // ALL | SURFACED | REJECTED
-
-  /* ===== ADDITIVE BLOCK 2: rejected rows ===== */
-  const [rejectedRows, setRejectedRows] = useState([]);
+  const [rows,           setRows]           = useState([]);
+  const [rejectedRows,   setRejectedRows]   = useState([]);
+  const [themes,         setThemes]         = useState([]);
+  const [watchlist,      setWatchlist]      = useState([]);
+  const [telemetry,      setTelemetry]      = useState(null);
+  const [goal,           setGoal]           = useState(null);
+  const [portfolioValue, setPortfolioValue] = useState(0);
+  const [loading,        setLoading]        = useState(true);
+  const [expandedMap,    setExpandedMap]    = useState({});
+  const [activeTab,      setActiveTab]      = useState("surfaced");
 
   useEffect(() => {
     let mounted = true;
-
-    async function loadAll() {
+    async function load() {
       try {
-        const [discovery, watchlist, divergence, rejected] = await Promise.all([
+        const [discoveryR, watchlistR, rejectedR, kellyR] = await Promise.allSettled([
           window.jupiter.invoke("discovery:run"),
-          window.jupiter.invoke("watchlist:candidates"),
-          window.jupiter.invoke("discovery:divergence:explanations").catch(() => null),
-          /* ===== ADDITIVE BLOCK 3: rejected exposure ===== */
+          window.jupiter.invoke("watchlist:candidates").catch(() => null),
           window.jupiter.invoke("discovery:evaluation:rejected").catch(() => null),
+          window.jupiter.invoke("decisions:getKellyRecommendations").catch(() => null),
         ]);
 
         if (!mounted) return;
 
-        setRows(Array.isArray(discovery?.canonical) ? discovery.canonical : []);
-        setThemes(discovery?.emergingThemes?.themes || []);
-        setTelemetry(discovery?.telemetry || null);
-        setWatchlistCandidates(watchlist?.candidates || []);
-        setRejectedRows(Array.isArray(rejected?.rejected) ? rejected.rejected : []);
+        const disc = discoveryR.status === "fulfilled" ? discoveryR.value : null;
+        setRows(Array.isArray(disc?.canonical) ? disc.canonical : []);
+        setThemes(disc?.emergingThemes?.themes || []);
+        setTelemetry(disc?.telemetry || null);
 
-        const map = {};
-        (divergence?.explanations || []).forEach((e) => {
-          if (e?.symbol) map[e.symbol] = e;
-        });
-        setDivergenceMap(map);
+        const wl = watchlistR.status === "fulfilled" ? watchlistR.value : null;
+        setWatchlist(wl?.candidates || []);
+
+        const rej = rejectedR.status === "fulfilled" ? rejectedR.value : null;
+        setRejectedRows(Array.isArray(rej?.rejected) ? rej.rejected : []);
+
+        const kelly = kellyR.status === "fulfilled" ? kellyR.value : null;
+        if (kelly) {
+          setGoal(kelly.goal           || null);
+          setPortfolioValue(kelly.portfolioValue || 0);
+        }
       } catch (err) {
-        console.error("Discovery Lab load failed:", err);
+        console.error("DiscoveryLab load failed:", err);
       } finally {
         if (mounted) setLoading(false);
       }
     }
-
-    loadAll();
-    return () => {
-      mounted = false;
-    };
+    load();
+    return () => { mounted = false; };
   }, []);
 
-  async function loadConfidenceHistory(symbol) {
-    try {
-      const result = await window.jupiter.invoke("confidence:history:get", { symbol });
-      setConfidenceHistory(Array.isArray(result) ? result : []);
-    } catch {
-      setConfidenceHistory([]);
-    }
-  }
+  // Acceleration score = avg(conviction.normalized × trajectoryMatch.score) per theme
+  const themedWithAccel = useMemo(() => {
+    return themes.map(theme => {
+      const members = rows.filter(r => (theme.symbols || []).includes(getSymbol(r)));
+      const accel = members.length > 0
+        ? members.reduce((sum, r) => {
+            return sum + Number(r?.conviction?.normalized ?? 0) * Number(r?.trajectoryMatch?.score ?? 0.25);
+          }, 0) / members.length
+        : 0;
+      return { ...theme, accelerationScore: accel };
+    }).sort((a, b) => b.accelerationScore - a.accelerationScore);
+  }, [themes, rows]);
 
-  async function runManualResearch() {
-    const sym = (manualSymbol || "").trim().toUpperCase();
-    if (!sym) return;
+  const toggleExpanded = useCallback((key) => {
+    setExpandedMap(prev => ({ ...prev, [key]: !prev[key] }));
+  }, []);
 
-    setManualLoading(true);
-    setManualResult(null);
-    setManualError("");
+  const goalRemaining = goal?.remaining || 0;
+  const evalCount = telemetry?.evaluatedCount ?? (rows.length + rejectedRows.length);
+  const surfCount  = telemetry?.surfacedCount  ?? rows.length;
+  const rejCount   = telemetry?.rejectedCount  ?? rejectedRows.length;
 
-    try {
-      const r = await window.jupiter.invoke("discovery:analyze:symbol", {
-        symbol: sym,
-        ownership: true,
-      });
-      setManualResult(r || null);
-    } catch (e) {
-      console.error("Manual research failed:", e);
-      setManualError("Invalid or non-investable symbol.");
-    } finally {
-      setManualLoading(false);
-    }
-  }
-
-  const manual = manualResult?.result || null;
-  const manualDecision = manual?.decision?.decision || "NONE";
-  const manualConv = Number(manual?.conviction?.normalized ?? 0);
-  const manualConvPct = (manualConv * 100).toFixed(1);
-  const fundamentalContext = manual?.explanation?.fundamentalContext || null;
-
-  const rankedRows = useMemo(() => (Array.isArray(rows) ? rows : []), [rows]);
-
-  /* ===== ADDITIVE BLOCK 4: filtered evaluation rows ===== */
-  const evaluationRows = useMemo(() => {
-    if (evalFilter === "SURFACED") return rankedRows;
-    if (evalFilter === "REJECTED") return rejectedRows;
-    return [...rankedRows, ...rejectedRows];
-  }, [evalFilter, rankedRows, rejectedRows]);
+  const tabStyle = (active) => ({
+    ...mono, fontSize: 10, fontWeight: 700, letterSpacing: "0.14em",
+    textTransform: "uppercase", cursor: "pointer",
+    color: active ? C.text : C.textMuted,
+    background: "transparent", border: "none",
+    borderBottom: active ? `2px solid ${C.blue}` : "2px solid transparent",
+    padding: "10px 16px", transition: "all 0.15s",
+  });
 
   if (loading) {
-    return <div style={{ padding: "2rem" }}>Loading discovery intelligence…</div>;
+    return (
+      <div style={{ ...mono, background: C.bg, minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", color: C.textMuted, fontSize: 12 }}>
+        Initialising discovery intelligence…
+      </div>
+    );
   }
 
-  const evaluatedCount = telemetry?.evaluatedCount ?? 0;
-  const surfacedCount = telemetry?.surfacedCount ?? rankedRows.length;
-  const rejectedCount = Math.max(evaluatedCount - surfacedCount, 0);
-
   return (
-    <div style={{ display: "flex", height: "100%", padding: "2rem", gap: "1.5rem" }}>
-      {/* LEFT */}
-      <div style={{ flex: 3, maxWidth: 1400 }}>
-        <h1>Discovery Lab</h1>
-        <p style={{ opacity: 0.8 }}>
-          Read-only market discovery surface (Phase D12+). Shadow autonomy preserved.
+    <div style={{
+      ...mono, background: C.bg, minHeight: "100vh", color: C.text,
+      padding: "28px 32px", maxWidth: 1100, margin: "0 auto",
+    }}>
+      <style>{`
+        @keyframes fadeIn { from { opacity:0; transform:translateY(-4px); } to { opacity:1; transform:translateY(0); } }
+        * { box-sizing: border-box; }
+        ::-webkit-scrollbar { width: 4px; background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #1a2540; border-radius: 2px; }
+        input::placeholder { color: #374151; }
+        input:focus { outline: none; border-color: #3b82f6 !important; }
+      `}</style>
+
+      {/* Header */}
+      <div style={{ marginBottom: 20 }}>
+        <h1 style={{ fontSize: 26, fontWeight: 800, margin: 0, letterSpacing: "-0.02em" }}>Discovery Lab</h1>
+        <p style={{ ...mono, fontSize: 11, color: C.textMuted, margin: "4px 0 0" }}>
+          Pre-breakout intelligence surface · read-only · main-process discovery engine
         </p>
-
-        {/* MANUAL RESEARCH */}
-        <div style={{ background: "#0b1220", padding: "1rem", borderRadius: "10px", marginTop: "1.25rem" }}>
-          <h3 style={{ margin: 0 }}>
-            Manual Research
-            <span style={cadenceStyle()}>User-driven · Immediate</span>
-          </h3>
-
-          <div style={{ display: "flex", gap: "0.75rem", marginTop: "0.75rem" }}>
-            <input
-              value={manualSymbol}
-              onChange={(e) => setManualSymbol(e.target.value)}
-              placeholder="Enter ticker (e.g., NVDA)"
-              style={{ flex: 1, padding: "0.55rem 0.75rem", background: "#020617", color: "#fff", borderRadius: "8px" }}
-              onKeyDown={(e) => e.key === "Enter" && runManualResearch()}
-            />
-            <button onClick={runManualResearch} disabled={manualLoading}>
-              {manualLoading ? "Analyzing…" : "Analyze"}
-            </button>
-          </div>
-
-          {manualError && (
-            <p style={{ color: "#ef4444", marginTop: "0.5rem" }}>{manualError}</p>
-          )}
-
-          {manual && !manualError && (
-            <div style={{ marginTop: "0.9rem" }}>
-              <h3>{formatDisplaySymbol({ input: manualSymbol, resolution: manualResult?.resolution })}</h3>
-              <span style={badgeStyle(manualDecision)}>{manualDecision}</span>
-              <span style={{ marginLeft: "0.5rem" }}>Conviction {manualConvPct}%</span>
-
-              <h4>Fundamental Assessment</h4>
-              <p>{fundamentalContext?.summary}</p>
-              {Array.isArray(fundamentalContext?.details) && (
-                <ul>
-                  {fundamentalContext.details.map((d, i) => (
-                    <li key={i}>{d}</li>
-                  ))}
-                </ul>
-              )}
-
-              {/* APPEND-ONLY PLACEHOLDER: Decision Drivers disclosure will be wired here (collapsed, numeric, non-generic) */}
-
-              <details style={{ marginTop: "0.75rem" }}>
-                <summary style={{ cursor: "pointer", fontWeight: 700 }}>
-                  Decision Drivers (numeric)
-                </summary>
-
-                {manual?.decisionDrivers && (
-                  <div style={{ marginTop: "0.5rem", fontSize: "0.8rem" }}>
-                    <div>
-                      <strong>Zone:</strong> {manual.decisionDrivers.zone}
-                    </div>
-                    <div style={{ opacity: 0.75 }}>
-                      {manual.decisionDrivers.zoneRationale}
-                    </div>
-
-                    {manual.decisionDrivers.zoneMath && (
-                      <details style={{ marginTop: "0.5rem" }}>
-                        <summary style={{ cursor: "pointer", fontWeight: 600 }}>
-                          Zone Math (deterministic thresholds)
-                        </summary>
-                        <div style={{ marginTop: "0.4rem", opacity: 0.85 }}>
-                          <div>
-                            <strong>Resolved Zone:</strong> {manual.decisionDrivers.zoneMath.zone}
-                          </div>
-                          {Array.isArray(manual.decisionDrivers.zoneMath.triggers) && (
-                            <ul style={{ marginTop: "0.25rem" }}>
-                              {manual.decisionDrivers.zoneMath.triggers.map((t, i) => (
-                                <li key={i}>{t}</li>
-                              ))}
-                            </ul>
-                          )}
-                        </div>
-                      </details>
-                    )}
-
-                    {manual.decisionDrivers.fundamentals && (
-                      <>
-                        <h5 style={{ marginTop: "0.5rem" }}>Fundamentals</h5>
-                        {Object.entries(manual.decisionDrivers.fundamentals).map(([k, v]) => (
-                          <div key={k} style={{ display: "flex", justifyContent: "space-between" }}>
-                            <span>{k}</span>
-                            <span>{String(v)}</span>
-                          </div>
-                        ))}
-                      </>
-                    )}
-
-                    {manual.decisionDrivers.technicals && (
-                      <>
-                        <h5 style={{ marginTop: "0.5rem" }}>Technicals</h5>
-                        {Object.entries(manual.decisionDrivers.technicals).map(([k, v]) => (
-                          <div key={k} style={{ display: "flex", justifyContent: "space-between" }}>
-                            <span>{k}</span>
-                            <span>{String(v)}</span>
-                          </div>
-                        ))}
-                      </>
-                    )}
-
-                    {manual.decisionDrivers.valuation && (
-                      <>
-                        <h5 style={{ marginTop: "0.5rem" }}>Valuation</h5>
-                        {Object.entries(manual.decisionDrivers.valuation).map(([k, v]) => (
-                          <div key={k} style={{ display: "flex", justifyContent: "space-between" }}>
-                            <span>{k}</span>
-                            <span>{String(v)}</span>
-                          </div>
-                        ))}
-                      </>
-                    )}
-                  </div>
-                )}
-              </details>
-            </div>
-          )}
-        </div>
-
-        {/* DISCOVERY EVALUATION CONSOLE */}
-        <div style={{ background: "#0f172a", padding: "1rem", borderRadius: "10px", marginTop: "1.5rem" }}>
-          <h3 style={{ margin: 0 }}>
-            Discovery Evaluation Console
-            <span style={cadenceStyle()}>Autonomous · Diagnostic · Read-only</span>
-          </h3>
-
-          <div style={{ display: "flex", gap: "1rem", marginTop: "0.75rem", fontSize: "0.8rem" }}>
-            <span style={{ cursor: "pointer" }} onClick={() => setEvalFilter("ALL")}>
-              Evaluated: <strong>{evaluatedCount}</strong>
-            </span>
-            <span style={{ cursor: "pointer", color: "#22c55e" }} onClick={() => setEvalFilter("SURFACED")}>
-              Surfaced: <strong>{surfacedCount}</strong>
-            </span>
-            <span style={{ cursor: "pointer", color: "#ef4444" }} onClick={() => setEvalFilter("REJECTED")}>
-              Rejected: <strong>{rejectedCount}</strong>
-            </span>
-          </div>
-
-          <table width="100%" cellPadding="8" style={{ marginTop: "0.75rem", fontSize: "0.75rem" }}>
-            <thead>
-              <tr style={{ opacity: 0.7 }}>
-                <th align="left">Symbol</th>
-                <th align="left">Outcome</th>
-                <th align="left">Reason</th>
-              </tr>
-            </thead>
-            <tbody>
-              {evaluationRows.map((r, i) => {
-                const isRejected = !!r?.rejectionReason;
-                return (
-                  <tr key={`eval-${getSymbol(r)}-${i}`}>
-                    <td>{getSymbol(r)}</td>
-                    <td>
-                      <span style={badgeStyle(isRejected ? "REJECTED" : "SURFACED")}>
-                        {isRejected ? "REJECTED" : "SURFACED"}
-                      </span>
-                    </td>
-                    <td>{isRejected ? r.rejectionReason : "Met discovery thresholds"}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-
-        {/* EMERGING THEMES */}
-        <h3 style={{ marginTop: "2.5rem" }}>
-          Emerging Themes
-          <span style={cadenceStyle()}>Structural · Slow cadence</span>
-        </h3>
-        {themes.length === 0 ? (
-          <p style={{ opacity: 0.6 }}>No emerging structural themes detected.</p>
-        ) : (
-          themes.map((t) => (
-            <div key={t.themeId} style={{ background: "#0f172a", padding: "1rem", borderRadius: "10px", marginBottom: "0.75rem" }}>
-              <strong>{t.label}</strong>
-              <p style={{ opacity: 0.85 }}>{t.explanation}</p>
-            </div>
-          ))
-        )}
-
-        {/* WATCHLIST */}
-        <h3 style={{ marginTop: "2.5rem" }}>
-          Watchlist Candidates
-          <span style={cadenceStyle()}>Observational · Medium cadence</span>
-        </h3>
-        {watchlistCandidates.length === 0 ? (
-          <p style={{ opacity: 0.6 }}>No assets currently meet monitoring criteria.</p>
-        ) : (
-          watchlistCandidates.map((w) => (
-            <div key={w.watchId} style={{ background: "#0b1220", padding: "0.9rem", borderRadius: "10px", marginBottom: "0.6rem" }}>
-              <strong>{w.symbol}</strong>
-              <p style={{ opacity: 0.7 }}>{w.monitorReason}</p>
-            </div>
-          ))
-        )}
-
-        {/* RANKED DISCOVERY */}
-        <h3 style={{ marginTop: "2.5rem" }}>
-          Ranked Market Discovery
-          <span style={cadenceStyle()}>Tactical · Fast cadence</span>
-        </h3>
-
-        <table width="100%" cellPadding="10">
-          <thead>
-            <tr>
-              <th>Rank</th>
-              <th>Symbol</th>
-              <th>Decision</th>
-              <th>Regime</th>
-              <th>Why It Surfaced</th>
-              <th>Confidence</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rankedRows.map((r) => {
-              const sym = getSymbol(r);
-              const factors = r.factorAttribution || {};
-              return (
-                <React.Fragment key={`${sym}-${r.rank}`}>
-                  <tr
-                    onClick={() => {
-                      setExpanded((p) => ({ ...p, [r.rank]: !p[r.rank] }));
-                      setSelectedInsight({ row: r });
-                      loadConfidenceHistory(sym);
-                    }}
-                  >
-                    <td>#{r.rank}</td>
-                    <td>{sym}</td>
-                    <td><span style={badgeStyle(r?.decision?.decision)}>{r?.decision?.decision}</span></td>
-                    <td>{r?.regime?.label}</td>
-                    <td>{r?.explanation?.plainEnglishSummary}</td>
-                    <td>{convictionLabelFromNormalized(r?.conviction?.normalized)}</td>
-                  </tr>
-
-                  {expanded[r.rank] && (
-                    <tr>
-                      <td colSpan={6} style={{ background: "#0f172a" }}>
-                        {Object.keys(factors).length === 0 ? (
-                          <p>No factor attribution available.</p>
-                        ) : (
-                          Object.entries(factors).map(([k, v]) => (
-                            <div key={k} style={{ display: "flex", justifyContent: "space-between" }}>
-                              <span>{k}</span>
-                              <span style={deltaStyle(v)}>{v.toFixed(2)}</span>
-                            </div>
-                          ))
-                        )}
-                      </td>
-                    </tr>
-                  )}
-                </React.Fragment>
-              );
-            })}
-          </tbody>
-        </table>
-
-        {/* TRAJECTORY WATCHLIST */}
-        <h3 style={{ marginTop: "2.5rem" }}>
-          Trajectory Watchlist
-          <span style={cadenceStyle()}>Structural · Long horizon</span>
-        </h3>
-
-        {rankedRows.filter((r) => r?.trajectoryMatch?.available).length === 0 ? (
-          <p style={{ opacity: 0.6 }}>No early trajectory patterns currently flagged.</p>
-        ) : (
-          rankedRows
-            .filter((r) => r?.trajectoryMatch?.available)
-            .map((r, i) => (
-              <div key={`${getSymbol(r)}-trajectory-${i}`} style={{ background: "#0b1220", padding: "0.9rem", borderRadius: "10px", marginBottom: "0.6rem" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
-                  <strong>{getSymbol(r)}</strong>
-                  <span style={{ marginLeft: "0.5rem" }}>{r.trajectoryMatch.label}</span>
-                  <span style={{ opacity: "0.75", fontWeight: 700 }}>
-                    {(Number(r.trajectoryMatch.confidence || 0) * 100).toFixed(1)}%
-                  </span>
-                </div>
-                <p style={{ opacity: 0.75 }}>{r.trajectoryMatch.explanation}</p>
-              </div>
-            ))
-        )}
       </div>
 
-      {/* RIGHT */}
-      <div style={{ flex: 1, background: "#020617", padding: "1.25rem", borderRadius: "12px" }}>
-        {!selectedInsight ? (
-          <p>Select a row to view insight.</p>
-        ) : (
-          <>
-            <h2>{getSymbol(selectedInsight.row)}</h2>
+      {/* Goal banner */}
+      <GoalBanner goal={goal} portfolioValue={portfolioValue} />
 
-            <div style={{ marginBottom: "1rem", paddingBottom: "0.75rem", borderBottom: "1px solid #0f172a" }}>
-              <h4>Insights</h4>
-              <p style={{ opacity: 0.85 }}>
-                {selectedInsight.row?.explanation?.plainEnglishSummary || "No synthesized insight available."}
-              </p>
-              {confidenceHistory.length > 0 && (
-                <p style={{ fontSize: "0.75rem", opacity: 0.7 }}>
-                  Confidence history points: {confidenceHistory.length}
-                </p>
-              )}
-            </div>
+      {/* Manual research */}
+      <ManualResearchPanel goalRemaining={goalRemaining} portfolioValue={portfolioValue} />
 
-            <h4>Factor Attribution</h4>
-            {Object.entries(selectedInsight.row.factorAttribution || {}).length === 0 ? (
-              <p>No factor attribution available.</p>
-            ) : (
-              Object.entries(selectedInsight.row.factorAttribution).map(([k, v]) => (
-                <div key={k} style={{ display: "flex", justifyContent: "space-between" }}>
-                  <span>{k}</span>
-                  <span style={deltaStyle(v)}>{v.toFixed(2)}</span>
+      {/* Eval stats */}
+      <div style={{
+        background: C.surface, border: `1px solid ${C.border}`,
+        borderBottom: "none",
+        borderRadius: "8px 8px 0 0",
+        padding: "12px 20px", display: "flex", gap: 24, alignItems: "center",
+      }}>
+        <div>
+          <span style={{ fontSize: 9, color: C.textDim, letterSpacing: "0.12em" }}>EVALUATED </span>
+          <span style={{ fontSize: 16, fontWeight: 800, color: C.text }}>{evalCount}</span>
+        </div>
+        <div style={{ width: 1, height: 18, background: C.border }} />
+        <div style={{ cursor: "pointer" }} onClick={() => setActiveTab("surfaced")}>
+          <span style={{ fontSize: 9, color: C.textDim, letterSpacing: "0.12em" }}>SURFACED </span>
+          <span style={{ fontSize: 16, fontWeight: 800, color: C.green }}>{surfCount}</span>
+        </div>
+        <div style={{ width: 1, height: 18, background: C.border }} />
+        <div style={{ cursor: "pointer" }} onClick={() => setActiveTab("rejected")}>
+          <span style={{ fontSize: 9, color: C.textDim, letterSpacing: "0.12em" }}>REJECTED </span>
+          <span style={{ fontSize: 16, fontWeight: 800, color: C.red }}>{rejCount}</span>
+        </div>
+        <div style={{ width: 1, height: 18, background: C.border }} />
+        <div style={{ cursor: "pointer" }} onClick={() => setActiveTab("themes")}>
+          <span style={{ fontSize: 9, color: C.textDim, letterSpacing: "0.12em" }}>THEMES </span>
+          <span style={{ fontSize: 16, fontWeight: 800, color: C.gold }}>{themedWithAccel.length}</span>
+        </div>
+      </div>
+
+      {/* Tab bar */}
+      <div style={{
+        display: "flex", background: C.surface,
+        border: `1px solid ${C.border}`, borderTop: `1px solid ${C.border}`,
+        borderBottom: `1px solid ${C.border}`,
+        marginBottom: 20,
+      }}>
+        <button style={tabStyle(activeTab === "surfaced")}  onClick={() => setActiveTab("surfaced")}>Surfaced</button>
+        <button style={tabStyle(activeTab === "rejected")}  onClick={() => setActiveTab("rejected")}>Re-entry Watchlist</button>
+        <button style={tabStyle(activeTab === "themes")}    onClick={() => setActiveTab("themes")}>Themes</button>
+        <button style={tabStyle(activeTab === "watchlist")} onClick={() => setActiveTab("watchlist")}>Monitoring</button>
+      </div>
+
+      {/* SURFACED */}
+      {activeTab === "surfaced" && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 10, animation: "fadeIn 0.2s ease" }}>
+          <SectionLabel sub="Autonomous · Factor-attributed · Trajectory-matched · Click to expand">
+            Ranked Candidates
+          </SectionLabel>
+          {rows.length === 0
+            ? <div style={{ textAlign: "center", padding: 48, color: C.textMuted, fontSize: 11 }}>No candidates surfaced under current regime and thresholds.</div>
+            : rows.map((r, i) => {
+                const key = getSymbol(r) + i;
+                return (
+                  <CandidateCard key={key} r={r} rank={r.rank ?? i + 1}
+                    expanded={!!expandedMap[key]} onToggle={() => toggleExpanded(key)}
+                    goalRemaining={goalRemaining} portfolioValue={portfolioValue}
+                  />
+                );
+              })
+          }
+        </div>
+      )}
+
+      {/* RE-ENTRY WATCHLIST */}
+      {activeTab === "rejected" && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 10, animation: "fadeIn 0.2s ease" }}>
+          <SectionLabel sub="Failed conviction gate · shows exactly what must change to resurface">
+            Re-entry Watchlist
+          </SectionLabel>
+          {rejectedRows.length === 0
+            ? <div style={{ textAlign: "center", padding: 48, color: C.textMuted, fontSize: 11 }}>No rejected candidates in current scan.</div>
+            : rejectedRows.map((r, i) => <ReEntryCard key={getSymbol(r) + i} r={r} />)
+          }
+        </div>
+      )}
+
+      {/* THEMES */}
+      {activeTab === "themes" && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 10, animation: "fadeIn 0.2s ease" }}>
+          {/* FIX: × rendered as real character, not \u00d7 escape */}
+          <SectionLabel sub="Ranked by acceleration potential (conviction × trajectory score)">
+            Structural Themes
+          </SectionLabel>
+          {themedWithAccel.length === 0
+            ? <div style={{ textAlign: "center", padding: 48, color: C.textMuted, fontSize: 11 }}>No structural themes detected.</div>
+            : themedWithAccel.map(t => <ThemeCard key={t.themeId} theme={t} accelerationScore={t.accelerationScore} />)
+          }
+
+          {/* Trajectory matches within themes tab */}
+          {rows.filter(r => r?.trajectoryMatch?.available && r.trajectoryMatch.label !== "NO_MATCH").length > 0 && (
+            <>
+              <Divider />
+              <SectionLabel sub="Structural · Long horizon · Projected at 5% position size">
+                Trajectory Matches
+              </SectionLabel>
+              {rows
+                .filter(r => r?.trajectoryMatch?.available && r.trajectoryMatch.label !== "NO_MATCH")
+                .map((r, i) => {
+                  const traj = r.trajectoryMatch;
+                  const pos  = portfolioValue * 0.05 || 5000;
+                  const proj = project2037(pos, traj.score || 0.25);
+                  return (
+                    <div key={getSymbol(r) + i} style={{
+                      background: C.surface, border: `1px solid ${C.border}`,
+                      borderLeft: `3px solid ${C.cyan}`, borderRadius: 8, padding: "14px 18px",
+                    }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 6, flexWrap: "wrap" }}>
+                            <span style={{ ...mono, fontSize: 14, fontWeight: 800, color: C.text }}>{getSymbol(r)}</span>
+                            <Badge label={traj.label.replace(/_/g, " ")} color={C.cyan} />
+                            <span style={{ ...mono, fontSize: 10, fontWeight: 700, color: C.cyan }}>
+                              {(Number(traj.confidence || traj.score || 0) * 100).toFixed(0)}% confidence
+                            </span>
+                          </div>
+                          <div style={{ ...mono, fontSize: 10, color: C.textSec, lineHeight: 1.6 }}>{traj.explanation}</div>
+                        </div>
+                        <div style={{ textAlign: "right", flexShrink: 0, marginLeft: 16 }}>
+                          <div style={{ ...mono, fontSize: 10, color: C.textDim, marginBottom: 2 }}>5% pos → 2037</div>
+                          <div style={{ ...mono, fontSize: 16, fontWeight: 800, color: C.green }}>{fmtMoney(proj)}</div>
+                          <div style={{ ...mono, fontSize: 9, color: C.textDim }}>from {fmtMoney(pos)}</div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+            </>
+          )}
+        </div>
+      )}
+
+      {/* MONITORING */}
+      {activeTab === "watchlist" && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 10, animation: "fadeIn 0.2s ease" }}>
+          <SectionLabel sub="Observational · Medium cadence · Signals mixed">Monitoring Queue</SectionLabel>
+          {watchlist.length === 0
+            ? <div style={{ textAlign: "center", padding: 48, color: C.textMuted, fontSize: 11 }}>No assets currently meet monitoring criteria.</div>
+            : watchlist.map(w => (
+                <div key={w.watchId} style={{
+                  background: C.surface, border: `1px solid ${C.border}`,
+                  borderRadius: 8, padding: "14px 18px",
+                }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                    <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                      <span style={{ ...mono, fontSize: 14, fontWeight: 800, color: C.text }}>{w.symbol}</span>
+                      <Badge label={w.confidenceQualifier || "Monitoring"} color={C.gold} />
+                      {w.regime && <span style={{ ...mono, fontSize: 9, color: C.textDim }}>{w.regime}</span>}
+                    </div>
+                  </div>
+                  <div style={{ ...mono, fontSize: 10, color: C.textSec, marginBottom: 10, lineHeight: 1.6 }}>{w.monitorReason}</div>
+                  {w.upgradeTriggers?.length > 0 && (
+                    <div style={{ marginBottom: 8 }}>
+                      <div style={{ ...mono, fontSize: 9, color: C.green, letterSpacing: "0.1em", marginBottom: 4 }}>UPGRADE TRIGGERS</div>
+                      {w.upgradeTriggers.map((t, i) => (
+                        <div key={i} style={{ display: "flex", gap: 6, marginBottom: 3 }}>
+                          <span style={{ color: C.green }}>▷</span>
+                          <span style={{ ...mono, fontSize: 10, color: C.textSec }}>{t}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {w.downgradeTriggers?.length > 0 && (
+                    <div>
+                      <div style={{ ...mono, fontSize: 9, color: C.red, letterSpacing: "0.1em", marginBottom: 4 }}>DOWNGRADE TRIGGERS</div>
+                      {w.downgradeTriggers.map((t, i) => (
+                        <div key={i} style={{ display: "flex", gap: 6, marginBottom: 3 }}>
+                          <span style={{ color: C.red }}>▷</span>
+                          <span style={{ ...mono, fontSize: 10, color: C.textSec }}>{t}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               ))
-            )}
-
-            {selectedInsight.row?.fundamentalsAudit && (
-              <>
-                <h4>Fundamentals Audit</h4>
-                {Object.entries(selectedInsight.row.fundamentalsAudit.categories).map(([k, v]) => (
-                  <div key={k} style={{ display: "flex", justifyContent: "space-between" }}>
-                    <span>{k}</span>
-                    <span style={badgeStyle(v.status)}>{v.status}</span>
-                  </div>
-                ))}
-              </>
-            )}
-          </>
-        )}
-      </div>
+          }
+        </div>
+      )}
     </div>
   );
 }

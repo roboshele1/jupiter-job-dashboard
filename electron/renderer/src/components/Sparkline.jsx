@@ -1,15 +1,28 @@
-import React from "react";
-import { Sparklines, SparklinesLine } from "react-sparklines";
-
 export default function Sparkline({ data }) {
-  if (!data || data.length === 0) return null;
+  if (!data || data.length < 2) return null;
+
+  const width = 100;
+  const height = 40;
+  const min = Math.min(...data);
+  const max = Math.max(...data);
+  const range = max - min || 1;
+
+  const points = data.map((v, i) => {
+    const x = (i / (data.length - 1)) * width;
+    const y = height - ((v - min) / range) * height;
+    return `${x},${y}`;
+  }).join(" ");
 
   return (
-    <div className="sparkline-container">
-      <Sparklines data={data} limit={30} width={100} height={40} margin={5}>
-        <SparklinesLine color="#4caf50" style={{ strokeWidth: 2, fill: "none" }} />
-      </Sparklines>
-    </div>
+    <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`}>
+      <polyline
+        points={points}
+        fill="none"
+        stroke="#4caf50"
+        strokeWidth="2"
+        strokeLinejoin="round"
+        strokeLinecap="round"
+      />
+    </svg>
   );
 }
-

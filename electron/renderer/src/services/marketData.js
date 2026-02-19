@@ -2,14 +2,15 @@ import axios from "axios";
 
 const POLYGON_API_KEY = "jyA2YblY5AP7pkvNtyBhpfTNQcSczcAS";
 
-export async function fetchLiveQuotes(symbols = ["AAPL", "MSFT", "NVDA"]) {
+export async function fetchLiveQuotes(symbols = []) {
   const results = {};
   for (const symbol of symbols) {
     try {
       const resp = await axios.get(
         `https://api.polygon.io/v2/aggs/ticker/${symbol}/prev?adjusted=true&apiKey=${POLYGON_API_KEY}`
       );
-      const data = resp.data.results[0];
+      const data = resp.data?.results?.[0];
+      if (!data) throw new Error("No data returned");
       results[symbol] = {
         symbol,
         price: data.c,
@@ -26,4 +27,3 @@ export async function fetchLiveQuotes(symbols = ["AAPL", "MSFT", "NVDA"]) {
   }
   return results;
 }
-

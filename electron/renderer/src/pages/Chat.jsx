@@ -1,7 +1,7 @@
 // ~/JUPITER/electron/renderer/src/pages/Chat.jsx
 
 import { useState } from "react";
-import { fetchLiveQuotes } from "../../services/marketData";
+import { fetchLiveQuotes } from "../services/marketData";
 
 /*
 Phase 2B — Step 9 (System Hardening – Chat)

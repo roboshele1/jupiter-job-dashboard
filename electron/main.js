@@ -50,7 +50,11 @@ function createWindow() {
     }
   });
 
-  mainWindow.loadURL(process.env.VITE_DEV_SERVER_URL);
+  if (process.env.VITE_DEV_SERVER_URL) {
+    mainWindow.loadURL(process.env.VITE_DEV_SERVER_URL);
+  } else {
+    mainWindow.loadFile(require("path").join(__dirname, "../renderer/dist/index.html"));
+  }
 }
 
 // -----------------------------------------------------

@@ -1,475 +1,739 @@
-// renderer/pages/GrowthEngine.jsx
-import React, { useEffect, useMemo, useState } from "react";
-import { runPortfolioGrowthIntelligence } from "../insights/portfolioGrowthIntelligenceEngine.js";
-import { runAssetInjectionIntelligence } from "../insights/assetInjectionIntelligenceEngine.js";
+import { useState, useEffect, useCallback } from "react";
+import { CAGR, getCAGR } from "../constants/cagrAssumptions.js";
 
-const RISK_UI = {
-  FEASIBLE: {
-    label: "FEASIBLE",
-    color: "#16a34a",
-    background: "rgba(22,163,74,0.15)",
-    tooltip: "Required return is within normal long-term expectations.",
-  },
-  OUT_OF_BOUNDS: {
-    label: "OUT OF BOUNDS",
-    color: "#f59e0b",
-    background: "rgba(245,158,11,0.15)",
-    tooltip: "Required return exceeds expected performance; implies higher risk.",
-  },
-  EXTREME: {
-    label: "EXTREME RISK",
-    color: "#dc2626",
-    background: "rgba(220,38,38,0.15)",
-    tooltip: "Historically uncommon without leverage or concentration.",
-  },
+// ─── colour tokens (project-wide pattern) ────────────────────────────────────
+const C = {
+  bg:        "#060910",
+  surface:   "#0c1220",
+  surface2:  "#111827",
+  border:    "#1e2d45",
+  borderHi:  "#2a3f5f",
+  accent:    "#3b82f6",
+  accentDim: "#1d4ed8",
+  green:     "#22c55e",
+  greenDim:  "#166534",
+  yellow:    "#eab308",
+  yellowDim: "#713f12",
+  red:       "#ef4444",
+  redDim:    "#7f1d1d",
+  text:      "#e2e8f0",
+  textMuted: "#64748b",
+  textDim:   "#94a3b8",
 };
 
-function money(n) {
-  const x = Number(n || 0);
-  return `$${x.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-}
+// ─── helpers ─────────────────────────────────────────────────────────────────
+const fmt$ = (n) =>
+  n >= 1_000_000
+    ? `$${(n / 1_000_000).toFixed(2)}M`
+    : n >= 1_000
+    ? `$${(n / 1_000).toFixed(1)}k`
+    : `$${n.toFixed(0)}`;
 
-function pct2(n) {
-  const x = Number(n || 0);
-  return `${x.toFixed(2)}%`;
-}
+const fmtPct = (n, decimals = 1) => `${n >= 0 ? "+" : ""}${n.toFixed(decimals)}%`;
 
-export default function GrowthEngine() {
-  // =========================
-  // PORTFOLIO INPUTS (LEFT AS-IS)
-  // =========================
-  const [startingValue, setStartingValue] = useState(85000);
-  const [targetValue, setTargetValue] = useState(250000);
-  const [months, setMonths] = useState(60);
-  const [expectedReturnPct, setExpectedReturnPct] = useState(10.0);
-  const [aggressiveReturnPct, setAggressiveReturnPct] = useState(18.0);
+// project value at end of year using compound growth
+const projectValue = (start, monthly, years, annualRate) => {
+  const r = annualRate / 12;
+  const months = years * 12;
+  const lumpGrowth = start * Math.pow(1 + r, months);
+  const contribGrowth = monthly * ((Math.pow(1 + r, months) - 1) / r);
+  return lumpGrowth + contribGrowth;
+};
 
-  // =========================
-  // CANDIDATE INPUTS (LEFT AS-IS + candidateMonths)
-  // =========================
-  const [symbol, setSymbol] = useState("MSTR");
-  const [amount, setAmount] = useState(13466);
-  const [assumedCagrPct, setAssumedCagrPct] = useState(30.0);
-  const [targetedValue, setTargetedValue] = useState(50000);
+// ─── sub-components ──────────────────────────────────────────────────────────
 
-  // Decoupled horizon for candidate injections
-  const [candidateMonths, setCandidateMonths] = useState(60);
+/** Single year milestone row */
+const MilestoneRow = ({ year, value, goal }) => {
+  const pct = Math.min((value / goal) * 100, 100);
+  const reached = value >= goal;
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "8px 0" }}>
+      <span style={{ fontFamily: "IBM Plex Mono", fontSize: 12, color: C.textMuted, width: 50 }}>
+        {year}
+      </span>
+      <div style={{ flex: 1, height: 4, background: C.border, borderRadius: 2, overflow: "hidden" }}>
+        <div
+          style={{
+            width: `${pct}%`,
+            height: "100%",
+            background: reached ? C.green : C.accent,
+            borderRadius: 2,
+            transition: "width 0.6s ease",
+          }}
+        />
+      </div>
+      <span
+        style={{
+          fontFamily: "IBM Plex Mono",
+          fontSize: 12,
+          color: reached ? C.green : C.text,
+          width: 90,
+          textAlign: "right",
+          fontWeight: reached ? 700 : 400,
+        }}
+      >
+        {fmt$(value)}
+      </span>
+      {reached && (
+        <span style={{ fontSize: 11, color: C.green, fontFamily: "IBM Plex Mono" }}>✓ GOAL</span>
+      )}
+    </div>
+  );
+};
 
-  // Back-solve required PV for candidate-only math
-  useEffect(() => {
-    if (targetedValue > 0 && assumedCagrPct > 0 && candidateMonths > 0) {
-      const r = assumedCagrPct / 100;
-      const tYears = candidateMonths / 12;
-      const pv = targetedValue / Math.pow(1 + r, tYears);
-      setAmount(Math.round(pv));
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [targetedValue, assumedCagrPct, candidateMonths]);
-
-  // =========================
-  // RESULTS (DECOUPLED)
-  // =========================
-  const [portfolioOut, setPortfolioOut] = useState(null);
-  const [candidateOut, setCandidateOut] = useState(null);
-  const [loadingPortfolio, setLoadingPortfolio] = useState(false);
-  const [loadingCandidate, setLoadingCandidate] = useState(false);
-
-  async function runPortfolio() {
-    setLoadingPortfolio(true);
-    try {
-      const out = runPortfolioGrowthIntelligence({
-        startingValue,
-        targetValue,
-        horizonMonths: months,
-        expectedReturnPct,
-        aggressiveReturnPct,
-      });
-      setPortfolioOut(out);
-    } finally {
-      setLoadingPortfolio(false);
-    }
-  }
-
-  async function runCandidate() {
-    setLoadingCandidate(true);
-    try {
-      const out = runAssetInjectionIntelligence({
-        symbol,
-        startingAmount: amount,
-        targetAmount: targetedValue,
-        horizonMonths: candidateMonths,
-        assumedCagrPct,
-      });
-      setCandidateOut(out);
-    } finally {
-      setLoadingCandidate(false);
-    }
-  }
-
-  // Default compute once so UI isn’t blank
-  useEffect(() => {
-    runPortfolio();
-    runCandidate();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  const requiredCagrPct = portfolioOut?.requiredCAGR ?? 0;
-  const feasibilityKey = portfolioOut?.feasibility ?? "EXTREME";
-  const riskBadge = RISK_UI[feasibilityKey] || RISK_UI.EXTREME;
-
-  // What matters most bars (portfolio-only)
-  const mattersMost = useMemo(() => {
-    const pv = Number(startingValue || 0);
-    const fv = Number(targetValue || 0);
-    const m = Number(months || 0);
-
-    if (pv <= 0 || fv <= 0 || m <= 0) {
-      return [
-        { key: "Time", value: 0.33 },
-        { key: "Target", value: 0.33 },
-        { key: "Return", value: 0.34 },
-      ];
-    }
-
-    const reqNow = Math.pow(fv / pv, 12 / m) - 1;
-    const reqMoreTime = Math.pow(fv / pv, 12 / (m + 12)) - 1;
-    const reqLowerTarget = Math.pow((fv * 0.9) / pv, 12 / m) - 1;
-
-    const timeImpact = Math.abs(reqMoreTime - reqNow);
-    const targetImpact = Math.abs(reqLowerTarget - reqNow);
-    const returnImpact = Math.abs((expectedReturnPct / 100) - reqNow);
-
-    const max = Math.max(timeImpact, targetImpact, returnImpact, 1e-9);
-
-    return [
-      { key: "Time", value: timeImpact / max },
-      { key: "Target", value: targetImpact / max },
-      { key: "Return", value: returnImpact / max },
-    ];
-  }, [startingValue, targetValue, months, expectedReturnPct]);
-
-  // Growth curve (portfolio-only)
-  const curve = useMemo(() => {
-    const pv = Number(startingValue || 0);
-    const m = Number(months || 0);
-    if (pv <= 0 || m <= 0) return [];
-
-    const reqAnnual = (requiredCagrPct || 0) / 100;
-    const reqMonthly = Math.pow(1 + reqAnnual, 1 / 12) - 1;
-    const expMonthly = (Number(expectedReturnPct || 0) / 100) / 12;
-
-    const pts = [];
-    let req = pv;
-    let exp = pv;
-
-    for (let i = 0; i <= m; i++) {
-      pts.push({ month: i, required: req, expected: exp });
-      req = req * (1 + reqMonthly);
-      exp = exp * (1 + expMonthly);
-    }
-    return pts;
-  }, [startingValue, months, requiredCagrPct, expectedReturnPct]);
-
-  const curveMax = useMemo(() => {
-    if (!curve.length) return 1;
-    return Math.max(...curve.map(p => Math.max(p.required, p.expected)), 1);
-  }, [curve]);
-
-  // Candidate rows (candidate-only; no portfolio fields)
-  const candidateRows = useMemo(() => {
-    if (!candidateOut) return [];
-    return [
-      {
-        symbol: candidateOut.symbol,
-        amount: Number(candidateOut.startingAmount || 0),
-        assumedCAGR: Number(candidateOut.assumedCagrPct || 0) / 100,
-        projectedValue: Number(candidateOut.projectedValue || 0),
-        gapAtHorizon: Number(candidateOut.gapAtHorizon || 0),
-      },
-    ];
-  }, [candidateOut]);
-
-  const howCalculated = useMemo(() => {
-    return {
-      summary: `To grow from ${Number(startingValue).toLocaleString()} to ${Number(targetValue).toLocaleString()} over ${Number(months)} months, the portfolio must compound at ${pct2(requiredCagrPct)} annually.`,
-      variables: [
-        `Starting value: ${Number(startingValue).toLocaleString()}`,
-        `Target value: ${Number(targetValue).toLocaleString()}`,
-        `Time horizon: ${Number(months)} months`,
-        `Expected return assumption: ${pct2(expectedReturnPct)}`,
-        `Aggressive return threshold: ${pct2(aggressiveReturnPct)}`,
-      ],
-      interpretation: portfolioOut?.interpretation || "—",
-    };
-  }, [startingValue, targetValue, months, requiredCagrPct, expectedReturnPct, aggressiveReturnPct, portfolioOut]);
+/** Kelly allocation card for a single ticker */
+const AllocationCard = ({ ticker, dollarAmount, kellyWeight, currentPct, kellyPct }) => {
+  const drift = kellyPct - currentPct;
+  const driftColor = drift > 2 ? C.green : drift < -2 ? C.red : C.yellow;
+  const driftLabel = drift > 2 ? "UNDERWEIGHT" : drift < -2 ? "OVERWEIGHT" : "NEAR TARGET";
 
   return (
-    <div style={{ padding: 24 }}>
-      <h1>Growth Engine</h1>
-      <p>Renderer-only growth analysis. No IPC math. Governed engine via IPC.</p>
-
+    <div
+      style={{
+        background: C.surface2,
+        border: `1px solid ${C.border}`,
+        borderLeft: `3px solid ${C.accent}`,
+        borderRadius: 8,
+        padding: "14px 16px",
+        display: "flex",
+        alignItems: "center",
+        gap: 16,
+        transition: "border-color 0.2s",
+      }}
+      onMouseEnter={(e) => (e.currentTarget.style.borderColor = C.borderHi)}
+      onMouseLeave={(e) => (e.currentTarget.style.borderColor = C.border)}
+    >
+      {/* ticker badge */}
       <div
-        title={riskBadge.tooltip}
         style={{
-          display: "inline-block",
-          marginTop: 12,
-          marginBottom: 16,
-          padding: "8px 16px",
-          borderRadius: 999,
-          color: riskBadge.color,
-          background: riskBadge.background,
-          fontWeight: 600,
-          marginRight: 12,
+          width: 52,
+          height: 52,
+          background: C.surface,
+          border: `1px solid ${C.borderHi}`,
+          borderRadius: 8,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          flexShrink: 0,
         }}
       >
-        {riskBadge.label}
+        <span
+          style={{
+            fontFamily: "IBM Plex Mono",
+            fontSize: ticker.length > 4 ? 9 : 11,
+            fontWeight: 700,
+            color: C.text,
+            letterSpacing: "0.05em",
+          }}
+        >
+          {ticker}
+        </span>
       </div>
 
-      <button
-        onClick={runPortfolio}
-        disabled={loadingPortfolio}
+      {/* dollar allocation — primary info */}
+      <div style={{ flex: 1 }}>
+        <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
+          <span
+            style={{
+              fontFamily: "IBM Plex Mono",
+              fontSize: 20,
+              fontWeight: 700,
+              color: C.green,
+              letterSpacing: "-0.02em",
+            }}
+          >
+            {fmt$(dollarAmount)}
+          </span>
+          <span style={{ fontFamily: "IBM Plex Mono", fontSize: 11, color: C.textMuted }}>
+            {(kellyWeight * 100).toFixed(1)}% of contrib
+          </span>
+        </div>
+        <div style={{ display: "flex", gap: 16, marginTop: 6 }}>
+          <span style={{ fontFamily: "IBM Plex Mono", fontSize: 11, color: C.textMuted }}>
+            current&nbsp;
+            <span style={{ color: C.textDim }}>{currentPct.toFixed(1)}%</span>
+          </span>
+          <span style={{ fontFamily: "IBM Plex Mono", fontSize: 11, color: C.textMuted }}>
+            kelly target&nbsp;
+            <span style={{ color: C.accent }}>{kellyPct.toFixed(1)}%</span>
+          </span>
+        </div>
+      </div>
+
+      {/* drift badge */}
+      <div
         style={{
-          padding: "10px 16px",
-          borderRadius: 10,
-          border: "none",
-          background: "#2563eb",
-          color: "white",
-          fontWeight: 600,
-          cursor: "pointer",
-          marginRight: 10,
+          padding: "4px 10px",
+          background: `${driftColor}18`,
+          border: `1px solid ${driftColor}44`,
+          borderRadius: 6,
+          textAlign: "center",
+          flexShrink: 0,
         }}
       >
-        {loadingPortfolio ? "Running…" : "Run Portfolio Intelligence"}
-      </button>
+        <div style={{ fontFamily: "IBM Plex Mono", fontSize: 11, fontWeight: 700, color: driftColor }}>
+          {fmtPct(drift)}
+        </div>
+        <div style={{ fontFamily: "IBM Plex Mono", fontSize: 9, color: `${driftColor}cc`, marginTop: 2 }}>
+          {driftLabel}
+        </div>
+      </div>
+    </div>
+  );
+};
 
-      <button
-        onClick={runCandidate}
-        disabled={loadingCandidate}
+// ─── loading / error skeletons ────────────────────────────────────────────────
+const Skeleton = ({ w = "100%", h = 16, radius = 4 }) => (
+  <div
+    style={{
+      width: w,
+      height: h,
+      background: C.surface2,
+      borderRadius: radius,
+      animation: "pulse 1.5s ease-in-out infinite",
+    }}
+  />
+);
+
+// ─── main component ───────────────────────────────────────────────────────────
+export default function GrowthEngine() {
+  // ── form state ────────────────────────────────────────────────────────────
+  const [startValue, setStartValue]   = useState(100_000);
+  const [monthly, setMonthly]         = useState(500);
+  const [targetYear, setTargetYear]   = useState(2037);
+  const [blendedRate, setBlendedRate] = useState(0.22); // 22% default
+
+  // ── kelly data ────────────────────────────────────────────────────────────
+  const [kellyData, setKellyData]   = useState(null);
+  const [kellyError, setKellyError] = useState(null);
+  const [kellyLoading, setKellyLoading] = useState(true);
+
+  // ── portfolio snapshot (for current allocation %) ─────────────────────────
+  const [portfolioValue, setPortfolioValue] = useState(null);
+
+  const loadKelly = useCallback(async () => {
+    setKellyLoading(true);
+    setKellyError(null);
+    try {
+      const result = await window.jupiter.invoke("decisions:getKellyRecommendations");
+      setKellyData(result);
+      if (result?.portfolioValue) setPortfolioValue(result.portfolioValue);
+    } catch (err) {
+      setKellyError(err?.message ?? "Failed to load Kelly recommendations");
+    } finally {
+      setKellyLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadKelly();
+  }, [loadKelly]);
+
+  // ── projection maths ──────────────────────────────────────────────────────
+  const startYear = new Date().getFullYear();
+  const years     = targetYear - startYear;
+  const goal      = 1_000_000;
+
+  const milestones = Array.from({ length: years }, (_, i) => {
+    const y = startYear + i + 1;
+    return { year: y, value: projectValue(startValue, monthly, i + 1, blendedRate) };
+  });
+
+  const finalValue      = milestones[milestones.length - 1]?.value ?? 0;
+  const goalYear        = milestones.find((m) => m.value >= goal)?.year ?? null;
+  const yearsToGoal     = goalYear ? goalYear - startYear : null;
+  const shortfall       = Math.max(goal - finalValue, 0);
+  const isOnTrack       = finalValue >= goal;
+
+  // ── allocation maths ──────────────────────────────────────────────────────
+  // Filter to BUY / BUY_MORE only, sort by Kelly weight descending
+  const buyActions = (kellyData?.actions ?? [])
+    .filter((a) => a.action === "BUY" || a.action === "BUY_MORE")
+    .sort((a, b) => (b.kellyWeight ?? 0) - (a.kellyWeight ?? 0));
+
+  const totalKellyWeight = buyActions.reduce((s, a) => s + (a.kellyWeight ?? 0), 0);
+
+  // Re-normalise among buyable actions so weights sum to 1
+  const allocations = buyActions.map((a) => {
+    const normalisedWeight = totalKellyWeight > 0 ? (a.kellyWeight ?? 0) / totalKellyWeight : 0;
+    const dollarAmount     = monthly * normalisedWeight;
+    const pV               = portfolioValue ?? kellyData?.portfolioValue ?? startValue;
+    const currentPct       = pV > 0 ? ((a.currentValue ?? 0) / pV) * 100 : 0;
+    const kellyPct         = (a.kellyWeight ?? 0) * 100; // raw Kelly % of total portfolio
+
+    return {
+      ticker:         a.ticker,
+      dollarAmount,
+      kellyWeight:    normalisedWeight,
+      currentPct,
+      kellyPct,
+    };
+  });
+
+  // ─── render ───────────────────────────────────────────────────────────────
+  return (
+    <div
+      style={{
+        minHeight: "100vh",
+        background: C.bg,
+        color: C.text,
+        fontFamily: "IBM Plex Mono, monospace",
+        padding: "32px 40px",
+        maxWidth: 960,
+        margin: "0 auto",
+      }}
+    >
+      {/* ── header ── */}
+      <div style={{ marginBottom: 36 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
+          <div
+            style={{
+              width: 6,
+              height: 28,
+              background: `linear-gradient(180deg, ${C.accent}, ${C.green})`,
+              borderRadius: 3,
+            }}
+          />
+          <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0, letterSpacing: "-0.02em" }}>
+            GROWTH ENGINE
+          </h1>
+        </div>
+        <p style={{ fontSize: 12, color: C.textMuted, margin: 0, paddingLeft: 16 }}>
+          Compound projection · Kelly-optimal contribution allocation · $100k → $1M
+        </p>
+      </div>
+
+      {/* ── inputs ── */}
+      <div
         style={{
-          padding: "10px 16px",
-          borderRadius: 10,
-          border: "none",
-          background: "rgba(255,255,255,0.12)",
-          color: "white",
-          fontWeight: 600,
-          cursor: "pointer",
+          background: C.surface,
+          border: `1px solid ${C.border}`,
+          borderRadius: 12,
+          padding: "24px 28px",
+          marginBottom: 28,
         }}
       >
-        {loadingCandidate ? "Evaluating…" : "Evaluate Candidate Injection"}
-      </button>
-
-      {/* Inputs */}
-      <section style={{ marginTop: 32 }}>
-        <h3>Inputs</h3>
-
-        <label>
-          Starting Value
-          <input type="number" value={startingValue} onChange={e => setStartingValue(+e.target.value)} />
-        </label>
-
-        <label>
-          Target Value
-          <input type="number" value={targetValue} onChange={e => setTargetValue(+e.target.value)} />
-        </label>
-
-        <label>
-          Months
-          <input type="number" value={months} onChange={e => setMonths(+e.target.value)} />
-        </label>
-
-        <label>
-          Expected Return (%)
-          <input
-            type="number"
-            step="0.1"
-            value={Number(expectedReturnPct).toFixed(2)}
-            onChange={e => setExpectedReturnPct(+e.target.value)}
-          />
-        </label>
-
-        <label>
-          Aggressive Return (%)
-          <input
-            type="number"
-            step="0.1"
-            value={Number(aggressiveReturnPct).toFixed(2)}
-            onChange={e => setAggressiveReturnPct(+e.target.value)}
-          />
-        </label>
-      </section>
-
-      {/* Candidate Injection */}
-      <section style={{ marginTop: 40 }}>
-        <h3>Candidate Injection (Interactive)</h3>
-
-        <label>
-          Symbol
-          <select value={symbol} onChange={e => setSymbol(e.target.value)}>
-            <option value="MSTR">MSTR</option>
-            <option value="NVDA">NVDA</option>
-            <option value="ASML">ASML</option>
-            <option value="AVGO">AVGO</option>
-          </select>
-        </label>
-
-        <label>
-          Amount
-          <input type="number" value={amount} onChange={e => setAmount(+e.target.value)} />
-        </label>
-
-        <label>
-          Assumed CAGR (%)
-          <input
-            type="number"
-            step="0.1"
-            value={Number(assumedCagrPct).toFixed(2)}
-            onChange={e => setAssumedCagrPct(+e.target.value)}
-          />
-        </label>
-
-        <label>
-          Horizon (Months)
-          <input type="number" value={candidateMonths} onChange={e => setCandidateMonths(+e.target.value)} />
-        </label>
-
-        <label>
-          Targeted Value ($)
-          <input type="number" value={targetedValue} onChange={e => setTargetedValue(+e.target.value)} />
-        </label>
-      </section>
-
-      {/* What matters most */}
-      <section style={{ marginTop: 40 }}>
-        <h3>What matters most</h3>
-        {mattersMost.map(x => (
-          <div key={x.key} style={{ marginBottom: 8 }}>
-            <div style={{ fontSize: 12 }}>{x.key}</div>
-            <div style={{ height: 10, borderRadius: 6, background: "rgba(255,255,255,0.08)" }}>
+        <div style={{ fontSize: 11, color: C.textMuted, marginBottom: 20, letterSpacing: "0.08em" }}>
+          PROJECTION PARAMETERS
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 20 }}>
+          {[
+            {
+              label: "Starting Value",
+              value: startValue,
+              set: (v) => setStartValue(Number(v)),
+              prefix: "$",
+              step: 1000,
+              min: 0,
+            },
+            {
+              label: "Monthly Contribution",
+              value: monthly,
+              set: (v) => setMonthly(Number(v)),
+              prefix: "$",
+              step: 100,
+              min: 0,
+            },
+            {
+              label: "Target Year",
+              value: targetYear,
+              set: (v) => setTargetYear(Number(v)),
+              prefix: "",
+              step: 1,
+              min: startYear + 1,
+            },
+            {
+              label: "Blended CAGR %",
+              value: (blendedRate * 100).toFixed(0),
+              set: (v) => setBlendedRate(Number(v) / 100),
+              prefix: "",
+              step: 1,
+              min: 1,
+              max: 80,
+            },
+          ].map(({ label, value, set, prefix, step, min, max }) => (
+            <div key={label}>
+              <div style={{ fontSize: 10, color: C.textMuted, marginBottom: 6, letterSpacing: "0.06em" }}>
+                {label}
+              </div>
               <div
                 style={{
-                  width: `${Math.round(x.value * 100)}%`,
-                  height: "100%",
+                  display: "flex",
+                  alignItems: "center",
+                  background: C.surface2,
+                  border: `1px solid ${C.border}`,
                   borderRadius: 6,
-                  background: x.key === "Time" ? "#3b82f6" : x.key === "Target" ? "#f59e0b" : "#dc2626",
+                  padding: "0 10px",
+                  gap: 4,
                 }}
-              />
+              >
+                {prefix && (
+                  <span style={{ fontSize: 13, color: C.textMuted }}>{prefix}</span>
+                )}
+                <input
+                  type="number"
+                  value={value}
+                  onChange={(e) => set(e.target.value)}
+                  step={step}
+                  min={min}
+                  max={max}
+                  style={{
+                    background: "transparent",
+                    border: "none",
+                    outline: "none",
+                    color: C.text,
+                    fontFamily: "IBM Plex Mono",
+                    fontSize: 14,
+                    fontWeight: 600,
+                    padding: "10px 0",
+                    width: "100%",
+                  }}
+                />
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* ── projection summary banner ── */}
+      <div
+        style={{
+          background: isOnTrack
+            ? `linear-gradient(135deg, ${C.greenDim}44, ${C.surface})`
+            : `linear-gradient(135deg, ${C.yellowDim}44, ${C.surface})`,
+          border: `1px solid ${isOnTrack ? C.green : C.yellow}44`,
+          borderRadius: 12,
+          padding: "20px 28px",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          marginBottom: 28,
+        }}
+      >
+        <div>
+          <div style={{ fontSize: 11, color: C.textMuted, marginBottom: 6, letterSpacing: "0.08em" }}>
+            PROJECTED VALUE BY {targetYear}
+          </div>
+          <div style={{ fontSize: 32, fontWeight: 700, color: isOnTrack ? C.green : C.yellow }}>
+            {fmt$(finalValue)}
+          </div>
+        </div>
+        <div style={{ textAlign: "right" }}>
+          {isOnTrack ? (
+            <>
+              <div style={{ fontSize: 11, color: C.textMuted, marginBottom: 4 }}>GOAL REACHED</div>
+              <div style={{ fontSize: 20, fontWeight: 700, color: C.green }}>{goalYear}</div>
+              <div style={{ fontSize: 11, color: C.green, marginTop: 2 }}>
+                {yearsToGoal} year{yearsToGoal !== 1 ? "s" : ""} to $1M
+              </div>
+            </>
+          ) : (
+            <>
+              <div style={{ fontSize: 11, color: C.textMuted, marginBottom: 4 }}>SHORTFALL</div>
+              <div style={{ fontSize: 20, fontWeight: 700, color: C.yellow }}>{fmt$(shortfall)}</div>
+              <div style={{ fontSize: 11, color: C.yellow, marginTop: 2 }}>below $1M target</div>
+            </>
+          )}
+        </div>
+      </div>
+
+      {/* ── milestone chart ── */}
+      <div
+        style={{
+          background: C.surface,
+          border: `1px solid ${C.border}`,
+          borderRadius: 12,
+          padding: "24px 28px",
+          marginBottom: 36,
+        }}
+      >
+        <div style={{ fontSize: 11, color: C.textMuted, marginBottom: 16, letterSpacing: "0.08em" }}>
+          YEAR-BY-YEAR PROJECTION
+        </div>
+        {milestones.map((m) => (
+          <MilestoneRow key={m.year} year={m.year} value={m.value} goal={goal} />
+        ))}
+      </div>
+
+      {/* ════════════════════════════════════════════════════════════════════
+          ALLOCATION RECOMMENDATION — NEW SECTION
+          ════════════════════════════════════════════════════════════════════ */}
+      <div
+        style={{
+          background: C.surface,
+          border: `1px solid ${C.borderHi}`,
+          borderRadius: 12,
+          padding: "28px 28px",
+          position: "relative",
+          overflow: "hidden",
+        }}
+      >
+        {/* subtle accent bar top */}
+        <div
+          style={{
+            position: "absolute",
+            top: 0,
+            left: 0,
+            right: 0,
+            height: 2,
+            background: `linear-gradient(90deg, ${C.accent}, ${C.green})`,
+          }}
+        />
+
+        {/* section header */}
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+          <div>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+              <div
+                style={{
+                  width: 20,
+                  height: 20,
+                  background: `${C.accent}22`,
+                  border: `1px solid ${C.accent}55`,
+                  borderRadius: 4,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  fontSize: 11,
+                  color: C.accent,
+                  fontWeight: 700,
+                }}
+              >
+                ⚡
+              </div>
+              <span style={{ fontSize: 13, fontWeight: 700, letterSpacing: "0.08em" }}>
+                ALLOCATION RECOMMENDATION
+              </span>
+            </div>
+            <p style={{ fontSize: 11, color: C.textMuted, margin: 0, paddingLeft: 28 }}>
+              Kelly-optimal split of your{" "}
+              <span style={{ color: C.green, fontWeight: 700 }}>{fmt$(monthly)}/month</span>{" "}
+              contribution across BUY / BUY_MORE positions · corrects portfolio drift
+            </p>
+          </div>
+          <button
+            onClick={loadKelly}
+            disabled={kellyLoading}
+            style={{
+              background: "transparent",
+              border: `1px solid ${C.border}`,
+              borderRadius: 6,
+              color: kellyLoading ? C.textMuted : C.textDim,
+              fontFamily: "IBM Plex Mono",
+              fontSize: 11,
+              padding: "6px 14px",
+              cursor: kellyLoading ? "not-allowed" : "pointer",
+              transition: "border-color 0.2s, color 0.2s",
+            }}
+            onMouseEnter={(e) => {
+              if (!kellyLoading) {
+                e.currentTarget.style.borderColor = C.accent;
+                e.currentTarget.style.color = C.accent;
+              }
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.borderColor = C.border;
+              e.currentTarget.style.color = C.textDim;
+            }}
+          >
+            {kellyLoading ? "LOADING…" : "↺ REFRESH"}
+          </button>
+        </div>
+
+        <div
+          style={{
+            height: 1,
+            background: C.border,
+            margin: "20px 0",
+          }}
+        />
+
+        {/* loading state */}
+        {kellyLoading && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            {[1, 2, 3, 4].map((i) => (
+              <div
+                key={i}
+                style={{
+                  background: C.surface2,
+                  border: `1px solid ${C.border}`,
+                  borderRadius: 8,
+                  padding: "18px 16px",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 16,
+                  opacity: 1 - i * 0.15,
+                }}
+              >
+                <Skeleton w={52} h={52} radius={8} />
+                <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 8 }}>
+                  <Skeleton w="40%" h={20} />
+                  <Skeleton w="60%" h={12} />
+                </div>
+                <Skeleton w={80} h={40} radius={6} />
+              </div>
+            ))}
+            <style>{`@keyframes pulse { 0%,100%{opacity:0.4} 50%{opacity:0.9} }`}</style>
+          </div>
+        )}
+
+        {/* error state */}
+        {!kellyLoading && kellyError && (
+          <div
+            style={{
+              background: `${C.red}14`,
+              border: `1px solid ${C.red}44`,
+              borderRadius: 8,
+              padding: "16px 20px",
+              display: "flex",
+              alignItems: "center",
+              gap: 12,
+            }}
+          >
+            <span style={{ fontSize: 18 }}>⚠</span>
+            <div>
+              <div style={{ fontSize: 12, color: C.red, fontWeight: 700 }}>KELLY DATA UNAVAILABLE</div>
+              <div style={{ fontSize: 11, color: C.textMuted, marginTop: 4 }}>{kellyError}</div>
             </div>
           </div>
-        ))}
-      </section>
+        )}
 
-      {/* Growth Curve */}
-      <section style={{ marginTop: 40 }}>
-        <h3>Growth Curve</h3>
-        <svg width="100%" height="240">
-          {curve.map((p, i) => {
-            if (i === 0) return null;
-            const prev = curve[i - 1];
-            const x1 = `${((i - 1) / months) * 100}%`;
-            const x2 = `${(i / months) * 100}%`;
-
-            const y1Req = 220 - (prev.required / curveMax) * 200;
-            const y2Req = 220 - (p.required / curveMax) * 200;
-
-            const y1Exp = 220 - (prev.expected / curveMax) * 200;
-            const y2Exp = 220 - (p.expected / curveMax) * 200;
-
-            return (
-              <g key={i}>
-                <line x1={x1} y1={y1Req} x2={x2} y2={y2Req} stroke="#dc2626" strokeWidth="2" />
-                <line x1={x1} y1={y1Exp} x2={x2} y2={y2Exp} stroke="#3b82f6" strokeWidth="2" />
-              </g>
-            );
-          })}
-        </svg>
-      </section>
-
-      {/* How calculated */}
-      <section style={{ marginTop: 48 }}>
-        <h3>How this was calculated</h3>
-        <p>{howCalculated.summary}</p>
-        <ul>
-          {howCalculated.variables.map(v => (
-            <li key={v}>{v}</li>
-          ))}
-        </ul>
-        <p>
-          <strong>Interpretation:</strong> {howCalculated.interpretation}
-        </p>
-      </section>
-
-      {/* Candidate Asset Impact (Read-only) */}
-      <section style={{ marginTop: 48 }}>
-        <h3>Candidate Asset Impact (Read-only)</h3>
-
-        <div style={{ marginTop: 12, marginBottom: 16, opacity: 0.9 }}>
-          <strong>Approximate required monthly contribution:</strong>{" "}
-          {candidateOut?.requiredMonthlyContribution !== undefined
-            ? money(candidateOut.requiredMonthlyContribution)
-            : "—"}
-          <div style={{ fontSize: 12, marginTop: 4, lineHeight: 1.4 }}>
-            Deterministic mathematical projection based on the selected amount,
-            assumed CAGR, horizon, and target. Not a recommendation.
+        {/* empty — no buyable actions */}
+        {!kellyLoading && !kellyError && allocations.length === 0 && (
+          <div
+            style={{
+              background: `${C.yellow}10`,
+              border: `1px solid ${C.yellow}33`,
+              borderRadius: 8,
+              padding: "20px 24px",
+              textAlign: "center",
+            }}
+          >
+            <div style={{ fontSize: 24, marginBottom: 8 }}>—</div>
+            <div style={{ fontSize: 12, color: C.yellow, fontWeight: 700 }}>
+              NO BUY / BUY_MORE SIGNALS ACTIVE
+            </div>
+            <div style={{ fontSize: 11, color: C.textMuted, marginTop: 6 }}>
+              Kelly engine has no conviction positions right now.
+              Consider holding contribution in cash until signals emerge.
+            </div>
           </div>
-        </div>
+        )}
 
-        <div style={{ opacity: 0.85, marginBottom: 12, lineHeight: 1.5 }}>
-          <strong>Candidate Injection is evaluated in isolation.</strong>
-          <br />
-          <br />
-          <ul>
-            <li>
-              <strong>Amount</strong> = the <em>total capital committed to this asset</em> today
-              (existing position + any new capital you intend to add).
-            </li>
-            <li>
-              <strong>Targeted Value</strong> = the desired <em>future value of this asset alone</em>
-              at the end of the selected horizon.
-            </li>
-            <li>
-              <strong>Horizon (Months)</strong> = the time window for this asset only.
-              It is <em>not</em> shared with the portfolio.
-            </li>
-            <li>
-              <strong>Assumed CAGR</strong> = your hypothetical growth rate for this asset
-              (used only for math projection, not prediction).
-            </li>
-          </ul>
-          <br />
-          This analysis answers one question only:
-          <br />
-          <strong>
-            “Given this amount, this horizon, and this assumed CAGR — does this single asset
-            mathematically reach the target value?”
-          </strong>
-          <br />
-          <br />
-          No portfolio weights, diversification logic, or allocation advice are applied here.
-        </div>
+        {/* allocation cards */}
+        {!kellyLoading && !kellyError && allocations.length > 0 && (
+          <>
+            {/* summary strip */}
+            <div
+              style={{
+                display: "flex",
+                gap: 24,
+                marginBottom: 20,
+                padding: "12px 16px",
+                background: C.surface2,
+                borderRadius: 8,
+                border: `1px solid ${C.border}`,
+              }}
+            >
+              <div>
+                <div style={{ fontSize: 10, color: C.textMuted, marginBottom: 3 }}>CONTRIBUTION</div>
+                <div style={{ fontSize: 16, fontWeight: 700, color: C.green }}>{fmt$(monthly)}</div>
+              </div>
+              <div style={{ width: 1, background: C.border }} />
+              <div>
+                <div style={{ fontSize: 10, color: C.textMuted, marginBottom: 3 }}>SPLIT ACROSS</div>
+                <div style={{ fontSize: 16, fontWeight: 700, color: C.text }}>
+                  {allocations.length} position{allocations.length !== 1 ? "s" : ""}
+                </div>
+              </div>
+              <div style={{ width: 1, background: C.border }} />
+              <div>
+                <div style={{ fontSize: 10, color: C.textMuted, marginBottom: 3 }}>METHOD</div>
+                <div style={{ fontSize: 16, fontWeight: 700, color: C.accent }}>KELLY OPTIMAL</div>
+              </div>
+              <div style={{ marginLeft: "auto", display: "flex", alignItems: "center" }}>
+                <div
+                  style={{
+                    fontSize: 11,
+                    color: C.textMuted,
+                    fontStyle: "italic",
+                    maxWidth: 220,
+                    lineHeight: 1.5,
+                  }}
+                >
+                  Weights re-normalised across BUY positions.
+                  Drift = Kelly target − current allocation.
+                </div>
+              </div>
+            </div>
 
-        <table style={{ width: "100%", maxWidth: 900 }}>
-          <thead>
-            <tr>
-              <th>Symbol</th>
-              <th>Amount</th>
-              <th>Assumed CAGR</th>
-              <th>Projected Value</th>
-              <th>Gap at Horizon</th>
-            </tr>
-          </thead>
-          <tbody>
-            {candidateRows.map(r => (
-              <tr key={r.symbol}>
-                <td>{r.symbol}</td>
-                <td>{Number(r.amount).toLocaleString()}</td>
-                <td>{pct2(r.assumedCAGR * 100)}</td>
-                <td>{money(r.projectedValue)}</td>
-                <td>{money(r.gapAtHorizon)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </section>
+            {/* cards */}
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              {allocations.map((a) => (
+                <AllocationCard key={a.ticker} {...a} />
+              ))}
+            </div>
+
+            {/* visual bar breakdown */}
+            <div
+              style={{
+                marginTop: 20,
+                padding: "16px",
+                background: C.surface2,
+                border: `1px solid ${C.border}`,
+                borderRadius: 8,
+              }}
+            >
+              <div style={{ fontSize: 10, color: C.textMuted, marginBottom: 12, letterSpacing: "0.06em" }}>
+                CONTRIBUTION BREAKDOWN
+              </div>
+              <div style={{ display: "flex", gap: 2, height: 8, borderRadius: 4, overflow: "hidden" }}>
+                {allocations.map((a, i) => {
+                  const hues = [210, 160, 280, 40, 10, 190, 130, 330, 60, 240];
+                  const hue  = hues[i % hues.length];
+                  return (
+                    <div
+                      key={a.ticker}
+                      style={{
+                        flex: a.kellyWeight,
+                        background: `hsl(${hue}, 70%, 55%)`,
+                        transition: "flex 0.4s ease",
+                      }}
+                      title={`${a.ticker}: ${fmt$(a.dollarAmount)}`}
+                    />
+                  );
+                })}
+              </div>
+              <div style={{ display: "flex", gap: 16, marginTop: 10, flexWrap: "wrap" }}>
+                {allocations.map((a, i) => {
+                  const hues = [210, 160, 280, 40, 10, 190, 130, 330, 60, 240];
+                  const hue  = hues[i % hues.length];
+                  return (
+                    <div
+                      key={a.ticker}
+                      style={{ display: "flex", alignItems: "center", gap: 6 }}
+                    >
+                      <div
+                        style={{
+                          width: 8,
+                          height: 8,
+                          borderRadius: 2,
+                          background: `hsl(${hue}, 70%, 55%)`,
+                          flexShrink: 0,
+                        }}
+                      />
+                      <span style={{ fontSize: 11, color: C.textMuted }}>
+                        {a.ticker}{" "}
+                        <span style={{ color: C.text }}>{fmt$(a.dollarAmount)}</span>
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </>
+        )}
+      </div>
     </div>
   );
 }

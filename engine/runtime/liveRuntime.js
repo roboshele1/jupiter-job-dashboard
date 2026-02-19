@@ -1,32 +1,36 @@
 /**
- * Live Runtime — Electron-Owned (V1)
- * ----------------------------------
- * Purpose:
- * - Single authority for long-lived scanners
- * - UI-independent
- * - Electron main-process safe
- *
- * HARD RULES:
- * - Does NOT start scanners yet
- * - Does NOT alter cadence
- * - Does NOT touch UI
- * - Append-only foundation
+ * Live Runtime — Electron-Owned (V3)
  */
+
+import { createRequire } from "module";
+import { fileURLToPath } from "url";
+import { dirname, resolve } from "path";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname  = dirname(__filename);
+const require    = createRequire(import.meta.url);
 
 let started = false;
 
-function startLiveRuntime() {
+export function startLiveRuntime() {
   if (started) return;
   started = true;
 
-  console.log("[LIVE_RUNTIME] Initialized (no scanners attached yet)");
+  console.log("[LIVE_RUNTIME] Initializing...");
+
+  try {
+    const schedulerPath = resolve(__dirname, "../asymmetry/universeScheduler.js");
+    const { startScheduler } = require(schedulerPath);
+    startScheduler();
+    console.log("[LIVE_RUNTIME] ✓ Autonomous moonshot scanner started");
+    console.log("[LIVE_RUNTIME] ✓ PRIMARY scan every 60s | DEEP_ASYMMETRY every 300s");
+  } catch (err) {
+    console.error("[LIVE_RUNTIME] ✗ Scanner failed to start:", err.message);
+  }
 }
 
-function isLiveRuntimeActive() {
+export function isLiveRuntimeActive() {
   return started;
 }
 
-module.exports = {
-  startLiveRuntime,
-  isLiveRuntimeActive
-};
+export default { startLiveRuntime, isLiveRuntimeActive };

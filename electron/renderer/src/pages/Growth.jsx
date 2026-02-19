@@ -1,7 +1,7 @@
 // ~/JUPITER/electron/renderer/src/pages/Growth.jsx
 
 import { useEffect, useState } from "react";
-import { fetchLiveQuotes } from "../../services/marketData";
+import { fetchLiveQuotes } from "../services/marketData";
 
 /*
 Phase 2B — Step 5 (Growth Engine Activation)

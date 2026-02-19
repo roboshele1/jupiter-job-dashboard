@@ -1,290 +1,306 @@
 import { useEffect, useMemo, useState } from "react";
-import "../styles/dashboard.css";
 import AssetSystemStatePanel from "../components/AssetSystemStatePanel.jsx";
 
+function fmt(n, decimals = 2) {
+  if (n === null || n === undefined || isNaN(Number(n))) return "—";
+  return Number(n).toLocaleString(undefined, { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
+}
+function fmtMoney(n) { return `$${fmt(n, 2)}`; }
+function fmtPct(n) {
+  if (n === null || n === undefined || isNaN(Number(n))) return "—";
+  const sign = Number(n) >= 0 ? "+" : "";
+  return `${sign}${Number(n).toFixed(2)}%`;
+}
+function deltaColor(n) {
+  const x = Number(n);
+  if (x > 0) return "#4ade80";
+  if (x < 0) return "#f87171";
+  return "#9ca3af";
+}
+
 const BUCKET_COLORS = {
-  Semiconductors: "#4cc9f0",
-  Software: "#8b5cf6",
-  Crypto: "#fbbf24",
-  Cash: "#e5e7eb",
+  Semiconductors: "#4cc9f0", Software: "#8b5cf6",
+  "BTC Proxy": "#f7931a", Crypto: "#fbbf24", Cash: "#374151",
 };
-
-function fmtMoney(n) {
-  const num = Number(n || 0);
-  return `$${num.toLocaleString(undefined, {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  })}`;
-}
-
-function safeNum(n) {
-  const num = Number(n);
-  return Number.isFinite(num) ? num : 0;
-}
-
-const FRESHNESS_RANK = {
-  LIVE: 3,
-  DELAYED: 2,
-  STALE: 1,
-  UNKNOWN: 0,
+const ASSET_BUCKET = {
+  NVDA: "Semiconductors", AVGO: "Semiconductors", ASML: "Semiconductors",
+  MSTR: "BTC Proxy", BMNR: "BTC Proxy", APLD: "BTC Proxy",
+  HOOD: "Software", NOW: "Software", BTC: "Crypto", ETH: "Crypto",
 };
+const FRESHNESS_RANK = { LIVE: 3, DELAYED: 2, STALE: 1, UNKNOWN: 0 };
 
 function pickBestFreshness(positions) {
-  let best = { level: "UNKNOWN", confidence: "UNKNOWN" };
-  let bestRank = 0;
-
+  let best = { level: "UNKNOWN" }, bestRank = 0;
   for (const p of positions || []) {
     const level = p?.priceFreshness?.level || "UNKNOWN";
-    const confidence = p?.priceFreshness?.confidence || "UNKNOWN";
-    const rank = FRESHNESS_RANK[level] ?? 0;
-
-    if (rank > bestRank) {
-      bestRank = rank;
-      best = { level, confidence };
-    }
+    const rank  = FRESHNESS_RANK[level] ?? 0;
+    if (rank > bestRank) { bestRank = rank; best = { level }; }
   }
-
   return best;
 }
 
+const GOAL_TARGET = 1_000_000;
+const GOAL_MONTHS = 60;
+
 export default function Dashboard() {
-  const [valuation, setValuation] = useState(null);
-  const [lastRefreshAt, setLastRefreshAt] = useState(null);
+  const [valuation,   setValuation]   = useState(null);
   const [systemState, setSystemState] = useState(null);
+  const [kellyData,   setKellyData]   = useState(null);
+  const [lastRefresh, setLastRefresh] = useState(null);
+  const [refreshing,  setRefreshing]  = useState(false);
+
+  async function loadAll(force = false) {
+    setRefreshing(true);
+    try {
+      const [v, sys, kelly] = await Promise.allSettled([
+        force ? window.jupiter.refreshPortfolioValuation() : window.jupiter.getPortfolioValuation(),
+        window.jupiter.invoke("system:getState"),
+        window.jupiter.invoke("decisions:getKellyRecommendations"),
+      ]);
+      if (v.status     === "fulfilled") setValuation(v.value);
+      if (sys.status   === "fulfilled") setSystemState(sys.value);
+      if (kelly.status === "fulfilled") setKellyData(kelly.value);
+      setLastRefresh(new Date());
+    } finally {
+      setRefreshing(false);
+    }
+  }
 
   useEffect(() => {
-    let alive = true;
-
-    async function load() {
-      try {
-        if (!window?.jupiter?.getPortfolioValuation) return;
-        const v = await window.jupiter.getPortfolioValuation();
-        if (!alive) return;
-        setValuation(v);
-        setLastRefreshAt(new Date());
-      } catch (e) {
-        console.error("[DASHBOARD_VALUATION_LOAD_ERROR]", e);
-      }
-    }
-
-    load();
-    const id = setInterval(load, 15000);
-
-    return () => {
-      alive = false;
-      clearInterval(id);
-    };
+    loadAll();
+    const id = setInterval(() => loadAll(), 15_000);
+    return () => clearInterval(id);
   }, []);
 
-  useEffect(() => {
-    let alive = true;
+  const positions  = useMemo(() => Array.isArray(valuation?.positions) ? valuation.positions : [], [valuation]);
+  const totals     = valuation?.totals || { liveValue: 0, delta: 0, deltaPct: 0 };
 
-    async function loadSystemState() {
-      try {
-        if (!window?.jupiter?.invoke) return;
-        const res = await window.jupiter.invoke("system:getState");
-        if (!alive) return;
-        setSystemState(res);
-      } catch (e) {
-        console.error("[SYSTEM_STATE_LOAD_ERROR]", e);
-      }
-    }
+  const topHoldings = useMemo(() =>
+    [...positions].sort((a, b) => Number(b.liveValue) - Number(a.liveValue)).slice(0, 5),
+    [positions]);
 
-    loadSystemState();
-    const id = setInterval(loadSystemState, 15000);
-
-    return () => {
-      alive = false;
-      clearInterval(id);
-    };
-  }, []);
-
-  const positions = useMemo(
-    () => (Array.isArray(valuation?.positions) ? valuation.positions : []),
-    [valuation]
-  );
-
-  const totals = valuation?.totals || {
-    snapshotValue: 0,
-    liveValue: 0,
-    delta: 0,
-    deltaPct: 0,
-  };
-
-  const plClass =
-    totals.delta > 0
-      ? "pl-positive"
-      : totals.delta < 0
-      ? "pl-negative"
-      : "pl-neutral";
-
-  const snapshotTime =
-    valuation?.priceSnapshotMeta?.fetchedAt || valuation?.snapshotAt || null;
-
-  const engineFreshnessLevel =
-    valuation?.priceSnapshotMeta?.freshness?.level || "UNKNOWN";
-  const engineFreshnessConfidence =
-    valuation?.priceSnapshotMeta?.freshness?.confidence || "UNKNOWN";
-
-  const bestFromPositions = useMemo(
-    () => pickBestFreshness(positions),
-    [positions]
-  );
-
-  const chosenFreshness =
-    engineFreshnessLevel !== "UNKNOWN"
-      ? { level: engineFreshnessLevel, confidence: engineFreshnessConfidence }
-      : bestFromPositions;
-
-  const marketStatus =
-    chosenFreshness.level === "LIVE"
-      ? "LIVE"
-      : chosenFreshness.level === "DELAYED"
-      ? "DELAYED"
-      : chosenFreshness.level === "STALE"
-      ? "STALE"
-      : "UNKNOWN";
-
-  const topHoldings = useMemo(
-    () =>
-      positions
-        .slice()
-        .sort((a, b) => safeNum(b.liveValue) - safeNum(a.liveValue))
-        .slice(0, 5)
-        .map((p) => ({ symbol: p.symbol, qty: p.qty })),
-    [positions]
-  );
+  const bestToday  = useMemo(() => positions.reduce((best,  p) => !best  || Number(p.deltaPct) > Number(best.deltaPct)  ? p : best,  null), [positions]);
+  const worstToday = useMemo(() => positions.reduce((worst, p) => !worst || Number(p.deltaPct) < Number(worst.deltaPct) ? p : worst, null), [positions]);
 
   const allocationBands = useMemo(() => {
-    if (!positions.length || totals.liveValue <= 0) return [];
-
-    const buckets = {
-      Semiconductors: 0,
-      Software: 0,
-      Crypto: 0,
-      Cash: 0,
-    };
-
+    if (!positions.length || !totals.liveValue) return [];
+    const buckets = {};
     for (const p of positions) {
-      const v = safeNum(p.liveValue);
-      const cls = (p.assetClass || "").toLowerCase();
-      const sym = (p.symbol || "").toUpperCase();
-
-      if (cls === "crypto" || sym.includes("BTC") || sym.includes("ETH"))
-        buckets.Crypto += v;
-      else if (["NVDA", "AVGO", "ASML", "TSM"].includes(sym))
-        buckets.Semiconductors += v;
-      else if (["HOOD", "MSTR"].includes(sym))
-        buckets.Software += v;
-      else buckets.Cash += v;
+      const key = ASSET_BUCKET[p.symbol] || "Cash";
+      buckets[key] = (buckets[key] || 0) + Number(p.liveValue || 0);
     }
-
     const bands = Object.entries(buckets).map(([name, val]) => ({
-      name,
-      percent: Math.round((val / totals.liveValue) * 100),
-      color: BUCKET_COLORS[name],
+      name, pct: Math.round((val / totals.liveValue) * 100), color: BUCKET_COLORS[name] || "#374151",
     }));
-
-    const sum = bands.reduce((a, b) => a + b.percent, 0);
-    if (sum !== 100 && bands.length) bands[0].percent += 100 - sum;
-
-    return bands;
+    const sum = bands.reduce((s, b) => s + b.pct, 0);
+    if (sum !== 100 && bands.length) bands[0].pct += 100 - sum;
+    return bands.filter(b => b.pct > 0);
   }, [positions, totals.liveValue]);
 
-  return (
-    <div className="dashboard">
-      <h1>Dashboard</h1>
+  const freshness      = useMemo(() => pickBestFreshness(positions), [positions]);
+  const marketStatus   = freshness.level;
+  const freshnessColor = marketStatus === "LIVE" ? "#4ade80" : marketStatus === "DELAYED" ? "#fbbf24" : marketStatus === "STALE" ? "#f87171" : "#9ca3af";
 
-      <div className="card wide">
-        <div className="label">LAST REFRESHED</div>
-        <div className="value">
-          {lastRefreshAt ? lastRefreshAt.toLocaleString() : "—"}
+  const portfolioValue  = Number(totals.liveValue || 0);
+  const goalProgressPct = GOAL_TARGET > 0 ? (portfolioValue / GOAL_TARGET) * 100 : 0;
+  const goalRemaining   = GOAL_TARGET - portfolioValue;
+
+  const heatStatus  = kellyData?.heatCheck?.status   || null;
+  const totalHeat   = kellyData?.heatCheck?.totalHeat ?? null;
+  const heatColor   = heatStatus === "OVERHEATED" ? "#f87171" : heatStatus === "ELEVATED" ? "#fbbf24" : heatStatus === "NORMAL" ? "#4ade80" : "#9ca3af";
+
+  const highPriorityActions = kellyData?.summary?.highPriority ?? 0;
+  const totalActions        = kellyData?.summary?.totalActions  ?? 0;
+
+  const posture      = systemState?.decision?.systemPosture || "—";
+  const capitalState = systemState?.decision?.capitalState   || "—";
+  const riskRegime   = systemState?.risk?.regime             || "—";
+  const postureColor = posture === "AGGRESSIVE" ? "#f87171" : posture === "CAUTIOUS" ? "#fbbf24" : posture === "NEUTRAL" ? "#4ade80" : "#9ca3af";
+
+  return (
+    <div style={{ padding: "28px 32px", maxWidth: 1100, margin: "0 auto" }}>
+
+      {/* Header */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 28 }}>
+        <div>
+          <h1 style={{ fontSize: 36, fontWeight: 800, color: "#fff", margin: 0, letterSpacing: "-0.02em" }}>Dashboard</h1>
+          <p style={{ color: "#9ca3af", marginTop: 4, fontSize: 13 }}>Last refreshed: {lastRefresh ? lastRefresh.toLocaleString() : "—"}</p>
+        </div>
+        <button onClick={() => loadAll(true)} disabled={refreshing} style={{
+          padding: "9px 20px", borderRadius: 8, border: "none",
+          background: refreshing ? "#1f2937" : "#3b82f6", color: refreshing ? "#6b7280" : "#fff",
+          fontWeight: 600, fontSize: 13, cursor: refreshing ? "not-allowed" : "pointer"
+        }}>
+          {refreshing ? "Refreshing…" : "Refresh"}
+        </button>
+      </div>
+
+      {/* Row 1: Key Metrics */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 14, marginBottom: 20 }}>
+        {[
+          { label: "PORTFOLIO VALUE", value: fmtMoney(portfolioValue), sub: null, color: "#fff", border: "#374151" },
+          { label: "TODAY'S P/L", value: fmtMoney(totals.delta), sub: fmtPct(totals.deltaPct), color: deltaColor(totals.delta), border: Number(totals.delta) >= 0 ? "rgba(74,222,128,0.3)" : "rgba(248,113,113,0.3)" },
+          { label: "BEST TODAY",  value: bestToday  ? bestToday.symbol  : "—", sub: bestToday  ? fmtPct(bestToday.deltaPct)  : null, color: "#4ade80", border: "rgba(74,222,128,0.2)"  },
+          { label: "WORST TODAY", value: worstToday ? worstToday.symbol : "—", sub: worstToday ? fmtPct(worstToday.deltaPct) : null, color: "#f87171", border: "rgba(248,113,113,0.2)" },
+        ].map(card => (
+          <div key={card.label} style={{ background: "rgba(31,41,55,0.6)", border: `1px solid ${card.border}`, borderRadius: 12, padding: "18px 20px" }}>
+            <div style={{ fontSize: 11, color: "#6b7280", letterSpacing: "0.08em", marginBottom: 8 }}>{card.label}</div>
+            <div style={{ fontSize: 22, fontWeight: 800, color: card.color }}>{card.value}</div>
+            {card.sub && <div style={{ fontSize: 13, fontWeight: 600, color: card.color, marginTop: 2 }}>{card.sub}</div>}
+          </div>
+        ))}
+      </div>
+
+      {/* Row 2: Goal Progress */}
+      <div style={{ background: "rgba(31,41,55,0.6)", border: "1px solid #374151", borderRadius: 12, padding: "22px 24px", marginBottom: 20 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 14 }}>
+          <div>
+            <div style={{ fontSize: 15, fontWeight: 700, color: "#fff" }}>Goal: $100k → $1M by 2037</div>
+            <div style={{ fontSize: 13, color: "#9ca3af", marginTop: 3 }}>
+              {fmtMoney(goalRemaining)} remaining · {GOAL_MONTHS} months · Required CAGR: dynamic
+            </div>
+          </div>
+          <div style={{ textAlign: "right" }}>
+            <div style={{ fontSize: 28, fontWeight: 800, color: "#fff" }}>{goalProgressPct.toFixed(1)}%</div>
+            <div style={{ fontSize: 12, color: "#6b7280" }}>of goal</div>
+          </div>
+        </div>
+        <div style={{ width: "100%", height: 12, background: "#1f2937", borderRadius: 6, overflow: "hidden", marginBottom: 8 }}>
+          <div style={{ width: `${Math.min(goalProgressPct, 100)}%`, height: "100%", background: "linear-gradient(90deg, #3b82f6, #8b5cf6)", borderRadius: 6, transition: "width 0.8s ease" }} />
+        </div>
+        <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11 }}>
+          {["$100k","$250k","$500k","$750k","$1M"].map((m, i) => (
+            <span key={m} style={{ color: portfolioValue >= [100000,250000,500000,750000,1000000][i] ? "#60a5fa" : "#4b5563", fontWeight: portfolioValue >= [100000,250000,500000,750000,1000000][i] ? 700 : 400 }}>{m}</span>
+          ))}
         </div>
       </div>
 
-      {snapshotTime && (
-        <div className="card wide">
-          <div className="label">SNAPSHOT TIME</div>
-          <div className="value">{new Date(snapshotTime).toLocaleString()}</div>
+      {/* Row 3: Intelligence Strip */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 14, marginBottom: 20 }}>
+        <div style={{ background: "rgba(31,41,55,0.6)", border: `1px solid ${totalHeat !== null ? `${heatColor}40` : "#374151"}`, borderRadius: 12, padding: "18px 20px" }}>
+          <div style={{ fontSize: 11, color: "#6b7280", letterSpacing: "0.08em", marginBottom: 8 }}>PORTFOLIO HEAT</div>
+          <div style={{ fontSize: 26, fontWeight: 800, color: heatColor }}>{totalHeat !== null ? `${Number(totalHeat).toFixed(1)}%` : "—"}</div>
+          <div style={{ fontSize: 12, color: heatColor, marginTop: 2, fontWeight: 600 }}>{heatStatus || "—"}</div>
+        </div>
+        <div style={{ background: "rgba(31,41,55,0.6)", border: highPriorityActions > 0 ? "1px solid rgba(248,113,113,0.3)" : "1px solid #374151", borderRadius: 12, padding: "18px 20px" }}>
+          <div style={{ fontSize: 11, color: "#6b7280", letterSpacing: "0.08em", marginBottom: 8 }}>PENDING ACTIONS</div>
+          <div style={{ fontSize: 26, fontWeight: 800, color: highPriorityActions > 0 ? "#f87171" : "#fff" }}>{totalActions}</div>
+          <div style={{ fontSize: 12, color: "#9ca3af", marginTop: 2 }}>{highPriorityActions} high priority</div>
+        </div>
+        <div style={{ background: "rgba(31,41,55,0.6)", border: "1px solid #374151", borderRadius: 12, padding: "18px 20px" }}>
+          <div style={{ fontSize: 11, color: "#6b7280", letterSpacing: "0.08em", marginBottom: 8 }}>SYSTEM POSTURE</div>
+          <div style={{ fontSize: 20, fontWeight: 800, color: postureColor }}>{posture}</div>
+          <div style={{ fontSize: 12, color: "#9ca3af", marginTop: 2 }}>Capital: {capitalState}</div>
+        </div>
+        <div style={{ background: "rgba(31,41,55,0.6)", border: "1px solid #374151", borderRadius: 12, padding: "18px 20px" }}>
+          <div style={{ fontSize: 11, color: "#6b7280", letterSpacing: "0.08em", marginBottom: 8 }}>MARKET DATA</div>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <div style={{ width: 10, height: 10, borderRadius: "50%", background: freshnessColor, boxShadow: `0 0 6px ${freshnessColor}` }} />
+            <div style={{ fontSize: 20, fontWeight: 800, color: freshnessColor }}>{marketStatus}</div>
+          </div>
+          <div style={{ fontSize: 12, color: "#9ca3af", marginTop: 2 }}>Risk: {riskRegime}</div>
+        </div>
+      </div>
+
+      {/* Row 4: Allocation + Top Holdings */}
+      <div style={{ display: "grid", gridTemplateColumns: "1.4fr 1fr", gap: 16, marginBottom: 20 }}>
+        <div style={{ background: "rgba(31,41,55,0.6)", border: "1px solid #374151", borderRadius: 12, padding: "22px 24px" }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: "#fff", marginBottom: 16 }}>PORTFOLIO ALLOCATION</div>
+          <div style={{ width: "100%", height: 44, borderRadius: 12, overflow: "hidden", display: "flex", border: "1px solid rgba(255,255,255,0.06)", marginBottom: 16 }}>
+            {allocationBands.map(b => (
+              <div key={b.name} style={{ width: `${b.pct}%`, height: "100%", background: b.color, display: "flex", alignItems: "center", paddingLeft: 10, fontSize: 12, fontWeight: 700, color: "rgba(8,10,18,0.85)", whiteSpace: "nowrap", overflow: "hidden" }}>
+                {b.pct >= 10 ? `${b.name} ${b.pct}%` : ""}
+              </div>
+            ))}
+          </div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
+            {allocationBands.map(b => (
+              <div key={b.name} style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <div style={{ width: 10, height: 10, borderRadius: 2, background: b.color }} />
+                <span style={{ fontSize: 12, color: "#9ca3af" }}>{b.name} {b.pct}%</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div style={{ background: "rgba(31,41,55,0.6)", border: "1px solid #374151", borderRadius: 12, padding: "22px 24px" }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: "#fff", marginBottom: 14 }}>TOP HOLDINGS</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {topHoldings.map(h => {
+              const pct = totals.liveValue > 0 ? (Number(h.liveValue) / Number(totals.liveValue)) * 100 : 0;
+              return (
+                <div key={h.symbol} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 12px", borderRadius: 8, background: "rgba(0,0,0,0.2)", border: "1px solid rgba(255,255,255,0.05)" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                    <span style={{ fontWeight: 700, color: "#fff", fontSize: 14 }}>{h.symbol}</span>
+                    <span style={{ fontSize: 12, color: "#6b7280" }}>{pct.toFixed(1)}%</span>
+                  </div>
+                  <div style={{ textAlign: "right" }}>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: "#e5e7eb" }}>{fmtMoney(h.liveValue)}</div>
+                    <div style={{ fontSize: 11, color: deltaColor(h.deltaPct) }}>{fmtPct(h.deltaPct)}</div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+
+      {/* Row 5: Kelly Actions Preview */}
+      {kellyData?.actions?.length > 0 && (
+        <div style={{ background: "rgba(31,41,55,0.6)", border: "1px solid #374151", borderRadius: 12, padding: "22px 24px", marginBottom: 20 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: "#fff" }}>PENDING DECISIONS</div>
+            <span style={{ fontSize: 12, color: "#6b7280" }}>See Decisions tab for full analysis</span>
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {kellyData.actions.slice(0, 4).map(action => {
+              const ac = action.action === "EXIT_OR_AVOID" ? "#f87171" : action.action === "TRIM" || action.action === "TRIM_TO_MINIMAL" ? "#fb923c" : action.action === "ADD" ? "#4ade80" : "#9ca3af";
+              const pc = action.priority === "HIGH" ? "#f87171" : action.priority === "MEDIUM" ? "#fbbf24" : "#9ca3af";
+              return (
+                <div key={action.symbol} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 14px", borderRadius: 8, background: "rgba(0,0,0,0.2)", border: "1px solid rgba(255,255,255,0.05)" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                    <span style={{ fontWeight: 700, color: "#fff", fontSize: 14, minWidth: 48 }}>{action.symbol}</span>
+                    <span style={{ fontSize: 11, padding: "2px 8px", borderRadius: 4, background: `${ac}20`, color: ac, fontWeight: 600 }}>{action.action.replace(/_/g, " ")}</span>
+                    <span style={{ fontSize: 11, padding: "2px 6px", borderRadius: 4, background: `${pc}20`, color: pc, fontWeight: 600 }}>{action.priority}</span>
+                  </div>
+                  <div style={{ textAlign: "right" }}>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: ac }}>{action.deltaValue > 0 ? "+" : ""}{fmtMoney(action.deltaValue)}</div>
+                    <div style={{ fontSize: 11, color: "#6b7280" }}>{action.currentPct.toFixed(1)}% → {action.optimalPct.toFixed(1)}%</div>
+                  </div>
+                </div>
+              );
+            })}
+            {kellyData.actions.length > 4 && (
+              <div style={{ textAlign: "center", fontSize: 12, color: "#6b7280", paddingTop: 4 }}>+{kellyData.actions.length - 4} more in Decisions tab</div>
+            )}
+          </div>
         </div>
       )}
 
-      <div className="card wide">
-        <div className="label">TOTAL PORTFOLIO VALUE</div>
-        <div className="value">{fmtMoney(totals.liveValue)}</div>
-      </div>
-
-      <div className={`card wide ${plClass}`}>
-        <div className="label">TODAY’S P/L</div>
-        <div className="value">
-          {fmtMoney(totals.delta)} ({Number(totals.deltaPct).toFixed(2)}%)
-        </div>
-      </div>
-
-      <div className="card wide">
-        <div className="label">PORTFOLIO ALLOCATION</div>
-        <div className="allocation-band">
-          {allocationBands.map((b) => (
-            <div
-              key={b.name}
-              className="band"
-              style={{
-                width: `${b.percent}%`,
-                backgroundColor: b.color,
-              }}
-            >
-              {b.name} {b.percent}%
-            </div>
-          ))}
-        </div>
-      </div>
-
-      <div className="card wide">
-        <div className="label">TOP HOLDINGS</div>
-        <div className="holdings-list">
-          {topHoldings.map((h) => (
-            <div key={h.symbol} className="holding-row">
-              <span className="symbol">{h.symbol}</span>
-              <span className="qty">{h.qty}</span>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      <div className="card wide">
-        <div className="label">SYSTEM STATUS</div>
-        <div className="value">
-          Market Data: <strong>{marketStatus}</strong>
-        </div>
-      </div>
-
-      <div className="card wide">
-        <div className="label">SYSTEM STATE</div>
+      {/* Row 6: System State */}
+      <div style={{ background: "rgba(31,41,55,0.6)", border: "1px solid #374151", borderRadius: 12, padding: "22px 24px" }}>
+        <div style={{ fontSize: 13, fontWeight: 700, color: "#fff", marginBottom: 16 }}>SYSTEM STATE</div>
         {!systemState ? (
-          <div className="value">Loading…</div>
+          <div style={{ color: "#9ca3af", fontSize: 13 }}>Loading system intelligence…</div>
         ) : (
-          <div style={{ lineHeight: 1.6 }}>
-            <div className="value">
-              Posture: <strong>{systemState?.decision?.systemPosture}</strong>
+          <>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 14, marginBottom: 16 }}>
+              {[
+                { label: "POSTURE", value: systemState?.decision?.systemPosture, color: postureColor },
+                { label: "CAPITAL", value: systemState?.decision?.capitalState,  color: "#e5e7eb"    },
+                { label: "RISK",    value: systemState?.risk?.regime,            color: "#e5e7eb"    },
+                { label: "SIGNALS", value: systemState?.signals?.available ? "ACTIVE" : "QUIET", color: systemState?.signals?.available ? "#4ade80" : "#9ca3af" },
+              ].map(item => (
+                <div key={item.label} style={{ background: "rgba(0,0,0,0.2)", borderRadius: 8, padding: "10px 14px", border: "1px solid rgba(255,255,255,0.05)" }}>
+                  <div style={{ fontSize: 10, color: "#6b7280", marginBottom: 6, letterSpacing: "0.08em" }}>{item.label}</div>
+                  <div style={{ fontSize: 15, fontWeight: 700, color: item.color }}>{item.value || "—"}</div>
+                </div>
+              ))}
             </div>
-            <div className="value">
-              Capital: <strong>{systemState?.decision?.capitalState}</strong>
-            </div>
-            <div className="value">
-              Risk: <strong>{systemState?.risk?.regime}</strong>
-            </div>
-            <div className="value">
-              Signals:{" "}
-              <strong>
-                {systemState?.signals?.available ? "ACTIVE" : "QUIET"}
-              </strong>
-            </div>
-
-            {/* Awareness + Asset posture injected cleanly */}
-            <AssetSystemStatePanel state={systemState} />
-          </div>
+          </>
         )}
       </div>
+
     </div>
   );
 }

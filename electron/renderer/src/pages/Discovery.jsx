@@ -1,43 +1,35 @@
 import React, { useEffect, useState } from "react";
 
-/**
- * DISCOVERY LAB — Phase 2C
- * --------------------------------------------------
- * Read-only, deterministic market discovery surface.
- * This UI renders canonical discovery output produced
- * by the engine (no opinions, no overrides).
- */
+const confidenceBadge = (level) => ({
+  display: "inline-block",
+  padding: "0.25rem 0.6rem",
+  borderRadius: "6px",
+  fontSize: "0.75rem",
+  background: { High: "#2ecc71", Medium: "#f1c40f", Low: "#e67e22" }[level] || "#777",
+  color: "#000",
+  fontWeight: 600,
+});
 
-const confidenceBadge = (level) => {
-  const map = {
-    High: "#2ecc71",
-    Medium: "#f1c40f",
-    Low: "#e67e22",
-  };
-
-  return {
-    display: "inline-block",
-    padding: "0.25rem 0.6rem",
-    borderRadius: "6px",
-    fontSize: "0.75rem",
-    background: map[level] || "#777",
-    color: "#000",
-    fontWeight: 600,
-  };
-};
+const cell = { padding: "10px 8px", borderBottom: "1px solid #1a1a1a", fontSize: 13 };
 
 export default function DiscoveryLab() {
-  const [rows, setRows] = useState([]);
+  const [rows, setRows]       = useState([]);
   const [loading, setLoading] = useState(true);
+  const [counts, setCounts]   = useState(null);
 
   useEffect(() => {
     let mounted = true;
-
-    async function loadDiscovery() {
+    async function load() {
       try {
         const result = await window.jupiter.invoke("discovery:run");
-        if (mounted && Array.isArray(result?.canonical)) {
-          setRows(result.canonical);
+        if (mounted && result) {
+          setRows(Array.isArray(result.canonical) ? result.canonical : []);
+          setCounts({
+            evaluated: result.telemetry?.evaluatedCount ?? 0,
+            surfaced:  result.canonical?.length ?? 0,
+            rejected:  result.rejected?.length ?? 0,
+            themes:    result.themes?.length ?? 0,
+          });
         }
       } catch (err) {
         console.error("Discovery load failed:", err);
@@ -45,97 +37,80 @@ export default function DiscoveryLab() {
         if (mounted) setLoading(false);
       }
     }
-
-    loadDiscovery();
-    return () => {
-      mounted = false;
-    };
+    load();
+    return () => { mounted = false; };
   }, []);
 
   return (
-    <div style={{ padding: "2rem", maxWidth: 1400 }}>
-      <h1>Discovery Lab</h1>
-
-      <p style={{ opacity: 0.8 }}>
-        Read-only market discovery surface (Phase 2C).
+    <div style={{ padding: "2rem", maxWidth: 1400, color: "#fff" }}>
+      <h1 style={{ marginBottom: 4 }}>Discovery Lab</h1>
+      <p style={{ opacity: 0.5, fontSize: 13, marginBottom: 24 }}>
+        Pre-breakout intelligence surface · read-only · main-process discovery engine
       </p>
 
-      {/* STATUS */}
-      <section style={{ marginTop: "1.5rem" }}>
-        <h3>Status</h3>
-        <ul style={{ opacity: 0.85 }}>
-          <li>Mode: Read-only</li>
-          <li>Phase: 2C (UI + Ranked Static Discovery)</li>
-          <li>Engines: None</li>
-          <li>Data Source: Mock / Static</li>
-        </ul>
-      </section>
+      {/* COUNTS */}
+      {counts && (
+        <div style={{ display: "flex", gap: 32, marginBottom: 24, fontSize: 13 }}>
+          <span>EVALUATED <strong style={{ color: "#fff" }}>{counts.evaluated}</strong></span>
+          <span>SURFACED <strong style={{ color: "#2ecc71" }}>{counts.surfaced}</strong></span>
+          <span>REJECTED <strong style={{ color: "#e74c3c" }}>{counts.rejected}</strong></span>
+        </div>
+      )}
 
-      {/* RANKED MARKET DISCOVERY */}
-      <section style={{ marginTop: "2.5rem" }}>
-        <h2>Ranked Market Discovery</h2>
+      {loading && <p style={{ opacity: 0.5 }}>Loading discovery…</p>}
 
-        {loading && <p style={{ opacity: 0.6 }}>Loading discovery…</p>}
+      {!loading && rows.length === 0 && (
+        <p style={{ opacity: 0.5 }}>No candidates surfaced this cycle.</p>
+      )}
 
-        {!loading && rows.length === 0 && (
-          <p style={{ opacity: 0.6 }}>No discovery results available.</p>
-        )}
+      {!loading && rows.length > 0 && (
+        <table style={{ width: "100%", borderCollapse: "collapse" }}>
+          <thead>
+            <tr style={{ textAlign: "left", borderBottom: "1px solid #333", fontSize: 11, color: "#666", letterSpacing: 1 }}>
+              <th style={cell}>#</th>
+              <th style={cell}>SYMBOL</th>
+              <th style={cell}>NAME</th>
+              <th style={cell}>PRICE</th>
+              <th style={cell}>DECISION</th>
+              <th style={cell}>REGIME</th>
+              <th style={cell}>WHY SURFACED</th>
+              <th style={{ ...cell, textAlign: "right" }}>CONFIDENCE</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((r) => {
+              const confidence =
+                r.conviction?.normalized >= 0.66 ? "High" :
+                r.conviction?.normalized >= 0.33 ? "Medium" : "Low";
 
-        {!loading && rows.length > 0 && (
-          <table
-            style={{
-              width: "100%",
-              marginTop: "1rem",
-              borderCollapse: "collapse",
-            }}
-          >
-            <thead>
-              <tr style={{ textAlign: "left", borderBottom: "1px solid #333" }}>
-                <th>Rank</th>
-                <th>Symbol</th>
-                <th>Decision</th>
-                <th>Regime</th>
-                <th>Why It Surfaced</th>
-                <th style={{ textAlign: "right" }}>Confidence</th>
-              </tr>
-            </thead>
+              const price = r.price != null
+                ? `$${Number(r.price).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                : "—";
 
-            <tbody>
-              {rows.map((r) => {
-                const confidence =
-                  r.conviction?.normalized >= 0.66
-                    ? "High"
-                    : r.conviction?.normalized >= 0.33
-                    ? "Medium"
-                    : "Low";
+              return (
+                <tr key={r.rank} style={{ borderBottom: "1px solid #111" }}>
+                  <td style={cell}>#{r.rank}</td>
+                  <td style={{ ...cell, fontWeight: 700 }}>{r.symbol}</td>
+                  <td style={{ ...cell, color: "#aaa" }}>{r.companyName || "—"}</td>
+                  <td style={cell}>{price}</td>
+                  <td style={cell}>{r.decision?.decision ?? "—"}</td>
+                  <td style={cell}>{r.regime?.label ?? "—"}</td>
+                  <td style={{ ...cell, opacity: 0.8, maxWidth: 300 }}>
+                    {r.explanation?.plainEnglishSummary || "—"}
+                  </td>
+                  <td style={{ ...cell, textAlign: "right" }}>
+                    <span style={confidenceBadge(confidence)}>{confidence}</span>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      )}
 
-                return (
-                  <tr key={r.rank} style={{ borderBottom: "1px solid #222" }}>
-                    <td>#{r.rank}</td>
-                    <td>{r.symbol.symbol}</td>
-                    <td>{r.decision.decision}</td>
-                    <td>{r.regime.label}</td>
-                    <td style={{ opacity: 0.85 }}>
-                      {r.explanation?.plainEnglishSummary ||
-                        "No explanation available."}
-                    </td>
-                    <td style={{ textAlign: "right" }}>
-                      <span style={confidenceBadge(confidence)}>
-                        {confidence}
-                      </span>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        )}
-
-        <p style={{ marginTop: 12, fontSize: 12, opacity: 0.6 }}>
-          Discovery outputs are classification-only. No actions are executed.
-        </p>
-      </section>
+      <p style={{ marginTop: 16, fontSize: 11, opacity: 0.4 }}>
+        Discovery outputs are classification-only. No actions are executed.
+      </p>
     </div>
   );
 }
-

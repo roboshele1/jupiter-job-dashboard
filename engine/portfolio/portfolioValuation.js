@@ -1,5 +1,9 @@
+import 'dotenv/config';
+import { getCostBasis } from "./portfolioCostBasis.js";
+
 // engine/portfolio/portfolioValuation.js
-// D9.4 — Portfolio valuation + canonical market data snapshot (AUTHORITATIVE, APPEND-ONLY)
+// D9.5 — Portfolio valuation + cost-basis authority + canonical market data snapshot
+// Deterministic, read-only, append-only evolution
 
 import { resolvePrices } from "../market/priceResolver.js";
 import { applyPriceFreshness } from "../market/priceFreshnessEngine.js";
@@ -8,6 +12,7 @@ import { fetchHistoricalMarketData } from "../market/marketDataSnapshotEngine.js
 /**
  * 🔒 AUTHORITATIVE PORTFOLIO SNAPSHOT
  * - Existing valuation logic preserved
+ * - Cost basis authority injected
  * - Market data appended (non-breaking)
  * - Deterministic, read-only
  */
@@ -36,16 +41,23 @@ export async function valuePortfolio(holdings = []) {
     };
 
     const livePrice = Number(r.price) || 0;
-    const snapshotValue = Number(h.totalCostBasis) || 0;
-    const liveValue = (Number(h.qty) || 0) * livePrice;
-    const delta = liveValue - snapshotValue;
-    const deltaPct = snapshotValue > 0 ? (delta / snapshotValue) * 100 : 0;
+
+    // 🔒 COST BASIS AUTHORITY (single source of truth)
+    const totalCostBasis = Number(getCostBasis(h.symbol)) || 0;
+
+    const qty = Number(h.qty) || Number(h.quantity) || 0;
+
+    const liveValue = qty * livePrice;
+    const delta = liveValue - totalCostBasis;
+    const deltaPct =
+      totalCostBasis > 0 ? (delta / totalCostBasis) * 100 : 0;
 
     return {
       symbol: h.symbol,
-      qty: h.qty,
+      qty,
       assetClass: h.assetClass,
-      snapshotValue,
+      totalCostBasis,
+      snapshotValue: totalCostBasis,
       livePrice,
       liveValue,
       delta,
@@ -75,7 +87,6 @@ export async function valuePortfolio(holdings = []) {
   // 🟢 APPENDED: MARKET DATA
   // =========================
   const symbols = positions.map(p => p.symbol);
-
   const marketData = await fetchHistoricalMarketData(symbols);
 
   return {
@@ -86,7 +97,7 @@ export async function valuePortfolio(holdings = []) {
     totals,
     positions,
 
-    // ⬇️ NEW — SAFE APPEND
+    // ⬇️ SAFE APPEND
     marketData: Object.freeze(marketData),
 
     priceSnapshotMeta: {

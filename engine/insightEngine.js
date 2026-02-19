@@ -3,7 +3,22 @@
 // Purpose: Provide a guaranteed, boot-safe export for Electron + Renderer
 // This file is READ-ONLY LOGIC. No side effects.
 
-import holdings from "../data/holdings.js";
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __insight_dirname = path.dirname(fileURLToPath(import.meta.url));
+const __HOLDINGS_JSON = path.resolve(__insight_dirname, '../data/users/default/holdings.json');
+
+function _loadHoldings() {
+  try {
+    return JSON.parse(fs.readFileSync(__HOLDINGS_JSON, 'utf-8'));
+  } catch (e) {
+    console.error('[insightEngine] Cannot read holdings.json:', e.message);
+    return [];
+  }
+}
+const holdings = _loadHoldings();
 
 /**
  * Computes total portfolio value and daily P/L

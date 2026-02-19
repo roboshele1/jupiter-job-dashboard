@@ -1,7 +1,7 @@
 // ~/JUPITER/electron/renderer/src/pages/Insights.jsx
 
 import { useEffect, useState } from "react";
-import { fetchLiveQuotes } from "../../services/marketData";
+import { fetchLiveQuotes } from "../services/marketData";
 
 /*
 Phase 3A — Intelligence Depth

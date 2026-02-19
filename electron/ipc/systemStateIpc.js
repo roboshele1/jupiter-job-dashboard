@@ -6,6 +6,7 @@ import { interpretDecisionState } from "../../engine/intelligence/decisionInterp
 import { assembleSignalsContext } from "../../engine/intelligence/signalInterface.js";
 import { normalizeRiskSnapshot } from "../../engine/risk/index.js";
 import { assembleIntelligenceContext } from "../../engine/intelligence/contextAssembler.js";
+import { interpretConviction } from "../../engine/intelligence/convictionInterpreter.js";
 
 /* ASSET SYSTEM STATE ENGINE */
 import { buildAssetSystemStateV1 } from "../../engine/systemState/assetSystemStateEngine.v1.js";
@@ -37,8 +38,14 @@ export function registerSystemStateIpc(ipcMain) {
       portfolioContext: {
         nowValue: v1Portfolio.totalValue ?? null,
         goalValue: 1000000,
-        yearsRemaining: Math.max(0, 2030 - new Date().getFullYear())
+        yearsRemaining: Math.max(0, 2037 - new Date().getFullYear())
       }
+    });
+
+    /* READ-ONLY — CONVICTION INTERPRETER */
+    const convictionState = interpretConviction({
+      systemState: { awareness, decision, signals, risk, assetSystemState },
+      positions: ctx?.positions ?? []
     });
 
     return Object.freeze({
@@ -47,7 +54,12 @@ export function registerSystemStateIpc(ipcMain) {
       decision,
       signals,
       risk,
-      assetSystemState
+      assetSystemState,
+      convictionState
     });
   });
+}
+
+export async function getSystemState() {
+  return {};
 }

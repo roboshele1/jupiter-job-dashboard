@@ -1,86 +1,63 @@
 // engine/symbolUniverse/resolvers/tsxResolver.js
-// TSX SYMBOL RESOLVER — V2 (EXPLICIT-ONLY)
-// --------------------------------------
-// Resolves Toronto Stock Exchange equities and ETFs
-// ONLY when TSX intent is explicit.
-//
-// Activation rules (ANY must be true):
-// 1) Symbol starts with "TSX:"
-// 2) Symbol ends with ".TO"
-// 3) Symbol is in explicit TSX ETF allowlist
-//
-// Canonical form: <TICKER>.TO
-// Fail-closed. Deterministic. No guessing.
-// No US / Crypto / Index fallback.
+// TSX SYMBOL RESOLVER — V4 (FULLY OPEN — NO SHORTHAND GATE)
+// ----------------------------------------------------------
+// Any symbol with explicit TSX intent resolves live via Polygon.
+// No hardcoded allowlist. No ETF-only restriction.
+// Activation: symbol ends with .TO  OR  starts with TSX:
+
+import fetch from "node-fetch";
 
 const TSX_SUFFIX = ".TO";
+const POLYGON_BASE = "https://api.polygon.io/v3/reference/tickers";
 
-// Explicit TSX ETF allowlist (V1 — deterministic)
-const TSX_ETF_ALLOWLIST = new Set([
-  "XIU",
-  "VCN",
-  "VFV",
-  "ZSP",
-  "XIC",
-  "XEF",
-  "XBB",
-  "HXT",
-  "HXQ"
-]);
-
-function hasExplicitTsxIntent(input) {
+export function hasExplicitTsxIntent(input) {
   if (typeof input !== "string") return false;
-
   const s = input.trim().toUpperCase();
-
-  if (s.startsWith("TSX:")) return true;
-  if (s.endsWith(TSX_SUFFIX)) return true;
-  if (TSX_ETF_ALLOWLIST.has(s)) return true;
-
-  return false;
+  return s.startsWith("TSX:") || s.endsWith(TSX_SUFFIX);
 }
 
 function normalizeTsxSymbol(input) {
   let s = input.trim().toUpperCase();
-
-  // Strip TSX prefix if present
-  if (s.startsWith("TSX:")) {
-    s = s.slice(4);
-  }
-
-  // Map explicit ETF shorthand → .TO
-  if (TSX_ETF_ALLOWLIST.has(s)) {
-    return `${s}${TSX_SUFFIX}`;
-  }
-
-  // Must already end with .TO at this point
-  if (!s.endsWith(TSX_SUFFIX)) return null;
-
-  // Validate final shape
-  if (!/^[A-Z0-9.\-]+\.TO$/.test(s)) return null;
-
+  if (s.startsWith("TSX:")) s = s.slice(4);
+  if (!s.endsWith(TSX_SUFFIX)) s = `${s}${TSX_SUFFIX}`;
   return s;
+}
+
+async function lookupPolygon(canonical, apiKey) {
+  if (!apiKey) return null;
+  const url = `${POLYGON_BASE}/${encodeURIComponent(canonical)}?apiKey=${apiKey}`;
+  try {
+    const res = await fetch(url, { timeout: 6000 });
+    if (!res.ok) return null;
+    const json = await res.json();
+    return json?.results || null;
+  } catch {
+    return null;
+  }
 }
 
 export async function tsxResolver(inputSymbol) {
   if (!hasExplicitTsxIntent(inputSymbol)) return null;
 
   const canonical = normalizeTsxSymbol(inputSymbol);
-  if (!canonical) return null;
+  const apiKey    = process.env.POLYGON_API_KEY;
+  const ticker    = canonical.replace(TSX_SUFFIX, "");
+
+  const polygonData = await lookupPolygon(canonical, apiKey);
+  const name        = polygonData?.name || ticker;
+  const type        = polygonData?.type || "";
 
   return Object.freeze({
-    symbol: canonical,
-    exchange: "TSX",
-    country: "CA",
-    currency: "CAD",
-    assetClass: TSX_ETF_ALLOWLIST.has(canonical.replace(TSX_SUFFIX, ""))
-      ? "etf"
-      : "equity",
-    source: "tsxResolver",
-    canonical: true
+    symbol:     canonical,
+    name,
+    exchange:   "TSX",
+    country:    "CA",
+    currency:   "CAD",
+    assetClass: (type === "ETF" || type === "FUND") ? "etf" : "equity",
+    market:     "stocks",
+    source:     "tsxResolver",
+    canonical:  true,
   });
 }
 
-export default Object.freeze({
-  tsxResolver
-});
+export default Object.freeze({ tsxResolver });

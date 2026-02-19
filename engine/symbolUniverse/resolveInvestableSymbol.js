@@ -1,122 +1,62 @@
 // engine/symbolUniverse/resolveInvestableSymbol.js
-// INVESTABLE SYMBOL ORCHESTRATOR — V4 (AUTHORITATIVE)
-// --------------------------------------------------
-// Single source of truth for symbol validity across:
-// - Electron IPC
-// - Discovery Lab
-// - Manual research
-// - All engines
-//
-// INSTITUTIONAL RULES (HARD):
-// 1) TSX resolves ONLY explicit TSX symbols (.TO or TSX:)
-// 2) Native crypto (BTC, ETH, etc.) has priority over ALL equity resolvers
-// 3) Equity / ETF resolvers must NEVER override native crypto
-// 4) Deterministic precedence
-// 5) Fail-closed
+// INVESTABLE SYMBOL ORCHESTRATOR — V5 (FULLY GLOBAL)
+// ---------------------------------------------------
+// Resolution order:
+// 1) Explicit TSX (.TO / TSX:)  → tsxResolver
+// 2) Crypto                     → coinbaseResolver (live, no allowlist)
+// 3) US / global equity + ETF   → polygonResolver
+// 4) Canadian bare ticker guess → polygonResolver with .TO suffix
+// 5) Index aliases              → indexAliasResolver
+// 6) Fail-closed
 
-import { tsxResolver } from "./resolvers/tsxResolver.js";
-import { coinbaseResolver } from "./resolvers/coinbaseResolver.js";
-import { polygonResolver } from "./resolvers/polygonResolver.js";
-import { indexAliasResolver } from "./resolvers/indexAliasResolver.js";
+import { tsxResolver, hasExplicitTsxIntent } from "./resolvers/tsxResolver.js";
+import { coinbaseResolver }                   from "./resolvers/coinbaseResolver.js";
+import { polygonResolver }                    from "./resolvers/polygonResolver.js";
+import { indexAliasResolver }                 from "./resolvers/indexAliasResolver.js";
 
 export async function resolveInvestableSymbol(inputSymbol) {
   if (!inputSymbol || typeof inputSymbol !== "string") {
-    return Object.freeze({
-      valid: false,
-      reason: "INVALID_INPUT"
-    });
+    return Object.freeze({ valid: false, reason: "INVALID_INPUT" });
   }
 
   const symbol = inputSymbol.trim().toUpperCase();
 
-  // ─────────────────────────────────────────────
-  // 1️⃣ TSX — EXPLICIT ONLY (no guessing)
-  // Accepts:
-  // - RY.TO
-  // - TSX:RY
-  // Rejects:
-  // - AAPL
-  // - NVDA
-  // ─────────────────────────────────────────────
-  const isExplicitTsx =
-    symbol.endsWith(".TO") || symbol.startsWith("TSX:");
-
-  if (isExplicitTsx) {
+  // ── 1) EXPLICIT TSX ──────────────────────────────────────────────────
+  if (hasExplicitTsxIntent(symbol)) {
     try {
       const tsx = await tsxResolver(symbol);
-      if (tsx?.symbol) {
-        return Object.freeze({
-          valid: true,
-          ...tsx
-        });
-      }
-    } catch {
-      // fail-closed, continue
-    }
+      if (tsx?.symbol) return Object.freeze({ valid: true, ...tsx });
+    } catch { /* fail-closed */ }
   }
 
-  // ─────────────────────────────────────────────
-  // 2️⃣ CRYPTO — NATIVE ASSET PRIORITY (AUTHORITATIVE)
-  // BTC must resolve as Bitcoin, NEVER as an ETF
-  // ─────────────────────────────────────────────
+  // ── 2) CRYPTO (Coinbase live — no allowlist) ─────────────────────────
   try {
     const crypto = await coinbaseResolver(symbol);
-    if (crypto?.symbol) {
-      return Object.freeze({
-        valid: true,
-        ...crypto
-      });
-    }
-  } catch {
-    // continue
-  }
+    if (crypto?.symbol) return Object.freeze({ valid: true, ...crypto });
+  } catch { /* fail-closed */ }
 
-  // ─────────────────────────────────────────────
-  // 3️⃣ EQUITIES / ETFs — Polygon (US + ETFs)
-  // Only reached if NOT crypto
-  // ─────────────────────────────────────────────
+  // ── 3) US / GLOBAL EQUITY + ETF (Polygon) ────────────────────────────
   try {
     const equity = await polygonResolver(symbol);
-    if (equity?.symbol) {
-      return Object.freeze({
-        valid: true,
-        ...equity
-      });
-    }
-  } catch {
-    // continue
+    if (equity?.symbol) return Object.freeze({ valid: true, ...equity });
+  } catch { /* fail-closed */ }
+
+  // ── 4) CANADIAN BARE TICKER FALLBACK (e.g. XEQT → XEQT.TO) ─────────
+  // If Polygon found nothing for the bare ticker, try it as a TSX symbol.
+  // Catches XEQT, ZEQT, VEQT, ZSP, VFV, etc. typed without .TO suffix.
+  if (!symbol.includes(".") && !symbol.includes(":")) {
+    try {
+      const tsx = await tsxResolver(symbol + ".TO");
+      if (tsx?.symbol) return Object.freeze({ valid: true, ...tsx });
+    } catch { /* fail-closed */ }
   }
 
-  // ─────────────────────────────────────────────
-  // 4️⃣ INDEX ALIASES (SPX, NDX, etc.)
-  // ─────────────────────────────────────────────
+  // ── 5) INDEX ALIASES (SPX, NDX, etc.) ────────────────────────────────
   try {
     const index = await indexAliasResolver(symbol);
-    if (index?.symbol) {
-      return Object.freeze({
-        valid: true,
-        ...index
-      });
-    }
-  } catch {
-    // continue
-  }
+    if (index?.symbol) return Object.freeze({ valid: true, ...index });
+  } catch { /* fail-closed */ }
 
-  // ─────────────────────────────────────────────
-  // ❌ FAIL-CLOSED
-  // ─────────────────────────────────────────────
-  return Object.freeze({
-    valid: false,
-    reason: "UNRESOLVED_SYMBOL"
-  });
+  // ── 6) FAIL-CLOSED ───────────────────────────────────────────────────
+  return Object.freeze({ valid: false, reason: "SYMBOL_NOT_FOUND", symbol });
 }
-
-export async function isInvestableSymbol(symbol) {
-  const r = await resolveInvestableSymbol(symbol);
-  return Boolean(r?.valid);
-}
-
-export default Object.freeze({
-  resolveInvestableSymbol,
-  isInvestableSymbol
-});

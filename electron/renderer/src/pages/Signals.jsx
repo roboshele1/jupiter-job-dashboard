@@ -1,7 +1,7 @@
 // ~/JUPITER/electron/renderer/src/pages/Signals.jsx
 
 import { useEffect, useState } from "react";
-import { fetchLiveQuotes } from "../../services/marketData";
+import { fetchLiveQuotes } from "../services/marketData";
 import Sparkline from "../components/Sparkline";
 
 /*
