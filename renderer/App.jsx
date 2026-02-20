@@ -21,6 +21,7 @@ import MarketMonitor from "./pages/MarketMonitor";
 import MoonshotLab   from "./pages/MoonshotLab";
 import GoalEngine    from "./pages/GoalEngine";
 import Decisions     from "./pages/Decisions";
+import JupiterAI    from "./pages/JupiterAI";
 
 import Sidebar         from "./components/Sidebar";
 import SystemHeartbeat from "./components/SystemHeartbeat";
@@ -45,6 +46,7 @@ export default function App() {
             <Route path="/moonshot"  element={<MoonshotLab />}   />
             <Route path="/goal"      element={<GoalEngine />}    />
             <Route path="/decisions" element={<Decisions />}     />
+            <Route path="/jupiterai"  element={<JupiterAI />}    />
           </Routes>
         </main>
       </div>

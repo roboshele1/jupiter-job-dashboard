@@ -16,6 +16,7 @@ const items = [
   { label: "Moonshot Lab",  path: "/moonshot"  },
   { label: "Goal Engine",   path: "/goal"      },
   { label: "Decisions",     path: "/decisions" },
+  { label: "Jupiter AI",    path: "/jupiterai"  },
 ];
 
 export default function Sidebar() {
