@@ -88,5 +88,22 @@
     "assetClass": "equity",
     "currency": "USD",
     "addedAt": "2026-02-18T17:43:54.688Z"
+  },
+  {
+    "symbol": "AMPL",
+    "qty": 200,
+    "totalCostBasis": 7.93,
+    "assetClass": "equity",
+    "currency": "USD",
+    "addedAt": "2026-02-19T02:24:32.966Z",
+    "updatedAt": "2026-02-19T02:29:49.765Z"
+  },
+  {
+    "symbol": "GOOGL",
+    "qty": 5,
+    "totalCostBasis": 303,
+    "assetClass": "equity",
+    "currency": "USD",
+    "addedAt": "2026-02-19T23:06:03.909Z"
   }
 ]
