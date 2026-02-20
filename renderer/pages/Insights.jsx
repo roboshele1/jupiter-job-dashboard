@@ -23,7 +23,16 @@ const GOAL_YEAR       = 2037;
 const DCA_DEFAULT     = 500;
 const REFRESH_MS      = 60_000; // auto-refresh every 60 seconds
 const HARD_CAP        = 30;
-const KELLY_MULT      = 0.25;
+const KELLY_MULT_TABLE = {
+  RISK_ON:       0.30,
+  MILD_RISK_ON:  0.275,
+  NEUTRAL:       0.25,
+  MILD_RISK_OFF: 0.175,
+  RISK_OFF:      0.10,
+};
+function getKellyMult(regime) {
+  return KELLY_MULT_TABLE[regime] ?? KELLY_MULT_TABLE.NEUTRAL;
+}
 
 const fmt    = (n, d = 1) => Number(n || 0).toFixed(d);
 const fmtUSD = n => '$' + Math.abs(Number(n || 0)).toLocaleString('en-US', { maximumFractionDigits: 0 });
@@ -107,10 +116,10 @@ function concPenalty(currentW, targetW, hardCap) {
   return 1 + 0.08 * excess * excess;
 }
 
-function ces(cagrPct, volPct, winProb, winLoss, currentW, targetW) {
+function ces(cagrPct, volPct, winProb, winLoss, currentW, targetW, regime = 'NEUTRAL') {
   if (currentW >= HARD_CAP) return -Infinity;
   const geo     = geometricGrowth(cagrPct, volPct);
-  const kf      = kellyFraction(winProb, winLoss) * KELLY_MULT;
+  const kf      = kellyFraction(winProb, winLoss) * getKellyMult(regime);
   const penalty = concPenalty(currentW, targetW, HARD_CAP);
   const mggi    = (geo * kf) / penalty;
   return mggi / Math.max(0.01, volPct / 100);
@@ -152,8 +161,8 @@ function runLCPE(positions, kellyActions, portfolioValue, monthlyDCA, regime, ex
     const winLoss  = k.winLossRatio   || 1.5;
     const currentW = (Number(p.liveValue || 0) / portfolioValue) * 100;
     const targetW  = TARGET_W[p.symbol] || TARGET_W.default;
-    const score    = ces(cagr, vol, winProb, winLoss, currentW, targetW);
-    const kf       = kellyFraction(winProb, winLoss) * KELLY_MULT;
+    const score    = ces(cagr, vol, winProb, winLoss, currentW, targetW, regime);
+    const kf       = kellyFraction(winProb, winLoss) * getKellyMult(regime);
     const drift    = currentW - targetW;
     const projectedPerDollar = Math.pow(1 + cagr / 100, yearsLeft);
     const isBlocked  = currentW >= HARD_CAP || score <= 0;
@@ -571,7 +580,7 @@ function LCPEPanel({ lcpe, monthlyDCA, onDCAChange, executions, onExecute, onUnd
 
         <div style={{ ...mono, fontSize: 9, color: C.textMuted, padding: '10px 12px 0', lineHeight: 1.7, opacity: 0.55 }}>
           CES = (Geometric return × fractional Kelly) ÷ concentration penalty ÷ volatility.
-          Hard cap {HARD_CAP}% · Kelly multiplier {KELLY_MULT}× · Drift = current − target weight.
+          Hard cap {HARD_CAP}% · Kelly multiplier {getKellyMult(regime)}× · Drift = current − target weight.
           CAGR adjusted ±{Math.abs(REGIME_MODIFIER[regime] ?? 0)}% for {regime} regime. Recomputes every 60s.
         </div>
       </div>
