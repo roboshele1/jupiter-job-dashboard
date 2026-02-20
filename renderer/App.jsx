@@ -11,7 +11,6 @@ import React from "react";
 import { HashRouter as Router, Routes, Route } from "react-router-dom";
 
 import Dashboard     from "./pages/Dashboard";
-import Portfolio     from "./pages/Portfolio";
 import Signals       from "./pages/Signals";
 import DiscoveryLab  from "./pages/DiscoveryLab";
 import GrowthEngine  from "./pages/GrowthEngine";
@@ -37,7 +36,6 @@ export default function App() {
           <Routes>
             <Route path="/"          element={<Dashboard />}     />
             <Route path="/dashboard" element={<Dashboard />}     />
-            <Route path="/portfolio" element={<Portfolio />}     />
             <Route path="/signals"   element={<Signals />}       />
             <Route path="/discovery" element={<DiscoveryLab />}  />
             <Route path="/growth"    element={<GrowthEngine />}  />
