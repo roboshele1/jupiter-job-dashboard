@@ -246,5 +246,35 @@ export function registerAllIpc(ipcMain) {
 
   registerMoonshotRegistryIpc(ipcMain);
 
+  // ─── MEMORY LAYER IPC ───────────────────────────────────────────────────────
+  registerHandler(ipcMain, "memory:recordAIInteraction", async (_, payload) => {
+    const { recordAIInteraction } = await import("../../engine/learning/jupiterMemory.js");
+    recordAIInteraction(payload);
+    return { ok: true };
+  });
+  registerHandler(ipcMain, "memory:getSummary", async () => {
+    const { getMemorySummary } = await import("../../engine/learning/jupiterMemory.js");
+    return getMemorySummary();
+  });
+  registerHandler(ipcMain, "memory:getRecentEvents", async (_, n) => {
+    const { getRecentEvents } = await import("../../engine/learning/jupiterMemory.js");
+    return getRecentEvents(n || 50);
+  });
+
+  // ─── LCPE FEEDBACK LOOP IPC ──────────────────────────────────────────────────
+  registerHandler(ipcMain, "lcpe:recordExecution", async (_, payload) => {
+    const { recordLCPEExecution } = await import("../../engine/learning/lcpeFeedbackLoop.js");
+    recordLCPEExecution(payload);
+    return { ok: true };
+  });
+  registerHandler(ipcMain, "lcpe:scorePending", async () => {
+    const { scorePendingExecutions } = await import("../../engine/learning/lcpeFeedbackLoop.js");
+    return scorePendingExecutions(process.env.POLYGON_API_KEY);
+  });
+  registerHandler(ipcMain, "lcpe:getFeedbackSummary", async () => {
+    const { getLCPEFeedbackSummary } = await import("../../engine/learning/lcpeFeedbackLoop.js");
+    return getLCPEFeedbackSummary();
+  });
+
   console.log("[IPC] All handlers registered: crypto price bridge, discovery rejected, Kelly Decisions, Market Regime \u2713");
 }

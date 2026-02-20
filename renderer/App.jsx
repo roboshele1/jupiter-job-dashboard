@@ -24,7 +24,7 @@ import Decisions     from "./pages/Decisions";
 import JupiterAI    from "./pages/JupiterAI";
 
 import Sidebar         from "./components/Sidebar";
-import SystemHeartbeat from "./components/SystemHeartbeat";
+
 
 export default function App() {
   return (
@@ -32,7 +32,7 @@ export default function App() {
       <div style={{ display: "flex", height: "100vh" }}>
         <Sidebar />
         <main style={{ flex: 1, overflowY: "auto" }}>
-          <SystemHeartbeat />
+          
           <Routes>
             <Route path="/"          element={<Dashboard />}     />
             <Route path="/dashboard" element={<Dashboard />}     />

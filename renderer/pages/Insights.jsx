@@ -642,6 +642,19 @@ export default function Insights({ onNavigate }) {
     ];
     setExecutions(updated);
     await saveExecutions(updated);
+    // Log to LCPE feedback loop for 30/60/90 day outcome scoring
+    const pos = positions.find(p => p.symbol === symbol);
+    const lcpeEntry = lcpe?.ranked?.find(r => r.symbol === symbol);
+    window.jupiter.invoke("lcpe:recordExecution", {
+      symbol,
+      amount,
+      rank:       lcpeEntry?.rank ?? 0,
+      cesScore:   lcpeEntry?.score ?? 0,
+      cagr:       lcpeEntry?.cagr ?? 0,
+      regime,
+      kellyFrac:  lcpeEntry?.kellyFrac ?? 0,
+      entryPrice: pos?.livePrice ?? 0,
+    }).catch(() => {});
   }, [executions]);
 
   // Undo an execution
@@ -649,6 +662,19 @@ export default function Insights({ onNavigate }) {
     const updated = executions.filter(e => e.symbol !== symbol);
     setExecutions(updated);
     await saveExecutions(updated);
+    // Log to LCPE feedback loop for 30/60/90 day outcome scoring
+    const pos = positions.find(p => p.symbol === symbol);
+    const lcpeEntry = lcpe?.ranked?.find(r => r.symbol === symbol);
+    window.jupiter.invoke("lcpe:recordExecution", {
+      symbol,
+      amount,
+      rank:       lcpeEntry?.rank ?? 0,
+      cesScore:   lcpeEntry?.score ?? 0,
+      cagr:       lcpeEntry?.cagr ?? 0,
+      regime,
+      kellyFrac:  lcpeEntry?.kellyFrac ?? 0,
+      entryPrice: pos?.livePrice ?? 0,
+    }).catch(() => {});
   }, [executions]);
 
   const positions      = useMemo(() => data?.snap?.portfolio?.positions || [], [data]);
