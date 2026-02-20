@@ -78,14 +78,3 @@ app.whenReady().then(async () => {
   startAsymmetryOnce();              // 🔥 AUTONOMOUS SCANS + TELEMETRY
 });
 
-// -----------------------------------------------------
-// IPC — PORTFOLIO
-// -----------------------------------------------------
-ipcMain.handle("portfolio:getValuation", async () => {
-  if (!cachedValuation) await computeAndCache();
-  return cachedValuation;
-});
-
-ipcMain.handle("portfolio:refreshValuation", async () => {
-  return await computeAndCache();
-});

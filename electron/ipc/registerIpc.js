@@ -276,5 +276,63 @@ export function registerAllIpc(ipcMain) {
     return getLCPEFeedbackSummary();
   });
 
+  
+  // ─── HOLDINGS CRUD IPC ───────────────────────────────────────────────────────
+  registerHandler(ipcMain, "holdings:getRaw", async () => {
+    const raw = fs.readFileSync(HOLDINGS_JSON, "utf-8");
+    return JSON.parse(raw);
+  });
+
+  registerHandler(ipcMain, "holdings:upsert", async (_, payload) => {
+    if (!payload?.symbol) throw new Error("INVALID_PAYLOAD: symbol required");
+    let holdings = [];
+    try {
+      const raw = fs.readFileSync(HOLDINGS_JSON, "utf-8");
+      holdings = JSON.parse(raw);
+      if (!Array.isArray(holdings)) holdings = [];
+    } catch { holdings = []; }
+
+    const idx = holdings.findIndex(h =>
+      String(h.symbol).toUpperCase() === String(payload.symbol).toUpperCase()
+    );
+    const record = {
+      symbol:         String(payload.symbol).toUpperCase(),
+      qty:            Number(payload.qty),
+      assetClass:     payload.assetClass === "crypto" ? "crypto" : payload.assetClass === "etf" ? "etf" : "equity",
+      totalCostBasis: Number(payload.totalCostBasis),
+      currency:       String(payload.currency || "CAD"),
+    };
+
+    if (idx >= 0) {
+      holdings[idx] = record;
+      console.log(`[IPC] holdings:upsert — updated ${record.symbol}`);
+    } else {
+      holdings.push(record);
+      console.log(`[IPC] holdings:upsert — added ${record.symbol}`);
+    }
+
+    fs.writeFileSync(HOLDINGS_JSON, JSON.stringify(holdings, null, 2), "utf-8");
+    cachedSnapshot = null;
+    return { ok: true, action: idx >= 0 ? "updated" : "added", symbol: record.symbol };
+  });
+
+  registerHandler(ipcMain, "holdings:delete", async (_, payload) => {
+    if (!payload?.symbol) throw new Error("INVALID_PAYLOAD: symbol required");
+    const raw = fs.readFileSync(HOLDINGS_JSON, "utf-8");
+    let holdings = JSON.parse(raw);
+    if (!Array.isArray(holdings)) throw new Error("HOLDINGS_FILE_INVALID");
+
+    const before = holdings.length;
+    holdings = holdings.filter(h =>
+      String(h.symbol).toUpperCase() !== String(payload.symbol).toUpperCase()
+    );
+    if (holdings.length === before) throw new Error(`SYMBOL_NOT_FOUND: ${payload.symbol}`);
+
+    fs.writeFileSync(HOLDINGS_JSON, JSON.stringify(holdings, null, 2), "utf-8");
+    cachedSnapshot = null;
+    console.log(`[IPC] holdings:delete — removed ${payload.symbol}`);
+    return { ok: true, symbol: payload.symbol };
+  });
+
   console.log("[IPC] All handlers registered: crypto price bridge, discovery rejected, Kelly Decisions, Market Regime \u2713");
 }

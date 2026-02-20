@@ -17,6 +17,7 @@ const items = [
   { label: "Goal Engine",   path: "/goal"      },
   { label: "Decisions",     path: "/decisions" },
   { label: "Jupiter AI",    path: "/jupiterai"  },
+  { label: "Portfolios",    path: "/portfolios" },
 ];
 
 export default function Sidebar() {
