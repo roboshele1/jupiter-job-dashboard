@@ -93,9 +93,8 @@
   {
     "symbol": "GOOGL",
     "qty": 3,
-    "totalCostBasis": 307.57,
     "assetClass": "equity",
-    "currency": "USD",
-    "addedAt": "2026-02-20T07:43:05.818Z"
+    "totalCostBasis": 917.01,
+    "currency": "USD"
   }
 ]
