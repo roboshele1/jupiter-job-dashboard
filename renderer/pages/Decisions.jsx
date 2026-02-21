@@ -69,7 +69,7 @@ export default function Decisions() {
   const plSign  = decisions.totalUnrealizedPL >= 0 ? '+' : '';
 
   return (
-    <div style={{ padding: 32, overflowY: 'auto' }}>
+    <div style={{ padding: 32, overflowY: 'auto', background: '#060910', minHeight: '100vh', fontFamily: "'IBM Plex Mono', monospace", color: '#e2e8f0' }}>
 
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 24 }}>
         <div>
@@ -88,9 +88,9 @@ export default function Decisions() {
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 16, marginBottom: 24 }}>
         {[
-          { label: 'PORTFOLIO VALUE', value: `$${decisions.portfolioValue.toLocaleString()}`, color: '#fff' },
-          { label: 'TOTAL BOOK COST', value: `$${decisions.totalBookCost.toLocaleString()}`, color: '#9ca3af' },
-          { label: 'UNREALIZED P/L',  value: `${plSign}$${Math.abs(decisions.totalUnrealizedPL).toLocaleString()} (${plSign}${decisions.totalReturnPct.toFixed(1)}%)`, color: plColor }
+          { label: 'PORTFOLIO VALUE', value: `$${(decisions.portfolioValue ?? 0).toLocaleString()}`, color: '#fff' },
+          { label: 'TOTAL BOOK COST', value: `$${(decisions.totalBookCost ?? 0).toLocaleString()}`, color: '#9ca3af' },
+          { label: 'UNREALIZED P/L',  value: `${plSign}$${Math.abs(decisions.totalUnrealizedPL).toLocaleString()} (${plSign}${(decisions.totalReturnPct ?? 0).toFixed(1)}%)`, color: plColor }
         ].map(card => (
           <div key={card.label} style={{ background: 'rgba(31,41,55,0.6)', border: '1px solid #374151', borderRadius: 10, padding: '20px 24px' }}>
             <div style={{ fontSize: 11, color: '#6b7280', letterSpacing: '0.08em', marginBottom: 8 }}>{card.label}</div>
@@ -104,16 +104,16 @@ export default function Decisions() {
           <div>
             <div style={{ fontSize: 16, fontWeight: 600, color: '#fff' }}>Goal: $100k → $1M by 2037</div>
             <div style={{ fontSize: 13, color: '#9ca3af', marginTop: 4 }}>
-              ${decisions.goal.remaining.toLocaleString()} remaining · Required CAGR: {decisions.goal.requiredCAGR}%
+              ${(decisions.goal?.remaining ?? 0).toLocaleString()} remaining · Required CAGR: {decisions.goal?.requiredCAGR ?? '—'}%
             </div>
           </div>
           <div style={{ textAlign: 'right' }}>
-            <div style={{ fontSize: 26, fontWeight: 700, color: '#fff' }}>{decisions.goal.progressPct}%</div>
+            <div style={{ fontSize: 26, fontWeight: 700, color: '#fff' }}>{(decisions.goal?.progressPct ?? 0).toFixed(1)}%</div>
             <div style={{ fontSize: 12, color: '#6b7280' }}>of goal</div>
           </div>
         </div>
         <div style={{ width: '100%', height: 10, background: '#374151', borderRadius: 5, overflow: 'hidden' }}>
-          <div style={{ width: `${Math.min(decisions.goal.progressPct, 100)}%`, height: '100%', background: '#3b82f6', borderRadius: 5, transition: 'width 0.5s ease' }} />
+          <div style={{ width: `${Math.min(decisions.goal?.progressPct ?? 0, 100)}%`, height: '100%', background: '#3b82f6', borderRadius: 5, transition: 'width 0.5s ease' }} />
         </div>
       </div>
 
@@ -122,26 +122,26 @@ export default function Decisions() {
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 16 }}>
           <div>
             <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 6 }}>PORTFOLIO HEAT</div>
-            <div style={{ fontSize: 28, fontWeight: 700, color: heatColor(decisions.heatCheck.status) }}>
-              {decisions.heatCheck.totalHeat.toFixed(1)}%
+            <div style={{ fontSize: 28, fontWeight: 700, color: heatColor(decisions.heatCheck?.status) }}>
+              {(decisions.heatCheck?.totalHeat ?? 0).toFixed(1)}%
             </div>
-            <div style={{ fontSize: 11, color: '#6b7280' }}>Max: {decisions.heatCheck.maxAllowedHeat}%</div>
+            <div style={{ fontSize: 11, color: '#6b7280' }}>Max: {(decisions.heatCheck?.maxAllowedHeat ?? 0)}%</div>
           </div>
           <div>
             <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 6 }}>STATUS</div>
-            <div style={{ fontSize: 20, fontWeight: 700, color: heatColor(decisions.heatCheck.status) }}>
+            <div style={{ fontSize: 20, fontWeight: 700, color: heatColor(decisions.heatCheck?.status) }}>
               {decisions.heatCheck.status}
             </div>
           </div>
           <div>
             <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 6 }}>OPTIMAL CASH</div>
             <div style={{ fontSize: 28, fontWeight: 700, color: '#fff' }}>
-              {decisions.cashManagement.optimalCashPct.toFixed(1)}%
+              {(decisions.cashManagement?.optimalCashPct ?? 0).toFixed(1)}%
             </div>
-            <div style={{ fontSize: 11, color: '#6b7280' }}>${decisions.cashManagement.optimalCashReserve.toLocaleString()}</div>
+            <div style={{ fontSize: 11, color: '#6b7280' }}>${(decisions.cashManagement?.optimalCashReserve ?? 0).toLocaleString()}</div>
           </div>
         </div>
-        {decisions.heatCheck.isOverheated && (
+        {decisions.heatCheck?.isOverheated && (
           <div style={{ marginTop: 16, padding: '10px 14px', background: 'rgba(248,113,113,0.1)', border: '1px solid rgba(248,113,113,0.3)', borderRadius: 8, color: '#f87171', fontSize: 13 }}>
             ⚠️ {decisions.heatCheck.recommendation}
           </div>

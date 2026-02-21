@@ -53,7 +53,7 @@ export default function Dashboard() {
     setRefreshing(true);
     try {
       const [v, sys, kelly] = await Promise.allSettled([
-        force ? window.jupiter.refreshPortfolioValuation() : window.jupiter.getPortfolioValuation(),
+        force ? window.jupiter.invoke('portfolio:refreshValuation') : window.jupiter.getPortfolioValuation(),
         window.jupiter.invoke("system:getState"),
         window.jupiter.invoke("decisions:getKellyRecommendations"),
       ]);
@@ -68,7 +68,7 @@ export default function Dashboard() {
 
   useEffect(() => {
     loadAll();
-    const id = setInterval(() => loadAll(), 15_000);
+    const id = setInterval(() => loadAll(), 60_000 + Math.random() * 5000) // rate-limited: 60s + jitter;
     return () => clearInterval(id);
   }, []);
 

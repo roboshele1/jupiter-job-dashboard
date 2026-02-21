@@ -315,7 +315,7 @@ function EquityCard({ s, kellyMap, portfolioValue, goal }) {
         borderTop: ` 1px solid ${C.border}`,
         display: "flex",
         flexWrap: "wrap",
-        gap: "08px 20px",
+        gap: "8px 20px",
       }}>
         <DistanceBadge label="vs SMA20" price={price} sma={sma20} />
         <DistanceBadge label="vs SMA50" price={price} sma={sma50} />
@@ -442,7 +442,7 @@ function CryptoPanel({ cryptoPrices, cryptoLoading, cryptoError, kellyMap, goal 
                   marginTop: 12,
                   display: "flex",
                   flexWrap: "wrap",
-                  gap: "08px 24px",
+                  gap: "8px 24px",
                   fontSize: 13,
                 }}>
                   <div>
@@ -491,7 +491,7 @@ function CryptoPanel({ cryptoPrices, cryptoLoading, cryptoError, kellyMap, goal 
                   borderTop: ` 1px dashed ${C.borderDash}`,
                   display: "flex",
                   flexWrap: "wrap",
-                  gap: "08px 24px",
+                  gap: "8px 24px",
                   fontSize: 12,
                 }}>
                   {contributionPct !== null && (
@@ -677,7 +677,7 @@ export default function Signals() {
   async function handleRefresh() {
     try {
       setRefreshing(true);
-      await window.jupiter.refreshPortfolioValuation();
+      await window.jupiter.invoke("portfolio:refreshValuation"); // fixed: was non-invoke call
       await Promise.all([loadAll(), loadCrypto()]);
     } catch (e) {
       console.error("[SIGNALS_REFRESH_ERROR]", e);

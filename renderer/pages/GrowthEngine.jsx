@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { CAGR, getCAGR } from "../constants/cagrAssumptions.js";
+// cagrAssumptions import removed — projections computed inline
 
 // ─── colour tokens (project-wide pattern) ────────────────────────────────────
 const C = {
@@ -262,7 +262,7 @@ export default function GrowthEngine() {
     const kellyPct         = (a.kellyWeight ?? 0) * 100; // raw Kelly % of total portfolio
 
     return {
-      ticker:         a.ticker,
+      ticker:         a.symbol,
       dollarAmount,
       kellyWeight:    normalisedWeight,
       currentPct,
@@ -670,7 +670,7 @@ export default function GrowthEngine() {
             {/* cards */}
             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
               {allocations.map((a) => (
-                <AllocationCard key={a.ticker} {...a} />
+                <AllocationCard key={a.symbol} {...a} />
               ))}
             </div>
 
@@ -693,13 +693,13 @@ export default function GrowthEngine() {
                   const hue  = hues[i % hues.length];
                   return (
                     <div
-                      key={a.ticker}
+                      key={a.symbol}
                       style={{
                         flex: a.kellyWeight,
                         background: `hsl(${hue}, 70%, 55%)`,
                         transition: "flex 0.4s ease",
                       }}
-                      title={`${a.ticker}: ${fmt$(a.dollarAmount)}`}
+                      title={`${a.symbol}: ${fmt$(a.dollarAmount)}`}
                     />
                   );
                 })}
@@ -710,7 +710,7 @@ export default function GrowthEngine() {
                   const hue  = hues[i % hues.length];
                   return (
                     <div
-                      key={a.ticker}
+                      key={a.symbol}
                       style={{ display: "flex", alignItems: "center", gap: 6 }}
                     >
                       <div
@@ -723,7 +723,7 @@ export default function GrowthEngine() {
                         }}
                       />
                       <span style={{ fontSize: 11, color: C.textMuted }}>
-                        {a.ticker}{" "}
+                        {a.symbol}{" "}
                         <span style={{ color: C.text }}>{fmt$(a.dollarAmount)}</span>
                       </span>
                     </div>

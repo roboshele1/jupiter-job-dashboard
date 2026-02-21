@@ -1,3 +1,9 @@
+// WARNING: HARDCODED INPUTS — BETA KNOWN ISSUE
+// vixLevel and breadthPctAbove50DMA are static placeholder values.
+// TODO before v1.0: wire to live data:
+//   vixLevel:             Polygon options API or FRED (^VIX)
+//   breadthPctAbove50DMA: Polygon snapshot across SPY constituents
+// ---------------------------------------------------------------
 // electron/ipc/marketRegimeIpc.js
 import { computeMarketRegime } from "../../engine/marketRegime/marketRegimeEngine.js";
 

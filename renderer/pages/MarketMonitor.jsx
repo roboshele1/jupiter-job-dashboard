@@ -241,7 +241,7 @@ export default function MarketMonitor() {
       }
     };
     poll();
-    const id = setInterval(poll, 10_000);
+    const id = setInterval(poll, 30_000) // rate-limited: was 10s;
     return () => { alive = false; clearInterval(id); };
   }, []);
 
@@ -302,7 +302,7 @@ export default function MarketMonitor() {
 
       {/* Regime banner — independent of price data, shows as soon as regime resolves */}
       <RegimeBanner
-        regime={regimeData?.regime}
+        regime={typeof regimeData === 'string' ? regimeData : regimeData?.regime ?? regimeData}
         confidence={regimeData?.confidence}
         signals={regimeData?.signals}
         timestamp={regime?.timestamp}
