@@ -1,1 +1,12 @@
-[]
+[
+  {
+    "id": "AI_INTERACTION_1771695768753_98d1y",
+    "timestamp": "2026-02-21T17:42:48.753Z",
+    "type": "AI_INTERACTION",
+    "question": "Is now a good time to buy NVDA?",
+    "responseLength": 1865,
+    "regime": "NEUTRAL",
+    "portfolioValue": 87805.05555846001,
+    "holdingCount": 13
+  }
+]

@@ -8,9 +8,9 @@
   },
   {
     "symbol": "ASML",
-    "qty": 10.079,
-    "totalCostBasis": 8749.34,
+    "qty": 10.0901,
     "assetClass": "equity",
+    "totalCostBasis": 8765.6,
     "currency": "USD"
   },
   {
@@ -23,10 +23,9 @@
   {
     "symbol": "BMNR",
     "qty": 125,
-    "totalCostBasis": 4514.414285714286,
     "assetClass": "equity",
-    "currency": "USD",
-    "updatedAt": "2026-02-20T07:43:30.514Z"
+    "totalCostBasis": 4508.81,
+    "currency": "USD"
   },
   {
     "symbol": "BTC",
