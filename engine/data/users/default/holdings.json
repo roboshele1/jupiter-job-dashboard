@@ -95,5 +95,12 @@
     "assetClass": "equity",
     "totalCostBasis": 917.01,
     "currency": "USD"
+  },
+  {
+    "symbol": "XEQT.TO",
+    "qty": 7,
+    "assetClass": "etf",
+    "totalCostBasis": 293.93,
+    "currency": "CAD"
   }
 ]

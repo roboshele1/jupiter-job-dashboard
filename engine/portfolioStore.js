@@ -1,87 +1,66 @@
-// JUPITER — Portfolio Store (Authoritative Source)
-// Phase U — Step 1 FINAL
-// This file represents the single source of truth for the user portfolio.
-// UI, Risk, Growth, Discovery, Analytics, Automation all consume this state.
-// Any change here propagates system-wide.
+/**
+ * JUPITER — Portfolio Store (Authoritative Source)
+ * Reads live from holdings.json — no hardcoded positions.
+ * UI, Risk, Growth, Discovery, Analytics all consume this state.
+ */
 
-export const PORTFOLIO = {
-  metadata: {
-    owner: "PRIMARY_USER",
-    baseCurrency: "CAD",
-    lastUpdated: new Date().toISOString(),
-    locked: true,
-    version: "U1-FINAL"
-  },
+import fs   from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
 
-  assets: [
-    {
-      type: "EQUITY",
-      symbol: "ASML",
-      exchange: "XNAS",
-      shares: 10,
-      priority: 1
-    },
-    {
-      type: "EQUITY",
-      symbol: "NVDA",
-      exchange: "XNAS",
-      shares: 73,
-      priority: 2
-    },
-    {
-      type: "EQUITY",
-      symbol: "AVGO",
-      exchange: "XNAS",
-      shares: 80,
-      priority: 3
-    },
-    {
-      type: "CRYPTO",
-      symbol: "BTC",
-      pair: "BTC/CAD",
-      quantity: 0.274303,
-      priority: 4
-    },
-    {
-      type: "CRYPTO",
-      symbol: "ETH",
-      pair: "ETH/CAD",
-      quantity: 0.25,
-      priority: 5
-    },
-    {
-      type: "EQUITY",
-      symbol: "MSTR",
-      exchange: "XNAS",
-      shares: 40,
-      priority: 6
-    },
-    {
-      type: "EQUITY",
-      symbol: "HOOD",
-      exchange: "XNAS",
-      shares: 35,
-      priority: 7
-    },
-    {
-      type: "EQUITY",
-      symbol: "BMNR",
-      exchange: "XNYS",
-      shares: 140,
-      priority: 8
-    },
-    {
-      type: "EQUITY",
-      symbol: "APLD",
-      exchange: "XNAS",
-      shares: 110,
-      priority: 9
-    }
-  ]
-};
+const __filename = fileURLToPath(import.meta.url);
+const __dirname  = path.dirname(__filename);
 
-// Guardrail: portfolio mutation is disabled at engine level.
-// Any future UI edits must go through versioned portfolio adapters.
-Object.freeze(PORTFOLIO);
-Object.freeze(PORTFOLIO.assets);
+const HOLDINGS_PATH = path.resolve(
+  __dirname, "./data/users/default/holdings.json"
+);
 
+function loadHoldings() {
+  try {
+    const raw    = fs.readFileSync(HOLDINGS_PATH, "utf-8");
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (err) {
+    console.error("[portfolioStore] Failed to read holdings.json:", err.message);
+    return [];
+  }
+}
+
+function buildPortfolio() {
+  const holdings = loadHoldings();
+
+  const assets = holdings.map((h, i) => {
+    const symbol     = (h.symbol || "").toUpperCase();
+    const assetClass = (h.assetClass || "equity").toUpperCase();
+    const isCrypto   = assetClass === "CRYPTO";
+
+    return Object.freeze({
+      type:     isCrypto ? "CRYPTO" : "EQUITY",
+      symbol,
+      exchange: h.exchange || (isCrypto ? null : "XNAS"),
+      shares:   h.qty ?? h.quantity ?? 0,
+      quantity: h.qty ?? h.quantity ?? 0,
+      totalCostBasis: h.totalCostBasis ?? 0,
+      currency: h.currency || "USD",
+      priority: i + 1,
+    });
+  });
+
+  return Object.freeze({
+    metadata: Object.freeze({
+      owner:       "PRIMARY_USER",
+      baseCurrency: "CAD",
+      lastUpdated: new Date().toISOString(),
+      version:     "LIVE",
+    }),
+    assets,
+  });
+}
+
+// Re-read from disk on every access so additions/removals are reflected immediately
+export function getPortfolio() {
+  return buildPortfolio();
+}
+
+// Legacy PORTFOLIO export for any consumers that import it directly
+export const PORTFOLIO = buildPortfolio();

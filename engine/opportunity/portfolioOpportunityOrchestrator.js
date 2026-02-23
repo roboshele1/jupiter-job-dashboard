@@ -13,20 +13,27 @@
 const { runDiscoveryScan } = require("../discovery/runDiscoveryScan.js");
 
 // -----------------------------
-// PORTFOLIO PRIORITY LIST
+// PORTFOLIO PRIORITY LIST — derived live from holdings.json
 // -----------------------------
-const PORTFOLIO_PRIORITY = new Set([
-  "NVDA",
-  "ASML",
-  "AVGO",
-  "MSTR",
-  "HOOD",
-  "BMNR",
-  "APLD",
-  "BTC",
-  "ETH",
-  "NOW"
-]);
+const fs            = require("fs");
+const path          = require("path");
+const HOLDINGS_PATH = path.resolve(__dirname, "../data/users/default/holdings.json");
+
+function loadPortfolioPriority() {
+  try {
+    const raw     = fs.readFileSync(HOLDINGS_PATH, "utf-8");
+    const parsed  = JSON.parse(raw);
+    const symbols = (Array.isArray(parsed) ? parsed : [])
+      .map(h => (h.symbol || "").toUpperCase())
+      .filter(Boolean);
+    return new Set(symbols);
+  } catch (err) {
+    console.error("[portfolioOpportunityOrchestrator] Failed to load holdings:", err.message);
+    return new Set();
+  }
+}
+
+const PORTFOLIO_PRIORITY = loadPortfolioPriority();
 
 // -----------------------------
 // WEIGHTING CONFIG
