@@ -23,6 +23,7 @@ import { resolveInvestableSymbol } from "../../engine/symbolUniverse/resolveInve
 import { getLivePrices } from "../../engine/market/getLivePrices.js";
 import { registerMoonshotRegistryIpc } from "../../engine/asymmetry/registry/moonshotRegistryIpc.js";
 import { registerRiskCentreIpc } from "./riskCentreIpc.js";
+import registerAsymmetryIpc from "./asymmetryIpc.js";
 
 const require = createRequire(import.meta.url);
 
@@ -245,6 +246,7 @@ export function registerAllIpc(ipcMain) {
   });
 
   registerMoonshotRegistryIpc(ipcMain);
+  registerAsymmetryIpc(ipcMain);
 
   // ─── MEMORY LAYER IPC ───────────────────────────────────────────────────────
   registerHandler(ipcMain, "memory:recordAIInteraction", async (_, payload) => {

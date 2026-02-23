@@ -29,4 +29,37 @@ export default function registerAsymmetryIpc(ipcMain) {
   ipcMain.handle("asymmetry:scan", async (_evt, { universe }) => {
     return autonomousMoonshotScanner(universe);
   });
+
+  /**
+   * asymmetry:results
+   * Returns the last cached scan result from universeScheduler.
+   * Shape: { surfaced: [...], surfacedCount, regime, scannedAt } | null
+   * Returns null if scheduler hasn't completed a scan yet (cold cache).
+   * READ-ONLY — never triggers a new scan.
+   */
+  ipcMain.handle("asymmetry:results", async () => {
+    if (typeof universeScheduler.getCachedScanResult !== "function") {
+      console.warn("[asymmetryIpc] universeScheduler.getCachedScanResult not available");
+      return null;
+    }
+
+    const result = universeScheduler.getCachedScanResult();
+
+    if (!result) {
+      console.warn("[asymmetryIpc] asymmetry:results — cache is cold (no scan yet)");
+      return null;
+    }
+
+    return result;
+  });
+
+  /**
+   * asymmetry:cache:meta
+   * Returns scheduler metadata: lastBuiltAt, lastScannedAt, universeSize, hasScanResult.
+   * Useful for UI to show freshness indicators.
+   */
+  ipcMain.handle("asymmetry:cache:meta", async () => {
+    if (typeof universeScheduler.getCacheMeta !== "function") return null;
+    return universeScheduler.getCacheMeta();
+  });
 }

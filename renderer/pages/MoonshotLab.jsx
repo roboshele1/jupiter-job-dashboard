@@ -1,7 +1,7 @@
 /**
  * MOONSHOT LAB — PRE-BREAKOUT INTELLIGENCE SURFACE
  * -------------------------------------------------
- * Consuming: discovery:run (IPC, read-only)
+ * Consuming: asymmetry:results (IPC, read-only) — live universeScheduler cache
  * Filter: trajectoryMatch.available === true + BUY/BUY_MORE + conviction >= 0.45
  * Architecture: No local engine — main process scanner IS the moonshot detector
  *
@@ -798,12 +798,20 @@ export default function MoonshotLab() {
       setError(null);
 
       try {
-        const result = await window.jupiter.invoke("discovery:run");
+        const result = await window.jupiter.invoke("asymmetry:results");
         if (!mounted) return;
+
+        if (!result) {
+          // Scheduler cold — hasn't completed first scan yet
+          setError("Moonshot scanner is warming up. Results will appear after the first scan cycle (~60s).");
+          setLoading(false);
+          return;
+        }
+
         setScanResult(result || null);
         setLastRefresh(new Date());
       } catch (err) {
-        console.error("MoonshotLab: discovery:run failed", err);
+        console.error("MoonshotLab: asymmetry:results failed", err);
         if (mounted) setError("Engine scan unavailable. Check main-process logs.");
       } finally {
         if (mounted) setLoading(false);

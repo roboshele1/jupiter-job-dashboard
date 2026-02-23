@@ -29,6 +29,8 @@ const {
 // Internal cache
 let cachedUniverse = [];
 let lastBuiltAt = null;
+let cachedScanResult = null;
+let lastScannedAt = null;
 
 /**
  * BUILD UNIVERSE (AUTHORITATIVE)
@@ -57,13 +59,25 @@ function startScheduler() {
   console.log("[UniverseScheduler] PRIMARY scans every 60s");
   console.log("[UniverseScheduler] DEEP_ASYMMETRY scans every 300s");
 
-  // Initial load
-  refreshUniverse();
+  // Initial load — run scan immediately so cache is hot on first IPC call
+  refreshUniverse().then(universe => {
+    try {
+      const result = autonomousMoonshotScanner(universe);
+      cachedScanResult = result;
+      lastScannedAt = new Date().toISOString();
+      recordScanEvent({ regime: "INITIAL", universe, result });
+      console.log(`[UniverseScheduler] INITIAL SCAN complete — Surfaced: ${result.surfacedCount}`);
+    } catch (err) {
+      console.error("[UniverseScheduler] INITIAL SCAN failed:", err.message);
+    }
+  });
 
   // PRIMARY cadence
   setInterval(async () => {
     const universe = await refreshUniverse();
     const result = autonomousMoonshotScanner(universe);
+    cachedScanResult = result;
+    lastScannedAt = new Date().toISOString();
 
     recordScanEvent({
       regime: "PRIMARY",
@@ -82,6 +96,8 @@ function startScheduler() {
   setInterval(async () => {
     const universe = await refreshUniverse();
     const result = autonomousMoonshotScanner(universe);
+    cachedScanResult = result;
+    lastScannedAt = new Date().toISOString();
 
     recordScanEvent({
       regime: "DEEP_ASYMMETRY",
@@ -97,7 +113,29 @@ function startScheduler() {
   }, 300_000);
 }
 
+/**
+ * GET CACHED SCAN RESULT (IPC-safe, read-only)
+ * Returns the last result from autonomousMoonshotScanner, or null if cold.
+ */
+function getCachedScanResult() {
+  return cachedScanResult;
+}
+
+/**
+ * GET CACHE META
+ */
+function getCacheMeta() {
+  return {
+    lastBuiltAt,
+    lastScannedAt,
+    universeSize: cachedUniverse.length,
+    hasScanResult: cachedScanResult !== null,
+  };
+}
+
 module.exports = {
   startScheduler,
-  buildUniverse
+  buildUniverse,
+  getCachedScanResult,
+  getCacheMeta,
 };
