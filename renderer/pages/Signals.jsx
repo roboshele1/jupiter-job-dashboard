@@ -359,7 +359,7 @@ function EquityCard({ s, kellyMap, portfolioValue, goal }) {
 }
 
 // Crypto panel — BTC + ETH live prices + cost basis context
-function CryptoPanel({ cryptoPrices, cryptoLoading, cryptoError, kellyMap, goal }) {
+function CryptoPanel({ cryptoPrices, cryptoLoading, cryptoError, kellyMap, goal, cryptoHoldings }) {
   const CRYPTO_HOLDINGS = [
     { symbol: "BTC", qty: 0.281212, totalCostBasis: 24764.31, label: "Bitcoin" },
     { symbol: "ETH", qty: 0.25,      totalCostBasis: 597.90,   label: "Ethereum" },
@@ -809,6 +809,7 @@ export default function Signals() {
         cryptoError={cryptoError}
         kellyMap={kellyMap}
         goal={goal}
+        cryptoHoldings={cryptoHoldings}
       />
 
       {/* Snapshot timestamp */}
