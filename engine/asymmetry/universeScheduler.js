@@ -60,9 +60,9 @@ function startScheduler() {
   console.log("[UniverseScheduler] DEEP_ASYMMETRY scans every 300s");
 
   // Initial load — run scan immediately so cache is hot on first IPC call
-  refreshUniverse().then(universe => {
+  refreshUniverse().then(async universe => {
     try {
-      const result = autonomousMoonshotScanner(universe);
+      const result = await autonomousMoonshotScanner(universe);
       cachedScanResult = result;
       lastScannedAt = new Date().toISOString();
       recordScanEvent({ regime: "INITIAL", universe, result });
@@ -75,7 +75,7 @@ function startScheduler() {
   // PRIMARY cadence
   setInterval(async () => {
     const universe = await refreshUniverse();
-    const result = autonomousMoonshotScanner(universe);
+    const result = await autonomousMoonshotScanner(universe);
     cachedScanResult = result;
     lastScannedAt = new Date().toISOString();
 
@@ -95,7 +95,7 @@ function startScheduler() {
   // DEEP ASYMMETRY cadence
   setInterval(async () => {
     const universe = await refreshUniverse();
-    const result = autonomousMoonshotScanner(universe);
+    const result = await autonomousMoonshotScanner(universe);
     cachedScanResult = result;
     lastScannedAt = new Date().toISOString();
 
