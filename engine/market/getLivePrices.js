@@ -26,6 +26,31 @@ function toPolygonTicker(symbol) {
   return symbol;
 }
 
+async function fetchTSXPrice(symbol, POLYGON_KEY) {
+  // TSX symbols: try Polygon global snapshot with bare ticker
+  const bare = symbol.replace(/\.TO$/i, "").replace(/\.TSX$/i, "");
+
+  // Try Polygon global grouped daily — TSX trades on XTSE
+  const prev = await safeFetchJSON(
+    `https://api.polygon.io/v2/aggs/ticker/${bare}/prev?adjusted=true&include_otc=true&apiKey=${POLYGON_KEY}`
+  );
+  const bar = prev?.results?.[0];
+  if (bar && typeof bar.c === "number") {
+    return { price: bar.c, source: "polygon-tsx-prev", currency: "CAD" };
+  }
+
+  // Fallback: Alpha Vantage global quote (no key needed for basic)
+  const av = await safeFetchJSON(
+    `https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=${bare}.TRT&apikey=demo`
+  );
+  const avPrice = av?.["Global Quote"]?.["05. price"];
+  if (avPrice && !isNaN(Number(avPrice))) {
+    return { price: Number(avPrice), source: "alphavantage-tsx", currency: "CAD" };
+  }
+
+  return { price: null, source: "unavailable", currency: "CAD" };
+}
+
 async function fetchSinglePrice(symbol, POLYGON_KEY) {
   // CRYPTO → COINBASE
   if (symbol === "BTC" || symbol === "ETH" || symbol === "SOL") {
@@ -36,6 +61,12 @@ async function fetchSinglePrice(symbol, POLYGON_KEY) {
       price:  json?.data?.amount ? Number(json.data.amount) : null,
       source: json ? "coinbase-spot" : "unavailable",
     }];
+  }
+
+  // TSX → dedicated TSX fetcher
+  if (symbol.endsWith(".TO") || symbol.endsWith(".TSX")) {
+    const result = await fetchTSXPrice(symbol, POLYGON_KEY);
+    return [symbol, result];
   }
 
   // EQUITY → POLYGON INTRADAY → FALLBACK PREV CLOSE

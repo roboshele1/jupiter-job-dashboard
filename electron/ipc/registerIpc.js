@@ -224,9 +224,12 @@ export function registerAllIpc(ipcMain) {
         ...engineResult,
         symbol: {
           symbol:     resolution.symbol,
-          name:       resolution.name || resolution.symbol,
+          name:       (resolution.name && resolution.name !== resolution.symbol.replace(".TO","").replace(".TSX",""))
+                        ? resolution.name
+                        : resolution.symbol,
           exchange:   resolution.exchange   || null,
-          assetClass: resolution.assetClass || null
+          assetClass: resolution.assetClass || null,
+          currency:   resolution.currency   || "USD",
         }
       })
     });
