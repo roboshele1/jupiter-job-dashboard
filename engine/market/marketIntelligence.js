@@ -1,78 +1,89 @@
 /**
  * GLOBAL_MARKET_INTELLIGENCE_V1
- *
- * Engine-only, deterministic, stubbed market context module.
- * NO live data.
- * NO Electron.
- * NO renderer.
- * NO portfolio awareness.
+ * Live regime signal derived from marketMonitorEngine.
+ * Falls back to NEUTRAL if snapshot unavailable.
  */
 
-export function getGlobalMarketIntelligence() {
+import { getMarketMonitorSnapshot, getLastMarketMonitorSnapshot } from "../marketMonitorEngine.js";
+
+function buildImplications(regimeState) {
+  if (regimeState === "RISK_ON" || regimeState === "MILD_RISK_ON") {
+    return {
+      favoredAssets:   ["Equities", "Growth", "Crypto"],
+      pressuredAssets: ["Cash", "Defensive"],
+    };
+  }
+  if (regimeState === "RISK_OFF" || regimeState === "MILD_RISK_OFF") {
+    return {
+      favoredAssets:   ["Cash", "Defensive"],
+      pressuredAssets: ["High Beta", "Speculative"],
+    };
+  }
+  return {
+    favoredAssets:   ["Selective Risk"],
+    pressuredAssets: ["Indiscriminate Exposure"],
+  };
+}
+
+function buildSignals(snapshot) {
+  if (!snapshot) return {
+    equityTrend: "UNKNOWN",
+    volatility:  "UNKNOWN",
+    rates:       "UNKNOWN",
+    usd:         "UNKNOWN",
+    cryptoBeta:  "UNKNOWN",
+  };
+
+  const spyMomentum = snapshot.indices?.SPY?.momentum ?? 0;
+  const vixProxy    = snapshot.volatility?.vixProxy   ?? 0;
+  const breadth     = snapshot.breadth?.sectorPctAboveOpen ?? 50;
+
+  return {
+    equityTrend: spyMomentum > 0.1 ? "UP" : spyMomentum < -0.1 ? "DOWN" : "FLAT",
+    volatility:  vixProxy > 1.5 ? "HIGH" : vixProxy > 0.8 ? "ELEVATED" : "LOW",
+    rates:       "UNKNOWN",   // not yet wired — requires macro data source
+    usd:         "UNKNOWN",   // not yet wired
+    cryptoBeta:  "HIGH",      // BTC correlation assumed high until decoupling detected
+    breadthPct:  breadth,
+  };
+}
+
+export async function getGlobalMarketIntelligence() {
   const timestamp = Date.now();
 
-  // ================================
-  // STUBBED SIGNALS (PLACEHOLDERS)
-  // ================================
-  const signals = {
-    equityTrend: "UP",          // UP | DOWN | FLAT
-    volatility: "LOW",          // LOW | ELEVATED | HIGH
-    rates: "RISING",            // RISING | FALLING | STABLE
-    usd: "STRONG",              // STRONG | WEAK | NEUTRAL
-    cryptoBeta: "HIGH"          // HIGH | LOW | DECOUPLED
-  };
+  let snapshot = getLastMarketMonitorSnapshot();
 
-  // ================================
-  // STUBBED REGIME CLASSIFICATION
-  // ================================
-  let regimeState = "TRANSITION";
-  let confidence = 0.5;
-  const drivers = [];
-
-  if (signals.equityTrend === "UP" && signals.volatility === "LOW") {
-    regimeState = "RISK_ON";
-    confidence = 0.78;
-    drivers.push("Positive equity trend", "Suppressed volatility");
-  } else if (signals.equityTrend === "DOWN" && signals.volatility === "HIGH") {
-    regimeState = "RISK_OFF";
-    confidence = 0.82;
-    drivers.push("Negative equity trend", "Elevated volatility");
-  } else {
-    drivers.push("Mixed macro signals");
+  // If no cached snapshot, fetch live now
+  if (!snapshot) {
+    try {
+      snapshot = await getMarketMonitorSnapshot();
+    } catch (err) {
+      console.error("[marketIntelligence] Live fetch failed:", err.message);
+    }
   }
 
-  // ================================
-  // STUBBED IMPLICATIONS
-  // ================================
-  const implications = {
-    favoredAssets:
-      regimeState === "RISK_ON"
-        ? ["Equities", "Growth", "Crypto"]
-        : regimeState === "RISK_OFF"
-        ? ["Cash", "Defensive"]
-        : ["Selective Risk"],
+  const regimeState  = snapshot?.regime?.signal  ?? "NEUTRAL";
+  const regimeBasis  = snapshot?.regime?.basis    ?? "No live data";
+  const confidence   = snapshot
+    ? (regimeState === "RISK_ON" || regimeState === "RISK_OFF" ? 0.80 : 0.60)
+    : 0.40;
 
-    pressuredAssets:
-      regimeState === "RISK_ON"
-        ? ["Cash", "Defensive"]
-        : regimeState === "RISK_OFF"
-        ? ["High Beta", "Speculative"]
-        : ["Indiscriminate Exposure"],
+  const signals     = buildSignals(snapshot);
+  const implications = buildImplications(regimeState);
 
-    notes: drivers
-  };
-
-  // ================================
-  // AUTHORITATIVE OUTPUT CONTRACT
-  // ================================
   return {
     contract: "GLOBAL_MARKET_INTELLIGENCE_V1",
     timestamp,
     regime: {
-      state: regimeState,
-      confidence
+      state:      regimeState,
+      confidence,
+      basis:      regimeBasis,
+      live:       !!snapshot,
     },
     signals,
-    implications
+    implications: {
+      ...implications,
+      notes: [regimeBasis],
+    },
   };
 }

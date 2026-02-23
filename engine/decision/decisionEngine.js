@@ -16,7 +16,7 @@ export async function runDecisionEngine(query = {}) {
   const timestamp = Date.now();
 
   // --- Global Market Context ---
-  const globalMarket = getGlobalMarketIntelligence();
+  const globalMarket = await getGlobalMarketIntelligence();
 
   // --- Portfolio Context ---
   const portfolio = await getAuthoritativePortfolio();
