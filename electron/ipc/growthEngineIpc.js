@@ -1,6 +1,7 @@
 // electron/ipc/growthEngineIpc.js
 import { valuePortfolio } from "../../engine/portfolio/portfolioValuation.js";
 import { runGrowthEngine } from "../../engine/growthEngine.js";
+import { getHoldings } from "../../engine/holdingsStore.js";
 
 /**
  * GROWTH ENGINE IPC — G7.3 DETERMINISTIC REPRODUCIBILITY
@@ -77,7 +78,22 @@ export function registerGrowthEngineIpc(ipcMain) {
   ipcMain.handle("growthEngine:run", async (_event, payload = {}) => {
     const safePayload = validatePayload(payload);
 
-    const valuation = await valuePortfolio(HOLDINGS);
+    // Load live holdings from store — falls back to frozen snapshot if unavailable
+    let liveHoldings = HOLDINGS;
+    try {
+      const raw = await getHoldings();
+      if (Array.isArray(raw) && raw.length > 0) {
+        liveHoldings = Object.freeze(raw.map(h => Object.freeze({
+          symbol: h.symbol,
+          qty: h.quantity ?? h.qty ?? h.shares ?? 0,
+          assetClass: h.assetType ?? h.assetClass ?? "equity",
+          totalCostBasis: h.totalCostBasis ?? h.costBasis ?? 0,
+          currency: h.currency ?? "CAD",
+        })));
+      }
+    } catch (_) { /* use frozen fallback HOLDINGS */ }
+
+    const valuation = await valuePortfolio(liveHoldings);
 
     const baseAllocations = Object.freeze([
       { symbol: "NVDA", amount: 60000, assumedCAGR: 0.25 },
@@ -85,7 +101,7 @@ export function registerGrowthEngineIpc(ipcMain) {
     ]);
 
     const engineResult = await runGrowthEngine({
-      holdings: HOLDINGS,
+      holdings: liveHoldings,
       startingValue: Math.round(valuation.totals.liveValue),
       authority: "PORTFOLIO_VALUATION_V1",
       assetAllocations: baseAllocations,
