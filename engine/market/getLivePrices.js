@@ -27,10 +27,9 @@ function toPolygonTicker(symbol) {
 }
 
 async function fetchTSXPrice(symbol, POLYGON_KEY) {
-  // TSX symbols: try Polygon global snapshot with bare ticker
   const bare = symbol.replace(/\.TO$/i, "").replace(/\.TSX$/i, "");
 
-  // Try Polygon global grouped daily — TSX trades on XTSE
+  // Attempt 1: Polygon prev close with bare ticker
   const prev = await safeFetchJSON(
     `https://api.polygon.io/v2/aggs/ticker/${bare}/prev?adjusted=true&include_otc=true&apiKey=${POLYGON_KEY}`
   );
@@ -39,13 +38,22 @@ async function fetchTSXPrice(symbol, POLYGON_KEY) {
     return { price: bar.c, source: "polygon-tsx-prev", currency: "CAD" };
   }
 
-  // Fallback: Alpha Vantage global quote (no key needed for basic)
-  const av = await safeFetchJSON(
-    `https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=${bare}.TRT&apikey=demo`
+  // Attempt 2: Polygon snapshot endpoint
+  const snap = await safeFetchJSON(
+    `https://api.polygon.io/v2/snapshot/locale/global/markets/stocks/tickers/${bare}?apiKey=${POLYGON_KEY}`
   );
-  const avPrice = av?.["Global Quote"]?.["05. price"];
-  if (avPrice && !isNaN(Number(avPrice))) {
-    return { price: Number(avPrice), source: "alphavantage-tsx", currency: "CAD" };
+  const snapPrice = snap?.ticker?.day?.c ?? snap?.ticker?.prevDay?.c;
+  if (snapPrice && typeof snapPrice === "number") {
+    return { price: snapPrice, source: "polygon-tsx-snapshot", currency: "CAD" };
+  }
+
+  // Attempt 3: Yahoo Finance (no key, public)
+  const yahoo = await safeFetchJSON(
+    `https://query1.finance.yahoo.com/v8/finance/chart/${bare}.TO?interval=1d&range=1d`
+  );
+  const yahooPrice = yahoo?.chart?.result?.[0]?.meta?.regularMarketPrice;
+  if (yahooPrice && typeof yahooPrice === "number") {
+    return { price: yahooPrice, source: "yahoo-tsx", currency: "CAD" };
   }
 
   return { price: null, source: "unavailable", currency: "CAD" };

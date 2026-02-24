@@ -35,24 +35,36 @@ function loadHoldingSymbols() {
   }
 }
 
-function getPrevBusinessDate() {
+function getPrevBusinessDate(daysBack = 1) {
   const d = new Date();
-  d.setDate(d.getDate() - 1);
-  if (d.getDay() === 0) d.setDate(d.getDate() - 2);
-  if (d.getDay() === 6) d.setDate(d.getDate() - 1);
+  d.setDate(d.getDate() - daysBack);
+  // Skip Sunday and Saturday
+  while (d.getDay() === 0 || d.getDay() === 6) {
+    d.setDate(d.getDate() - 1);
+  }
   return d.toISOString().split("T")[0];
 }
 
-async function fetchUSMarket(date) {
-  try {
-    const url  = `https://api.polygon.io/v2/aggs/grouped/locale/us/market/stocks/${date}?adjusted=true&apiKey=${POLYGON_API_KEY}`;
-    const resp = await fetchJson(url);
-    return (resp?.results || []).map(t => ({ ...t, market: "US" }));
-  } catch(err) {
-    console.error("[buildDiscoveryUniverse] US fetch failed:", err.message);
-    return [];
+async function fetchUSMarketWithFallback(apiKey) {
+  // Try up to 5 previous business days to find a day with data
+  for (let i = 1; i <= 5; i++) {
+    const date = getPrevBusinessDate(i);
+    try {
+      const url  = `https://api.polygon.io/v2/aggs/grouped/locale/us/market/stocks/${date}?adjusted=true&apiKey=${apiKey}`;
+      const resp = await fetchJson(url);
+      const results = resp?.results || [];
+      if (results.length > 0) {
+        console.log(`[buildDiscoveryUniverse] US data found for ${date} (${results.length} tickers)`);
+        return results.map(t => ({ ...t, market: "US" }));
+      }
+    } catch(err) {
+      console.error(`[buildDiscoveryUniverse] US fetch failed for ${date}:`, err.message);
+    }
   }
+  return [];
 }
+
+
 
 async function fetchCanadianMarket(date) {
   try {
@@ -73,7 +85,7 @@ async function buildDiscoveryUniverse() {
   const date = getPrevBusinessDate();
 
   const [usTickers, caTickers] = await Promise.all([
-    fetchUSMarket(date),
+    fetchUSMarketWithFallback(POLYGON_API_KEY),
     fetchCanadianMarket(date),
   ]);
 

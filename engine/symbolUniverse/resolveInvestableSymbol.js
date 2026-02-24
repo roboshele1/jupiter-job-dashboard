@@ -42,9 +42,8 @@ export async function resolveInvestableSymbol(inputSymbol) {
   } catch { /* fail-closed */ }
 
   // ── 4) CANADIAN BARE TICKER FALLBACK (e.g. XEQT → XEQT.TO) ─────────
-  // If Polygon found nothing for the bare ticker, try it as a TSX symbol.
-  // Catches XEQT, ZEQT, VEQT, ZSP, VFV, etc. typed without .TO suffix.
-  if (!symbol.includes(".") && !symbol.includes(":")) {
+  // Only attempt if ticker is 1-5 uppercase letters — rejects obvious garbage
+  if (!symbol.includes(".") && !symbol.includes(":") && /^[A-Z]{1,5}$/.test(symbol)) {
     try {
       const tsx = await tsxResolver(symbol + ".TO");
       if (tsx?.symbol) return Object.freeze({ valid: true, ...tsx });

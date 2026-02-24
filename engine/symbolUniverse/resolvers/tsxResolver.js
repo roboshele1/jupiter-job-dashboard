@@ -44,16 +44,35 @@ export async function tsxResolver(inputSymbol) {
   const ticker    = canonical.replace(TSX_SUFFIX, "");
 
   const polygonData = await lookupPolygon(canonical, apiKey);
+
+  // VALIDATION GATE — if Polygon returns nothing AND ticker looks fake, reject it
+  // A real TSX ticker is 2-5 uppercase letters. Anything longer is almost certainly invalid.
+  if (!polygonData) {
+    const looksReal = /^[A-Z]{1,5}$/.test(ticker);
+    if (!looksReal) return null; // fail-closed for obviously fake symbols
+  }
+
   const name        = polygonData?.name || ticker;
   const type        = polygonData?.type || "";
 
+  // Polygon doesn't recognize many TSX tickers — detect ETFs from name + known prefixes
+  const ETF_NAME_KEYWORDS = ["ETF", "FUND", "INDEX", "ISHARES", "VANGUARD", "BMO ", "HORIZONS", "CI ", "MACKENZIE", "INVESCO", "FIDELITY", "TD ", "RBC "];
+  const ETF_TICKER_PREFIXES = ["XIU", "XIC", "XEF", "XEC", "XSP", "XEQT", "XGRO", "XBAL", "XCNS", "ZSP", "ZAG", "ZCN", "ZEA", "ZEQT", "ZGRO", "VFV", "VCN", "VAB", "VEQT", "VGRO", "HXT", "HXS", "QQC"];
+
+  const nameUpper = name.toUpperCase();
+  const isETFByType = type === "ETF" || type === "FUND" || type === "ETV";
+  const isETFByName = ETF_NAME_KEYWORDS.some(k => nameUpper.includes(k));
+  const isETFByTicker = ETF_TICKER_PREFIXES.includes(ticker.toUpperCase());
+
+  const assetClass = (isETFByType || isETFByName || isETFByTicker) ? "etf" : "equity";
+
   return Object.freeze({
     symbol:     canonical,
-    name,
+    name:       polygonData?.name || canonical,
     exchange:   "TSX",
     country:    "CA",
     currency:   "CAD",
-    assetClass: (type === "ETF" || type === "FUND") ? "etf" : "equity",
+    assetClass,
     market:     "stocks",
     source:     "tsxResolver",
     canonical:  true,
