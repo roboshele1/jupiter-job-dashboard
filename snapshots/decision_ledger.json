@@ -18,5 +18,255 @@
     "regime": "NEUTRAL",
     "portfolioValue": 87814.23025146,
     "holdingCount": 13
+  },
+  {
+    "id": "AI_INTERACTION_1771720782961_9e86k",
+    "timestamp": "2026-02-22T00:39:42.961Z",
+    "type": "AI_INTERACTION",
+    "question": "is now a good time to buy btc",
+    "responseLength": 1823,
+    "regime": "NEUTRAL",
+    "portfolioValue": 87648.72848422,
+    "holdingCount": 13
+  },
+  {
+    "id": "AI_INTERACTION_1771840499120_qbwqp",
+    "timestamp": "2026-02-23T09:54:59.120Z",
+    "type": "AI_INTERACTION",
+    "question": "is now a good time to buy, XEQT - iShares Core Equity ETF Portfolio",
+    "responseLength": 2030,
+    "regime": "NEUTRAL",
+    "portfolioValue": 86418.44217093999,
+    "holdingCount": 13
+  },
+  {
+    "id": "AI_INTERACTION_1771840622921_k0hjz",
+    "timestamp": "2026-02-23T09:57:02.921Z",
+    "type": "AI_INTERACTION",
+    "question": "I want to start a position for my kids college fund so i am looking for an asset i can buy and forget with no worries. this will not be a 'contributor' to the $1m goal",
+    "responseLength": 1776,
+    "regime": "NEUTRAL",
+    "portfolioValue": 86418.44217093999,
+    "holdingCount": 13
+  },
+  {
+    "id": "AI_INTERACTION_1771840825574_gk006",
+    "timestamp": "2026-02-23T10:00:25.574Z",
+    "type": "AI_INTERACTION",
+    "question": "more context, i was thinking i put it in the tfsa instead so in case of emergencies like pregnancy, i can take it out quickley but the $500 grant makes the deal sweet",
+    "responseLength": 1931,
+    "regime": "NEUTRAL",
+    "portfolioValue": 86418.44217093999,
+    "holdingCount": 13
+  },
+  {
+    "id": "AI_INTERACTION_1771841076360_53i4a",
+    "timestamp": "2026-02-23T10:04:36.360Z",
+    "type": "AI_INTERACTION",
+    "question": "but i cannot enjoy the benefits of RESP if i am not a parent now. if i open it now i wont get the $500, i dont have any kids yet",
+    "responseLength": 1828,
+    "regime": "NEUTRAL",
+    "portfolioValue": 86418.44217093999,
+    "holdingCount": 13
+  },
+  {
+    "id": "AI_INTERACTION_1771841838329_v07y1",
+    "timestamp": "2026-02-23T10:17:18.329Z",
+    "type": "AI_INTERACTION",
+    "question": "is now a good time to buy ZETA? Analyze whether its CAGR and performance is a good fit for my portfolio? will it contribute meaningfully towards the $1m goal?",
+    "responseLength": 2269,
+    "regime": "NEUTRAL",
+    "portfolioValue": 86418.44217093999,
+    "holdingCount": 13
+  },
+  {
+    "id": "AI_INTERACTION_1771867030832_0jgmv",
+    "timestamp": "2026-02-23T17:17:10.832Z",
+    "type": "AI_INTERACTION",
+    "question": "my portfolio is high-conviction in semis, ai, and tech. with what is happening in geopolitics, i.e. tariffs, USA possible war with Iran, Mexico unrest, inflation, tech sell-off, what would be the most optimal advice for me right now? double down on companies with good fundamentals in the portfolio or sit on cash and just hold?",
+    "responseLength": 2409,
+    "regime": "NEUTRAL",
+    "portfolioValue": 85726.8787006,
+    "holdingCount": 14
+  },
+  {
+    "id": "AI_INTERACTION_1771867210036_sir7t",
+    "timestamp": "2026-02-23T17:20:10.036Z",
+    "type": "AI_INTERACTION",
+    "question": "even though NOW is and has always been a great company with solid fundamentals, u dont think it is a great time buy ? elaborate",
+    "responseLength": 2338,
+    "regime": "NEUTRAL",
+    "portfolioValue": 85726.8787006,
+    "holdingCount": 14
+  },
+  {
+    "id": "AI_INTERACTION_1771867400807_vsr3p",
+    "timestamp": "2026-02-23T17:23:20.807Z",
+    "type": "AI_INTERACTION",
+    "question": "but that is not the current price of NOW. It is trading around $99-$100",
+    "responseLength": 2082,
+    "regime": "NEUTRAL",
+    "portfolioValue": 85726.8787006,
+    "holdingCount": 14
+  },
+  {
+    "id": "AI_INTERACTION_1771937201650_w3o4l",
+    "timestamp": "2026-02-24T12:46:41.650Z",
+    "type": "AI_INTERACTION",
+    "question": "i need you to clarify this 'confusion'. Decisions tab kelly recommendation is to TRIM ASML but the LCPE under insights has surfaced ASML as the #1 ranked asset to put the first $500. how do i reconcile these two conflicting information?",
+    "responseLength": 2191,
+    "regime": "NEUTRAL",
+    "portfolioValue": 85905.47972304,
+    "holdingCount": 14
+  },
+  {
+    "id": "AI_INTERACTION_1771937699731_8pzr8",
+    "timestamp": "2026-02-24T12:54:59.731Z",
+    "type": "AI_INTERACTION",
+    "question": "it still doesnt add up for me - if i trim 3-%% and relocate to the BUY signals, and at the same time i have fresh capital of $500 and buy ASML wont it bring it back to the same weight it was before i trimmed?",
+    "responseLength": 1823,
+    "regime": "NEUTRAL",
+    "portfolioValue": 85905.47972304,
+    "holdingCount": 14
+  },
+  {
+    "id": "AI_INTERACTION_1771937870125_robfv",
+    "timestamp": "2026-02-24T12:57:50.125Z",
+    "type": "AI_INTERACTION",
+    "question": "is this a flaw in the design? shouldn't kelly and LCPE be on the same page?",
+    "responseLength": 2008,
+    "regime": "NEUTRAL",
+    "portfolioValue": 85905.47972304,
+    "holdingCount": 14
+  },
+  {
+    "id": "AI_INTERACTION_1771938050967_5mhoa",
+    "timestamp": "2026-02-24T13:00:50.967Z",
+    "type": "AI_INTERACTION",
+    "question": "not financial advice but how accurate is kelly? if i follow the recommnedations surfaced, do i stand a chance of hitting the goals and targets",
+    "responseLength": 2151,
+    "regime": "NEUTRAL",
+    "portfolioValue": 85905.47972304,
+    "holdingCount": 14
+  },
+  {
+    "id": "AI_INTERACTION_1771946150525_re39q",
+    "timestamp": "2026-02-24T15:15:50.525Z",
+    "type": "AI_INTERACTION",
+    "question": "i currently own Constellation software (CNSWF) in one of my TFSA alongside with XEQT.TO. My only concern is that this TFSA is a special case. I opened it purposely to save and fund future expenses related to childbirth etc. I have other accounts in TFSA FHSA RRSP but I opened this one specially for this reason. These 2 assets are the only ones going to be in this account but from the look of things I am not going to add more assets to this TFSA however i am torn as the timeframe for the childbirth and family expenses is less than 5yrs and i dont think CNSWF gives me that value. do i relocate cnswf into  xeqt or another assets? given my goal and timeframe",
+    "responseLength": 2061,
+    "regime": "NEUTRAL",
+    "portfolioValue": 85637.20327631998,
+    "holdingCount": 14
+  },
+  {
+    "id": "AI_INTERACTION_1771946305653_rtc9j",
+    "timestamp": "2026-02-24T15:18:25.653Z",
+    "type": "AI_INTERACTION",
+    "question": "even though it is a great company, kelly at 0.25 flags it as exit/avoid and this is without bias",
+    "responseLength": 2074,
+    "regime": "NEUTRAL",
+    "portfolioValue": 85637.20327631998,
+    "holdingCount": 14
+  },
+  {
+    "id": "AI_INTERACTION_1771947179754_3jzs7",
+    "timestamp": "2026-02-24T15:32:59.754Z",
+    "type": "AI_INTERACTION",
+    "question": "knowing i can stomach volatility which is very evident in my allocations, etc. i am looking at building a tranch of safe bets for the short term ish, that is why i have XEQT.TO, you mentioned i should add CASH.TO and PSA.TO, does it complement the flow? i have plans of probably selling most of the assets in the bucket to fund childbirth and personal stuff. what do u think",
+    "responseLength": 1932,
+    "regime": "NEUTRAL",
+    "portfolioValue": 84183.48003694,
+    "holdingCount": 13
+  },
+  {
+    "id": "AI_INTERACTION_1771950098811_no2x1",
+    "timestamp": "2026-02-24T16:21:38.811Z",
+    "type": "AI_INTERACTION",
+    "question": "OUT OF THE 12 HOLDINGS I HAVE NOW, I KNOW MOST OF THE CAGR IS EDUCATIONAL, BUT USING HISTORICAL AND REAL CAGR, RANK MY ASSETS BY THE HIGHEST CAGR TO THE LOWEST. I WANT TO SEE WHICH ASSET CAGR IS CONTRIBUTING MORE AND WHO IS DRAGGING IT DOWN",
+    "responseLength": 2599,
+    "regime": "NEUTRAL",
+    "portfolioValue": 84008.31441777,
+    "holdingCount": 12
+  },
+  {
+    "id": "AI_INTERACTION_1771950544464_pc11n",
+    "timestamp": "2026-02-24T16:29:04.464Z",
+    "type": "AI_INTERACTION",
+    "question": "if i exit the tier 3 stocks, it leaves my portfolio at 9 holdings. am i over-concentrated in semis, ai? does it leave it more prone to volatility and drawdowns or it is a step in the right direction",
+    "responseLength": 2653,
+    "regime": "NEUTRAL",
+    "portfolioValue": 84008.31441777,
+    "holdingCount": 12
+  },
+  {
+    "id": "AI_INTERACTION_1771950718444_wh8lv",
+    "timestamp": "2026-02-24T16:31:58.444Z",
+    "type": "AI_INTERACTION",
+    "question": "not financial advise but i need 3 strong contenders for this that complements my portfolio - Here's my honest read: exiting the Tier 3 names is the right call for CAGR optimization. But redeploying 100% of that capital back into the same AI/semi/crypto narrative makes concentration worse without improving resilience. You already have the growth engines. What you're missing is one or two uncorrelated compounders that still clear your 25.3% hurdle — or at minimum don't collapse when semis do.",
+    "responseLength": 2474,
+    "regime": "NEUTRAL",
+    "portfolioValue": 84008.31441777,
+    "holdingCount": 12
+  },
+  {
+    "id": "AI_INTERACTION_1771951274134_nhgi9",
+    "timestamp": "2026-02-24T16:41:14.134Z",
+    "type": "AI_INTERACTION",
+    "question": "Here's my honest read: exiting the Tier 3 names is the right call for CAGR optimization. But redeploying 100% of that capital back into the same AI/semi/crypto narrative makes concentration worse without improving resilience. You already have the growth engines. What you're missing is one or two uncorrelated compounders that still clear your 25.3% hurdle — or at minimum don't collapse when semis do.\ngive me 3 strongest contenders with similar cagr as the top compounders",
+    "responseLength": 2182,
+    "regime": "NEUTRAL",
+    "portfolioValue": 84008.31441777,
+    "holdingCount": 12
+  },
+  {
+    "id": "AI_INTERACTION_1771952273511_hd8kc",
+    "timestamp": "2026-02-24T16:57:53.511Z",
+    "type": "AI_INTERACTION",
+    "question": "i just looked up HIMS, AXON, and CELH, as you recommended, using manual research under discovery lab, and the fundamentals, numbers, closing the gap to $1m, were not as strong as the likes of NVDA, BTC, AVGO, etc",
+    "responseLength": 2029,
+    "regime": "NEUTRAL",
+    "portfolioValue": 84008.31441777,
+    "holdingCount": 12
+  },
+  {
+    "id": "AI_INTERACTION_1771952422610_7s6k3",
+    "timestamp": "2026-02-24T17:00:22.610Z",
+    "type": "AI_INTERACTION",
+    "question": "I AM QUITE SHOCKED THAT MA, AND GOOGL DIDNT MAKE THE CUT. THESE ARE 2 STRONG FIRMS",
+    "responseLength": 2419,
+    "regime": "NEUTRAL",
+    "portfolioValue": 84008.31441777,
+    "holdingCount": 12
+  },
+  {
+    "id": "AI_INTERACTION_1771954869799_xi4kh",
+    "timestamp": "2026-02-24T17:41:09.799Z",
+    "type": "AI_INTERACTION",
+    "question": "i just simulated adding CELH, AXON, and HIMS to my portfolio. kelly deicisions surfaced ADD MORE to CELH, TRIM to AXON and exit/avoid to HIMS. if my goal is not for these 3 to compete with the elite cagr compounders in the portfolio but rather complement and shield from serious ai/semis drawback, are these 2 worthy candidates?",
+    "responseLength": 2005,
+    "regime": "NEUTRAL",
+    "portfolioValue": 86818.91628334,
+    "holdingCount": 13
+  },
+  {
+    "id": "AI_INTERACTION_1771955150276_pp007",
+    "timestamp": "2026-02-24T17:45:50.276Z",
+    "type": "AI_INTERACTION",
+    "question": "anytime i deploy cash into any of my assets, i ask myself whether i am adding just for adding or i am adding to add value. i am always for the latter. if it doesnt add value or leverage towards my eventual goal, i may as well deploy it elsewhere. that being said, i need u to be very brunt with me whether these 2 new additions add any sort of value than just 'shielding' from ai capex drawdowns. if it is just shletering wouldnt ETFs work better? do these 2 add anything else? even it is a mere 20% or 15% cagr i will take. i make it sound as if 15-20% cagr is not impressive but it is absolultey colossal. maybe because i have serial cagr comppounders like nvda btc mstr i sometimes forget how insame good a 15% cagr is",
+    "responseLength": 2194,
+    "regime": "NEUTRAL",
+    "portfolioValue": 86818.91628334,
+    "holdingCount": 13
+  },
+  {
+    "id": "AI_INTERACTION_1771956250784_iqtm9",
+    "timestamp": "2026-02-24T18:04:10.784Z",
+    "type": "AI_INTERACTION",
+    "question": "when kelly decision surfaces this - → ADD $10,029.6≈ 200.25 shares @ $50.09(+11.6%) what does it mean? does it mean i should add 200.25 shares at $50 ? this was the decision for the stock CELH, CELH is not ye at $50 by the way. or they mean 200 shares at amount gains that amount",
+    "responseLength": 1921,
+    "regime": "NEUTRAL",
+    "portfolioValue": 86356.24962795999,
+    "holdingCount": 13
   }
 ]

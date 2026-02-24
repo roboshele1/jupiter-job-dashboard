@@ -59,31 +59,83 @@ async function fetchTickerPage(cursor = null) {
  * Returns ALL available equity tickers
  * (typically 20k–30k symbols)
  */
-async function buildGlobalUniverse() {
+async function fetchTickerPageOtc(market, cursor = null) {
+  const apiKey = getApiKey();
+  const url =
+    `${BASE_URL}/v3/reference/tickers` +
+    `?market=${market}` +
+    `&active=true` +
+    `&limit=1000` +
+    (cursor ? `&cursor=${cursor}` : ``) +
+    `&apiKey=${apiKey}`;
+  const res = await fetch(url);
+  if (!res.ok) return { results: [], next_url: null };
+  return res.json();
+}
+
+async function buildMarketUniverse(market) {
   let all = [];
   let cursor = null;
-
   while (true) {
-    const page = await fetchTickerPage(cursor);
-
+    const page = await fetchTickerPageOtc(market, cursor);
     if (Array.isArray(page.results)) {
-      all.push(
-        ...page.results.map(t => ({
-          symbol: t.ticker,
-          exchange: t.primary_exchange || "UNKNOWN",
-          market: t.market || "stocks",
-          type: t.type || "equity"
-        }))
-      );
+      all.push(...page.results.map(t => ({
+        symbol: t.ticker,
+        exchange: t.primary_exchange || "UNKNOWN",
+        market: t.market || market,
+        type: t.type || "equity"
+      })));
     }
-
     if (!page.next_url) break;
-
-    // Polygon uses cursor token inside next_url
     const next = new URL(page.next_url);
     cursor = next.searchParams.get("cursor");
     if (!cursor) break;
   }
+  return all;
+}
+
+async function buildGlobalUniverse() {
+  // Fetch US stocks + OTC in parallel, then deduplicate
+  const [usStocks, otcStocks] = await Promise.allSettled([
+    buildMarketUniverse("stocks"),
+    buildMarketUniverse("otc"),
+  ]);
+
+  const us  = usStocks.status  === "fulfilled" ? usStocks.value  : [];
+  const otc = otcStocks.status === "fulfilled" ? otcStocks.value : [];
+
+  // Deduplicate by symbol — US exchange listing takes priority
+  const seen = new Set();
+  const all  = [];
+  for (const t of [...us, ...otc]) {
+    if (!seen.has(t.symbol)) {
+      seen.add(t.symbol);
+      all.push(t);
+    }
+  }
+
+  // Append TSX-listed symbols via Polygon exchange filter
+  try {
+    const apiKey = getApiKey();
+    const tsxUrl = `${BASE_URL}/v3/reference/tickers?market=stocks&exchange=XTSE&active=true&limit=1000&apiKey=${apiKey}`;
+    const tsxRes = await fetch(tsxUrl);
+    if (tsxRes.ok) {
+      const tsxData = await tsxRes.json();
+      if (Array.isArray(tsxData.results)) {
+        for (const t of tsxData.results) {
+          if (!seen.has(t.ticker)) {
+            seen.add(t.ticker);
+            all.push({
+              symbol: t.ticker,
+              exchange: "XTSE",
+              market: "stocks",
+              type: t.type || "equity"
+            });
+          }
+        }
+      }
+    }
+  } catch (_) { /* TSX fetch failed — continue with US universe */ }
 
   return all;
 }

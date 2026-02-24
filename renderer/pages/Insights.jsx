@@ -165,7 +165,7 @@ function runLCPE(positions, kellyActions, portfolioValue, monthlyDCA, regime, ex
     const kf       = kellyFraction(winProb, winLoss) * getKellyMult(regime);
     const drift    = currentW - targetW;
     const projectedPerDollar = Math.pow(1 + cagr / 100, yearsLeft);
-    const isBlocked  = currentW >= HARD_CAP || score <= 0;
+    const isBlocked  = currentW >= HARD_CAP || score <= 0 || k.action === 'TRIM' || k.action === 'TRIM_TO_MINIMAL' || k.action === 'EXIT_OR_AVOID';
     const isExecuted = executedSet.has(p.symbol);
 
     return {

@@ -14,6 +14,7 @@ import { registerGrowthCapitalTrajectoryV2Ipc } from "./growthCapitalTrajectoryV
 import { registerPortfolioTechnicalSignalsIpc } from "./portfolioTechnicalSignalsIpc.js";
 import { registerSystemStateIpc } from "./systemStateIpc.js";
 import { registerKellyDecisionsIpc } from "./kellyDecisionsIpc.js";
+import { registerUnifiedDecisionsIpc } from "./unifiedDecisionsIpc.js";
 import { registerCryptoPriceBridge } from "../../engine/ipc/cryptoPriceBridge.js";
 import { registerMarketRegimeIpc } from "./marketRegimeIpc.js";   // ← Session 7
 
@@ -109,6 +110,7 @@ export function registerAllIpc(ipcMain) {
   });
 
   registerKellyDecisionsIpc(ipcMain);
+  registerUnifiedDecisionsIpc(ipcMain);
 
   // ── Priority 1: Crypto live price (Coinbase) ──────────────────────────────
   registerCryptoPriceBridge(ipcMain);

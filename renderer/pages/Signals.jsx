@@ -809,7 +809,6 @@ export default function Signals() {
         cryptoError={cryptoError}
         kellyMap={kellyMap}
         goal={goal}
-        cryptoHoldings={cryptoHoldings}
       />
 
       {/* Snapshot timestamp */}

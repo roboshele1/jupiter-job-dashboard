@@ -30,7 +30,16 @@ const { matchGrowthTrajectory } = require("./trajectory/trajectoryMatcher.js");
    V2 FUNDAMENTALS AUDIT (UNCHANGED CONTRACT)
    ====================================================== */
 
-function buildFundamentalsAudit({ fundamentals, normalized, history }) {
+function buildFundamentalsAudit({ fundamentals, normalized, history, isETF = false }) {
+  if (isETF) {
+    return {
+      freeCashFlow:    { status: "SKIP", note: "ETF — not applicable" },
+      cashFlowGrowth:  { status: "SKIP", note: "ETF — not applicable" },
+      balanceSheet:    { status: "SKIP", note: "ETF — not applicable" },
+      margins:         { status: "SKIP", note: "ETF — not applicable" },
+      valuationSanity: { status: "SKIP", note: "ETF — not applicable" },
+    };
+  }
   const categories = {
     freeCashFlow: {
       status: normalized.freeCashFlow > 0 ? "PASS" : "FAIL",
@@ -120,31 +129,45 @@ function recordDiscoverySnapshot({ regimeLabel, counts }) {
 
 async function runDiscoveryEngine(input) {
   if (!input || typeof input !== "object") throw new Error("INVALID_INPUT");
-  const { symbol, ownership = false } = input;
+  const { symbol, ownership = false, assetType = null } = input;
+  const isETF = assetType === 'etf' || assetType === 'ETF';
   if (!symbol) throw new Error("MISSING_SYMBOL");
 
-  const [ttm, history] = await Promise.all([
-    getLiveFundamentals(symbol),
-    getFundamentalsHistory(symbol),
-  ]);
+  // ---- ETF GUARD — skip fundamentals fetch entirely for ETFs ----
+  let ttm, history, normalized, fundamentals;
 
-  const normalized = normalizeFundamentals({ ttm, history });
+  if (isETF) {
+    ttm        = {};
+    history    = [];
+    normalized = { revenueGrowth: 0, grossMargin: 0, debtToEquity: 0, freeCashFlow: 0, freeCashFlowGrowth: 0 };
+    fundamentals = {
+      score:   0.5,
+      normalized: 0.5,
+      factors: { growth: 0, quality: 0, risk: 0 },
+    };
+  } else {
+    [ttm, history] = await Promise.all([
+      getLiveFundamentals(symbol),
+      getFundamentalsHistory(symbol),
+    ]);
+    normalized = normalizeFundamentals({ ttm, history });
 
-  /* ---------- V2 FUNDAMENTAL SCORING ---------- */
-  const fundamentals = scoreFundamentals({
-    financials: {
-      income_statement: {
-        revenue_growth: normalized.revenueGrowth,
-        gross_margin: normalized.grossMargin,
+    /* ---------- V2 FUNDAMENTAL SCORING ---------- */
+    fundamentals = scoreFundamentals({
+      financials: {
+        income_statement: {
+          revenue_growth: normalized.revenueGrowth,
+          gross_margin: normalized.grossMargin,
+        },
+        balance_sheet: {
+          debt_to_equity: normalized.debtToEquity,
+        },
+        cash_flow_statement: {
+          free_cash_flow: normalized.freeCashFlow,
+        },
       },
-      balance_sheet: {
-        debt_to_equity: normalized.debtToEquity,
-      },
-      cash_flow_statement: {
-        free_cash_flow: normalized.freeCashFlow,
-      },
-    },
-  });
+    });
+  }
 
   /* ---------- V2 TACTICAL LAYER ---------- */
   const tactical = computeTacticalScore({
@@ -205,6 +228,7 @@ async function runDiscoveryEngine(input) {
     fundamentals,
     normalized,
     history,
+    isETF,
   });
 
   recordDiscoverySnapshot({

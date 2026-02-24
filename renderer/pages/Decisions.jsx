@@ -10,7 +10,7 @@ export default function Decisions() {
     setLoading(true);
     setError(null);
     try {
-      const data = await window.jupiter.invoke('decisions:getKellyRecommendations');
+      const data = await window.jupiter.invoke('decisions:getUnifiedDecisions');
       setDecisions(data);
       setLastRefresh(new Date().toLocaleTimeString());
     } catch (err) {
