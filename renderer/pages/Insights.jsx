@@ -51,15 +51,24 @@ const EXEC_STORE_KEY = () => `lcpe:executions:${monthKey()}`;
 
 async function loadExecutions() {
   try {
-    const result = await window.storage.get(EXEC_STORE_KEY());
-    return result ? JSON.parse(result.value) : [];
-  } catch { return []; }
+    const raw = localStorage.getItem(EXEC_STORE_KEY());
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    console.log('[LCPE] Loaded executions:', parsed.map(e => e.symbol));
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (e) {
+    console.warn('[LCPE] loadExecutions failed:', e);
+    return [];
+  }
 }
 
 async function saveExecutions(list) {
   try {
-    await window.storage.set(EXEC_STORE_KEY(), JSON.stringify(list));
-  } catch (e) { console.warn('LCPE storage write failed', e); }
+    localStorage.setItem(EXEC_STORE_KEY(), JSON.stringify(list));
+    console.log('[LCPE] Saved executions:', list.map(e => e.symbol));
+  } catch (e) {
+    console.error('[LCPE] saveExecutions FAILED:', e);
+  }
 }
 
 // ─── REAL CAGR TABLE ─────────────────────────────────────────────────────────
@@ -596,7 +605,7 @@ export default function Insights({ onNavigate }) {
   const [error,       setError]       = useState(null);
   const [lastRefresh, setLastRefresh] = useState(null);
   const [monthlyDCA,  setMonthlyDCA]  = useState(DCA_DEFAULT);
-  const [executions,  setExecutions]  = useState([]);  // [{ symbol, amount, executedAt }]
+  const [executions,  setExecutions]  = useState(null);  // [{ symbol, amount, executedAt }]
   const timerRef = useRef(null);
 
   // Derive regime from market monitor data
@@ -627,12 +636,14 @@ export default function Insights({ onNavigate }) {
     }
   }, []);
 
-  // Initial load + auto-refresh every 60s
+  // Initial load — only after executions loaded from storage
+  const executionsReady = executions !== null;
   useEffect(() => {
+    if (!executionsReady) return;
     fetchData();
     timerRef.current = setInterval(() => fetchData(), REFRESH_MS);
     return () => clearInterval(timerRef.current);
-  }, [fetchData]);
+  }, [executionsReady]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Execute a contribution — mark symbol as done for this month
   const handleExecute = useCallback(async (symbol, amount) => {
@@ -681,7 +692,7 @@ export default function Insights({ onNavigate }) {
 
   const positions      = useMemo(() => data?.snap?.portfolio?.positions || [], [data]);
   const portfolioValue = useMemo(() => data?.snap?.portfolio?.totals?.liveValue || 0, [data]);
-  const executedSymbols = useMemo(() => executions.map(e => e.symbol), [executions]);
+  const executedSymbols = useMemo(() => (executions || []).map(e => e.symbol), [executions]);
 
   const insights = useMemo(() => {
     if (!data) return [];
@@ -689,7 +700,7 @@ export default function Insights({ onNavigate }) {
   }, [data, positions, portfolioValue, regime]);
 
   const lcpe = useMemo(() => {
-    if (!data || !positions.length) return null;
+    if (!data || !positions.length || executions === null) return null;
     return runLCPE(positions, data.kelly?.actions || [], portfolioValue, monthlyDCA, regime, executedSymbols);
   }, [data, positions, portfolioValue, monthlyDCA, regime, executedSymbols]);
 

@@ -50,14 +50,6 @@
     "addedAt": "2026-02-17T16:49:56.556Z"
   },
   {
-    "symbol": "MA",
-    "qty": 4,
-    "totalCostBasis": 2087.08,
-    "assetClass": "equity",
-    "currency": "USD",
-    "addedAt": "2026-02-17T20:25:55.826Z"
-  },
-  {
     "symbol": "NOW",
     "qty": 100,
     "totalCostBasis": 10509.4,
@@ -83,16 +75,23 @@
   },
   {
     "symbol": "CELH",
-    "qty": 20,
+    "qty": 10,
     "assetClass": "equity",
-    "totalCostBasis": 991,
+    "totalCostBasis": 508.22,
     "currency": "USD"
   },
   {
     "symbol": "AXON",
-    "qty": 3.74,
+    "qty": 2.2602,
     "assetClass": "equity",
-    "totalCostBasis": 2186.2,
+    "totalCostBasis": 999.97,
+    "currency": "USD"
+  },
+  {
+    "symbol": "ZETA",
+    "qty": 17,
+    "assetClass": "equity",
+    "totalCostBasis": 300.05,
     "currency": "USD"
   }
 ]
