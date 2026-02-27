@@ -1,28 +1,3 @@
-// renderer/pages/Signals.jsx
-// SIGNALS TAB — V2 (SESSION 4 UPGRADE)
-//
-// Changes from V1:
-//   1. Crypto panel (BTC + ETH) — live prices via price:getCryptoLive
-//   2. Goal-anchor row per equity card (Kelly data from decisions:getKellyRecommendations)
-//   3. Dead "Portfolio Action" block removed (was permanently empty)
-//   4. Differentiating numeric row: price vs each SMA as distance %
-//   5. sma200w label note (engine computes 40-week, not 200-week)
-//
-// IPC channels used:
-//   portfolio:technicalSignals:getSnapshot  (existing, equity technicals)
-//   decisions:getKellyRecommendations       (existing, goal + Kelly data)
-//   price:getCryptoLive                     (existing, Coinbase via engine/ipc/cryptoPriceBridge)
-//
-// Hard rules honoured:
-//   - window.jupiter.invoke(channel, payload) only
-//   - IBM Plex Mono throughout
-//   - #060910 background
-//   - Inline styles only
-//   - Colour tokens in const C = {}
-//   - No unicode curly quotes (all escaped)
-//   - No handler duplication
-//   - No regression on other tabs
-
 import React, { useEffect, useState, useCallback } from "react";
 
 // ─────────────────────────────────────────────
@@ -360,7 +335,7 @@ function EquityCard({ s, kellyMap, portfolioValue, goal }) {
 
 // Crypto panel — BTC + ETH live prices + cost basis context
 function CryptoPanel({ cryptoPrices, cryptoLoading, cryptoError, kellyMap, goal, cryptoHoldings }) {
-  // 🔒 Read from cryptoHoldings (passed from parent via Kelly data)
+  // 🔒 Read from cryptoHoldings (passed from parent via holdings.json)
   // Fall back to empty array if not available
   const holdings = cryptoHoldings && cryptoHoldings.length > 0 
     ? cryptoHoldings 
@@ -629,6 +604,7 @@ export default function Signals() {
   const [techSnapshot, setTechSnapshot] = useState(null);
   const [kellyData, setKellyData]       = useState(null);
   const [cryptoPrices, setCryptoPrices] = useState({});
+  const [holdings, setHoldings]         = useState([]);
 
   const [status, setStatus]             = useState("loading");
   const [cryptoLoading, setCryptoLoading] = useState(true);
@@ -638,12 +614,14 @@ export default function Signals() {
   // ── Load equity technicals + Kelly in parallel ─────────
   const loadAll = useCallback(async () => {
     try {
-      const [tech, kelly] = await Promise.all([
+      const [tech, kelly, hdgs] = await Promise.all([
         window.jupiter.invoke("portfolio:technicalSignals:getSnapshot"),
         window.jupiter.invoke("decisions:getKellyRecommendations"),
+        window.jupiter.invoke("holdings:getRaw"),
       ]);
       setTechSnapshot(tech);
       setKellyData(kelly);
+      setHoldings(Array.isArray(hdgs) ? hdgs : []);
       setStatus("ready");
     } catch (e) {
       console.error("[SIGNALS_LOAD_ERROR]", e);
@@ -684,7 +662,7 @@ export default function Signals() {
   async function handleRefresh() {
     try {
       setRefreshing(true);
-      await window.jupiter.invoke("portfolio:refreshValuation"); // fixed: was non-invoke call
+      await window.jupiter.invoke("portfolio:refreshValuation");
       await Promise.all([loadAll(), loadCrypto()]);
     } catch (e) {
       console.error("[SIGNALS_REFRESH_ERROR]", e);
@@ -695,8 +673,6 @@ export default function Signals() {
   }
 
   // ── Build Kelly lookup map (symbol -> action item) ─────
-  // Kelly IPC returns actions[] filtered (no pure HOLDs unless |deltaPct|>1)
-  // We want ALL symbols with graceful null for clean HOLDs
   const kellyMap = React.useMemo(() => {
     const map = new Map();
     if (Array.isArray(kellyData?.actions)) {
@@ -707,24 +683,17 @@ export default function Signals() {
     return map;
   }, [kellyData]);
 
-  // ── Extract crypto holdings from Kelly data ────────────
-  // 🔒 BTC/ETH quantities and costs now come from Kelly data, not hardcoded
+  // ── Extract crypto holdings from holdings.json ────────────
+  // 🔒 Read BTC/ETH directly from holdings (source of truth)
   const cryptoHoldings = React.useMemo(() => {
-    const crypto = [];
-    if (Array.isArray(kellyData?.actions)) {
-      for (const item of kellyData.actions) {
-        if ((item.symbol === "BTC" || item.symbol === "ETH") && item.currentValue && item.currentPct) {
-          crypto.push({
-            symbol: item.symbol,
-            qty: item.qty ?? 0,
-            totalCostBasis: item.costBasis ?? 0,
-            label: item.symbol === "BTC" ? "Bitcoin" : "Ethereum",
-          });
-        }
-      }
-    }
-    return crypto;
-  }, [kellyData]);
+    return holdings.filter(h => (h.symbol === "BTC" || h.symbol === "ETH"))
+      .map(h => ({
+        symbol: h.symbol,
+        qty: h.qty || 0,
+        totalCostBasis: h.totalCostBasis || 0,
+        label: h.symbol === "BTC" ? "Bitcoin" : "Ethereum",
+      }));
+  }, [holdings]);
 
   // ── Render states ──────────────────────────────────────
   if (status === "loading") {
@@ -743,8 +712,6 @@ export default function Signals() {
     );
   }
 
-  // Separate equity symbols (state !== "UNAVAILABLE" and type !== crypto in the engine output)
-  // Crypto positions return { symbol, state: "UNAVAILABLE" } from the engine — filter them out
   const cryptoSymbols = new Set(["BTC", "ETH"]);
   const equitySymbols = Object.values(techSnapshot.symbols || {}).filter(
     s => !cryptoSymbols.has(s.symbol) && s.state !== "UNAVAILABLE"
