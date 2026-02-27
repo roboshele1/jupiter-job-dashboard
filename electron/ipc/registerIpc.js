@@ -61,7 +61,7 @@ function loadHoldingsFull() {
     symbol:         normalizeSymbol(x.symbol),
     qty:            asNumber(x.qty),
     totalCostBasis: asNumber(x.totalCostBasis),
-    assetClass:     x.assetClass === "crypto" ? "crypto" : "equity",
+    assetClass:     x.assetClass === "crypto" ? "crypto" : x.assetClass === "etf" ? "etf" : "equity",
     currency:       String(x.currency || "CAD")
   }));
 }
