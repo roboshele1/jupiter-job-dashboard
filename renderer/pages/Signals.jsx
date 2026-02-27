@@ -4,7 +4,7 @@
 // Changes from V1:
 //   1. Crypto panel (BTC + ETH) — live prices via price:getCryptoLive
 //   2. Goal-anchor row per equity card (Kelly data from decisions:getKellyRecommendations)
-//   3. Dead \u201cPortfolio Action\u201d block removed (was permanently empty)
+//   3. Dead "Portfolio Action" block removed (was permanently empty)
 //   4. Differentiating numeric row: price vs each SMA as distance %
 //   5. sma200w label note (engine computes 40-week, not 200-week)
 //
@@ -347,7 +347,7 @@ function EquityCard({ s, kellyMap, portfolioValue, goal }) {
         </div>
       )}
 
-      {/* Goal anchor (replaces dead \u201cPortfolio Action\u201d block) */}
+      {/* Goal anchor (replaces dead "Portfolio Action" block) */}
       <GoalAnchorRow
         symbol={s.symbol}
         kellyMap={kellyMap}
@@ -360,10 +360,11 @@ function EquityCard({ s, kellyMap, portfolioValue, goal }) {
 
 // Crypto panel — BTC + ETH live prices + cost basis context
 function CryptoPanel({ cryptoPrices, cryptoLoading, cryptoError, kellyMap, goal, cryptoHoldings }) {
-  const CRYPTO_HOLDINGS = [
-    { symbol: "BTC", qty: 0.281212, totalCostBasis: 24764.31, label: "Bitcoin" },
-    { symbol: "ETH", qty: 0.25,      totalCostBasis: 597.90,   label: "Ethereum" },
-  ];
+  // 🔒 Read from cryptoHoldings (passed from parent via Kelly data)
+  // Fall back to empty array if not available
+  const holdings = cryptoHoldings && cryptoHoldings.length > 0 
+    ? cryptoHoldings 
+    : [];
 
   return (
     <div style={{ marginTop: 32 }}>
@@ -390,7 +391,7 @@ function CryptoPanel({ cryptoPrices, cryptoLoading, cryptoError, kellyMap, goal,
 
       {cryptoLoading && (
         <div style={{ color: C.textMuted, fontSize: 12, fontFamily: C.font, padding: "16px 0" }}>
-          Fetching crypto prices\u2026
+          Fetching crypto prices…
         </div>
       )}
 
@@ -400,9 +401,15 @@ function CryptoPanel({ cryptoPrices, cryptoLoading, cryptoError, kellyMap, goal,
         </div>
       )}
 
-      {!cryptoLoading && !cryptoError && (
+      {!cryptoLoading && !cryptoError && holdings.length === 0 && (
+        <div style={{ color: C.textMuted, fontSize: 12, fontFamily: C.font, padding: "16px 0" }}>
+          No crypto holdings in portfolio.
+        </div>
+      )}
+
+      {!cryptoLoading && !cryptoError && holdings.length > 0 && (
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-          {CRYPTO_HOLDINGS.map(h => {
+          {holdings.map(h => {
             const priceData = cryptoPrices?.[h.symbol];
             const livePrice = priceData?.price ?? null;
             const liveValue = livePrice ? livePrice * h.qty : null;
@@ -431,7 +438,7 @@ function CryptoPanel({ cryptoPrices, cryptoLoading, cryptoError, kellyMap, goal,
                       {h.symbol}
                     </span>
                     <span style={{ marginLeft: 8, fontSize: 11, color: C.textMuted }}>
-                      {h.label}
+                      {h.label || h.symbol}
                     </span>
                   </div>
                   <Pill label="CRYPTO" color={C.accentCrypto} />
@@ -700,11 +707,30 @@ export default function Signals() {
     return map;
   }, [kellyData]);
 
+  // ── Extract crypto holdings from Kelly data ────────────
+  // 🔒 BTC/ETH quantities and costs now come from Kelly data, not hardcoded
+  const cryptoHoldings = React.useMemo(() => {
+    const crypto = [];
+    if (Array.isArray(kellyData?.actions)) {
+      for (const item of kellyData.actions) {
+        if ((item.symbol === "BTC" || item.symbol === "ETH") && item.currentValue && item.currentPct) {
+          crypto.push({
+            symbol: item.symbol,
+            qty: item.qty ?? 0,
+            totalCostBasis: item.costBasis ?? 0,
+            label: item.symbol === "BTC" ? "Bitcoin" : "Ethereum",
+          });
+        }
+      }
+    }
+    return crypto;
+  }, [kellyData]);
+
   // ── Render states ──────────────────────────────────────
   if (status === "loading") {
     return (
       <div style={{ padding: 32, fontFamily: C.font, color: C.textMuted, background: C.bg, minHeight: "100vh" }}>
-        Loading technical analysis\u2026
+        Loading technical analysis…
       </div>
     );
   }
@@ -761,7 +787,7 @@ export default function Signals() {
             letterSpacing: "0.04em",
           }}
         >
-          {refreshing ? "Refreshing\u2026" : "Refresh"}
+          {refreshing ? "Refreshing…" : "Refresh"}
         </button>
       </div>
 
@@ -809,6 +835,7 @@ export default function Signals() {
         cryptoError={cryptoError}
         kellyMap={kellyMap}
         goal={goal}
+        cryptoHoldings={cryptoHoldings}
       />
 
       {/* Snapshot timestamp */}
