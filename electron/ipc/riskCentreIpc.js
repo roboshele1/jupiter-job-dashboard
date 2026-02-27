@@ -1,29 +1,28 @@
-import fs from "fs";
-import path from "path";
-/**
- * riskCentreIpc.js — Session 6c
- * Full intelligence: posture drivers, Kelly heat, sector scenarios, concentration warnings, correlation clusters
- */
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const GOAL_VALUE = 1_000_000;
 const GOAL_YEAR  = 2037;
 
-// ── Sector map ───────────────────────────────────────────────────────────────
 const SECTOR = {
-  NVDA: 'AI_SEMIS', ASML: 'AI_SEMIS', AVGO: 'AI_SEMIS',
-  MSTR: 'CRYPTO_PROXY', BTC: 'CRYPTO', ETH: 'CRYPTO',
-  HOOD: 'FINTECH', BMNR: 'SPECULATIVE', APLD: 'AI_INFRA',
-  NOW:  'ENTERPRISE_SW',
+  NVDA:'AI_SEMIS', ASML:'AI_SEMIS', AVGO:'AI_SEMIS',
+  MSTR:'CRYPTO_PROXY', BMNR:'CRYPTO_PROXY', APLD:'CRYPTO_PROXY',
+  HOOD:'SPECULATIVE',
+  NOW:'AI_INFRA',
+  BTC:'CRYPTO', ETH:'CRYPTO',
 };
 
-// ── Correlation clusters (assets that move together) ─────────────────────────
 const CLUSTERS = [
-  { name: 'Crypto Cluster',    symbols: ['BTC', 'ETH', 'MSTR'],        note: 'MSTR is a leveraged BTC proxy — moves 2–3× BTC' },
-  { name: 'AI Semis Cluster',  symbols: ['NVDA', 'ASML', 'AVGO'],      note: 'High AI capex correlation — sell-off hits all three' },
-  { name: 'Speculative Tier',  symbols: ['BMNR', 'APLD', 'HOOD'],      note: 'High beta, low conviction — drag on goal efficiency' },
+  { name:'AI Semiconductors',   symbols:['NVDA','ASML','AVGO'],            note:'Core AI chip exposure' },
+  { name:'Crypto & Proxies',    symbols:['BTC','ETH','MSTR','BMNR','APLD'], note:'Direct + indirect crypto' },
+  { name:'AI Infrastructure',   symbols:['NOW'],                             note:'Cloud + data center' },
+  { name:'Growth / Spec',       symbols:['HOOD','CELH','ZETA','AXON'],      note:'High-conviction growth' },
 ];
 
-// ── Sector-aware scenario impacts ────────────────────────────────────────────
+// ── Build stress scenarios — drivers are LIVE from positions ────────────────
 function buildScenarios(positions, portfolioValue) {
   const bySymbol = {};
   positions.forEach(p => { bySymbol[p.symbol] = p.liveValue ?? 0; });
@@ -39,18 +38,22 @@ function buildScenarios(positions, portfolioValue) {
   const speculative = sectorTotals['SPECULATIVE']    ?? 0;
   const aiInfra     = sectorTotals['AI_INFRA']       ?? 0;
 
+  // 🔒 Extract actual affected symbols from positions
+  const aiSemiSymbols = positions.filter(p => SECTOR[p.symbol] === 'AI_SEMIS').map(p => p.symbol).join(', ') || '—';
+  const cryptoSymbols = positions.filter(p => SECTOR[p.symbol] === 'CRYPTO' || SECTOR[p.symbol] === 'CRYPTO_PROXY').map(p => p.symbol).join(', ') || '—';
+
   return [
     {
       name:         'Tech / AI Selloff (−30%)',
       impactPct:    -((aiSemis * 0.30 + aiInfra * 0.25) / portfolioValue * 100).toFixed(1),
       affectedValue: -(aiSemis * 0.30 + aiInfra * 0.25),
-      drivers:      'NVDA, ASML, AVGO, APLD',
+      drivers:      aiSemiSymbols,
     },
     {
       name:         'Crypto Crash (−50%)',
       impactPct:    -((crypto * 0.50) / portfolioValue * 100).toFixed(1),
       affectedValue: -(crypto * 0.50),
-      drivers:      'BTC, ETH, MSTR',
+      drivers:      cryptoSymbols,
     },
     {
       name:         'Broad Correction (−20%)',
@@ -62,18 +65,17 @@ function buildScenarios(positions, portfolioValue) {
       name:         'AI Sector Rally (+40%)',
       impactPct:    +((aiSemis * 0.40 + aiInfra * 0.35) / portfolioValue * 100).toFixed(1),
       affectedValue: +(aiSemis * 0.40 + aiInfra * 0.35),
-      drivers:      'NVDA, ASML, AVGO, APLD',
+      drivers:      aiSemiSymbols,
     },
     {
       name:         'Crypto Bull Run (+100%)',
       impactPct:    +((crypto * 1.00) / portfolioValue * 100).toFixed(1),
       affectedValue: +(crypto * 1.00),
-      drivers:      'BTC, ETH, MSTR',
+      drivers:      cryptoSymbols,
     },
   ];
 }
 
-// ── HHI ──────────────────────────────────────────────────────────────────────
 function computeHHI(positions) {
   const total = positions.reduce((s,p) => s+(p.liveValue??0), 0);
   if (!total) return 0;
@@ -83,7 +85,6 @@ function hhiLabel(h) {
   return h<0.15?'DIVERSIFIED':h<0.25?'MODERATE':h<0.40?'CONCENTRATED':'HIGH_CONCENTRATION';
 }
 
-// ── Concentration warnings ────────────────────────────────────────────────────
 function buildConcentrationWarnings(ranked, portfolioValue) {
   const warnings = [];
   ranked.forEach(p => {
@@ -95,7 +96,6 @@ function buildConcentrationWarnings(ranked, portfolioValue) {
   return warnings;
 }
 
-// ── Correlation clusters with real weights ────────────────────────────────────
 function buildCorrelationClusters(positions, portfolioValue) {
   const bySymbol = {};
   positions.forEach(p => { bySymbol[p.symbol] = p.liveValue ?? 0; });
@@ -118,7 +118,6 @@ function buildCorrelationClusters(positions, portfolioValue) {
   }).filter(cl => cl.clusterValue > 0);
 }
 
-// ── Goal metrics ──────────────────────────────────────────────────────────────
 function goalMetrics(v) {
   const yr = Math.max(0.01, GOAL_YEAR - new Date().getFullYear());
   return {
@@ -130,7 +129,6 @@ function goalMetrics(v) {
   };
 }
 
-// ── Posture derivation ────────────────────────────────────────────────────────
 function derivePosture({ hhi, heatStatus, concentrationWarnings, requiredCAGR }) {
   const criticalWarnings = concentrationWarnings.filter(w => w.level === 'CRITICAL').length;
   const highWarnings     = concentrationWarnings.filter(w => w.level === 'HIGH').length;
@@ -141,23 +139,20 @@ function derivePosture({ hhi, heatStatus, concentrationWarnings, requiredCAGR })
   return 'STABLE';
 }
 
-// ── Main IPC handler ──────────────────────────────────────────────────────────
 export function registerRiskCentreIpc(ipcMain) {
   ipcMain.handle('riskCentre:intelligence:v2', async () => {
     try {
       const { valuePortfolio } = await import("../../engine/portfolio/portfolioValuation.js");
-      const holdings           = JSON.parse(fs.readFileSync(path.resolve(new URL(".", import.meta.url).pathname, "../../engine/data/users/default/holdings.json"), "utf-8"));
+      const holdings           = JSON.parse(fs.readFileSync(path.resolve(__dirname, "../../engine/data/users/default/holdings.json"), "utf-8"));
       const valued             = await valuePortfolio(holdings);
 
       const positions      = valued?.positions ?? [];
-      const portfolioValue = valued?.totalValue ?? positions.reduce((s,p)=>s+(p.liveValue??0),0);
+      const portfolioValue = valued?.totals?.liveValue ?? positions.reduce((s,p)=>s+(p.liveValue??0),0);
       const total          = portfolioValue || 1;
 
-      // ── Kelly heat (from decisions channel data) ────────────────────────
       let kellyData = null;
       try {
-        const { loadHoldings }   = ({ loadHoldings: () => JSON.parse(fs.readFileSync(path.resolve(new URL(".", import.meta.url).pathname, "../../engine/data/users/default/holdings.json"), "utf-8")) });
-        // Re-use valuePortfolio result we already have — build heat from positions
+        const { loadHoldings }   = ({ loadHoldings: () => JSON.parse(fs.readFileSync(path.resolve(__dirname, "../../engine/data/users/default/holdings.json"), "utf-8")) });
         const { CONVICTIONS, kellySize, MAX_HEAT_PCT, FRACTIONAL_KELLY } =
           await import("../ipc/kellyDecisionsIpc.js").catch(() => null) ?? {};
 
@@ -177,11 +172,9 @@ export function registerRiskCentreIpc(ipcMain) {
           };
         }
       } catch(e) {
-        // Kelly import failed — fetch via IPC invoke workaround
         kellyData = null;
       }
 
-      // ── Signals pressure ────────────────────────────────────────────────
       let signalsPressure = 'UNKNOWN';
       let materialSignals = 0;
       let totalSignals    = 0;
@@ -196,7 +189,6 @@ export function registerRiskCentreIpc(ipcMain) {
         signalsPressure = 'UNAVAILABLE';
       }
 
-      // ── Concentration ───────────────────────────────────────────────────
       const hhi    = computeHHI(positions);
       const ranked = [...positions]
         .sort((a,b)=>(b.liveValue??0)-(a.liveValue??0))
@@ -215,7 +207,6 @@ export function registerRiskCentreIpc(ipcMain) {
         requiredCAGR:           goal?.requiredCAGR ?? 0,
       });
 
-      // ── Growth pressure ─────────────────────────────────────────────────
       const growthPressure = (goal?.requiredCAGR ?? 0) > 40
         ? 'ELEVATED' : (goal?.requiredCAGR ?? 0) > 28
         ? 'MODERATE' : 'NORMAL';
