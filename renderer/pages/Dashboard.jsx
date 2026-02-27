@@ -36,9 +36,6 @@ function pickBestFreshness(positions) {
   return best;
 }
 
-const GOAL_TARGET = 1_000_000;
-const GOAL_MONTHS = 60;
-
 export default function Dashboard() {
   const [valuation,   setValuation]   = useState(null);
   const [systemState, setSystemState] = useState(null);
@@ -105,9 +102,12 @@ export default function Dashboard() {
   const marketStatus   = freshness.level;
   const freshnessColor = marketStatus === "LIVE" ? "#4ade80" : marketStatus === "DELAYED" ? "#fbbf24" : marketStatus === "STALE" ? "#f87171" : "#9ca3af";
 
+  // 🔒 Read goal from Kelly data, not hardcoded
+  const goal = kellyData?.goal || {};
   const portfolioValue  = Number(totals.liveValue || 0);
-  const goalProgressPct = GOAL_TARGET > 0 ? (portfolioValue / GOAL_TARGET) * 100 : 0;
-  const goalRemaining   = GOAL_TARGET - portfolioValue;
+  const goalProgressPct = goal.progressPct ?? 0;
+  const goalRemaining   = goal.remaining ?? 0;
+  const monthsRemaining = goal.monthsRemaining ?? 0;
 
   const heatStatus  = kellyData?.heatCheck?.status   || null;
   const totalHeat   = kellyData?.heatCheck?.totalHeat ?? null;
@@ -161,7 +161,7 @@ export default function Dashboard() {
           <div>
             <div style={{ fontSize: 15, fontWeight: 700, color: "#fff" }}>Goal: $100k → $1M by 2037</div>
             <div style={{ fontSize: 13, color: "#9ca3af", marginTop: 3 }}>
-              {fmtMoney(goalRemaining)} remaining · {GOAL_MONTHS} months · Required CAGR: dynamic
+              {fmtMoney(goalRemaining)} remaining · {monthsRemaining} months · Required CAGR: {goal.requiredCAGR ? fmt(goal.requiredCAGR, 1) + "%" : "dynamic"}
             </div>
           </div>
           <div style={{ textAlign: "right" }}>
