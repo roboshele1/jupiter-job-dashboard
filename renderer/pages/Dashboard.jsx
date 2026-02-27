@@ -18,15 +18,12 @@ function deltaColor(n) {
   return "#9ca3af";
 }
 
-const BUCKET_COLORS = {
-  Semiconductors: "#4cc9f0", Software: "#8b5cf6",
-  "BTC Proxy": "#f7931a", Crypto: "#fbbf24", Cash: "#374151",
+const ASSET_CLASS_CONFIG = {
+  crypto: { label: "Crypto", color: "#fbbf24" },
+  etf: { label: "ETF", color: "#8b5cf6" },
+  equity: { label: "Equity", color: "#4cc9f0" },
 };
-const ASSET_BUCKET = {
-  NVDA: "Semiconductors", AVGO: "Semiconductors", ASML: "Semiconductors",
-  MSTR: "BTC Proxy", BMNR: "BTC Proxy", APLD: "BTC Proxy",
-  HOOD: "Software", NOW: "Software", BTC: "Crypto", ETH: "Crypto",
-};
+
 const FRESHNESS_RANK = { LIVE: 3, DELAYED: 2, STALE: 1, UNKNOWN: 0 };
 
 function pickBestFreshness(positions) {
@@ -86,12 +83,19 @@ export default function Dashboard() {
     if (!positions.length || !totals.liveValue) return [];
     const buckets = {};
     for (const p of positions) {
-      const key = ASSET_BUCKET[p.symbol] || "Cash";
+      const assetClass = p.assetClass || "equity";
+      const config = ASSET_CLASS_CONFIG[assetClass] || ASSET_CLASS_CONFIG.equity;
+      const key = config.label;
       buckets[key] = (buckets[key] || 0) + Number(p.liveValue || 0);
     }
-    const bands = Object.entries(buckets).map(([name, val]) => ({
-      name, pct: Math.round((val / totals.liveValue) * 100), color: BUCKET_COLORS[name] || "#374151",
-    }));
+    const bands = Object.entries(buckets).map(([name, val]) => {
+      const config = Object.values(ASSET_CLASS_CONFIG).find(c => c.label === name) || ASSET_CLASS_CONFIG.equity;
+      return {
+        name, 
+        pct: Math.round((val / totals.liveValue) * 100), 
+        color: config.color
+      };
+    });
     const sum = bands.reduce((s, b) => s + b.pct, 0);
     if (sum !== 100 && bands.length) bands[0].pct += 100 - sum;
     return bands.filter(b => b.pct > 0);
