@@ -22,6 +22,7 @@ export async function resolveInvestableSymbol(inputSymbol) {
   const symbol = inputSymbol.trim().toUpperCase();
 
   // ── 1) EXPLICIT TSX ──────────────────────────────────────────────────
+  // 🔒 Check .TO whitelist FIRST, before char limit validation
   if (hasExplicitTsxIntent(symbol)) {
     try {
       const tsx = await tsxResolver(symbol);
