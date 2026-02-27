@@ -43,7 +43,7 @@ export async function valuePortfolio(holdings = []) {
     const livePrice = Number(r.price) || 0;
 
     // 🔒 COST BASIS AUTHORITY (single source of truth)
-    const totalCostBasis = Number(getCostBasis(h.symbol)) || 0;
+    const totalCostBasis = Number(h.totalCostBasis) || 0;
 
     const qty = Number(h.qty) || Number(h.quantity) || 0;
 
