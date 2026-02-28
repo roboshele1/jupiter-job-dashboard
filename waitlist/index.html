@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Jupiter — Private Beta</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #060910; font-family: 'IBM Plex Mono', monospace; color: #e2e8f0; min-height: 100vh; display: flex; align-items: center; justify-content: center; }
+    .container { max-width: 600px; text-align: center; padding: 20px; }
+    h1 { font-size: 48px; margin-bottom: 10px; letter-spacing: -0.02em; line-height: 1.2; }
+    h1 .highlight { color: #3b82f6; }
+    .subtitle { color: #94a3b8; font-size: 14px; margin-bottom: 30px; line-height: 1.6; }
+    .form { display: flex; gap: 10px; margin-bottom: 20px; }
+    input { flex: 1; padding: 12px 16px; background: #0f172a; border: 1px solid #1a2540; border-radius: 8px; color: #fff; font-family: inherit; font-size: 14px; }
+    button { padding: 12px 28px; background: #3b82f6; color: #fff; border: none; border-radius: 8px; font-weight: 700; cursor: pointer; font-family: inherit; font-size: 14px; }
+    button:disabled { opacity: 0.7; cursor: default; }
+    .message { font-size: 13px; margin-bottom: 20px; min-height: 20px; }
+    .message.success { color: #22c55e; }
+    .message.error { color: #ef4444; }
+    .disclaimer { color: #6b7280; font-size: 12px; margin-bottom: 40px; }
+    .stats { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 30px; color: #94a3b8; font-size: 12px; }
+    .stat-value { font-size: 28px; font-weight: 700; color: #fff; }
+    .stat-label { margin-top: 6px; letter-spacing: 0.06em; text-transform: uppercase; }
+    .badge { display: inline-block; padding: 6px 12px; border: 1px solid #1a2540; border-radius: 20px; font-size: 11px; color: #3b82f6; margin-bottom: 20px; letter-spacing: 0.06em; text-transform: uppercase; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="badge">LIMITED TO 50 INVESTORS</div>
+    
+    <h1>Your portfolio.<br><span class="highlight">Intelligently</span><br>managed.</h1>
+    
+    <p class="subtitle">Jupiter is a regime-aware portfolio intelligence engine built for serious investors. Kelly sizing. AI briefings. Real-time signals. Built for the $1M goal.</p>
+
+    <form class="form" id="waitlistForm">
+      <input type="email" id="email" placeholder="your@email.com" required>
+      <button type="submit" id="submitBtn">REQUEST ACCESS</button>
+    </form>
+
+    <div class="message" id="message"></div>
+
+    <p class="disclaimer">No spam. No pitch deck. Just early access when we're ready.</p>
+
+    <div class="stats">
+      <div>
+        <div class="stat-value">50</div>
+        <div class="stat-label">Beta Spots</div>
+      </div>
+      <div>
+        <div class="stat-value">$0</div>
+        <div class="stat-label">Cost to Join</div>
+      </div>
+      <div>
+        <div class="stat-value">2037</div>
+        <div class="stat-label">The Goal</div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const form = document.getElementById('waitlistForm');
+    const emailInput = document.getElementById('email');
+    const submitBtn = document.getElementById('submitBtn');
+    const messageDiv = document.getElementById('message');
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const email = emailInput.value.trim();
+      if (!email) return;
+
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Sending...';
+      messageDiv.textContent = '';
+
+      try {
+        const res = await fetch('/api/waitlist', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email })
+        });
+
+        if (!res.ok) throw new Error('Failed to submit');
+        
+        messageDiv.className = 'message success';
+        messageDiv.textContent = '✓ You\'re on the list. Early access coming Feb 2026.';
+        emailInput.value = '';
+        submitBtn.textContent = 'REQUEST ACCESS';
+      } catch (err) {
+        messageDiv.className = 'message error';
+        messageDiv.textContent = 'Something went wrong. Try again.';
+        submitBtn.textContent = 'REQUEST ACCESS';
+      } finally {
+        submitBtn.disabled = false;
+      }
+    });
+  </script>
+</body>
+</html>
