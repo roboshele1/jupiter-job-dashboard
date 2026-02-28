@@ -1,23 +1,35 @@
-// renderer/AuthContext.jsx
-// JUPITER — Auth state provider (Firebase)
-
 import React, { createContext, useContext, useEffect, useState } from "react";
-import { getAuth, onAuthStateChanged, signOut as firebaseSignOut } from "firebase/auth";
 import { app } from "./firebase";
 
-const auth = getAuth(app);
+// If Firebase is disabled (app is null), return stub auth
+const auth = app ? (() => {
+  try {
+    const { getAuth } = require("firebase/auth");
+    return getAuth(app);
+  } catch (e) {
+    return null;
+  }
+})() : null;
+
 const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
-  const [user,    setUser]    = useState(undefined); // undefined = loading
+  const [user, setUser] = useState(null);
   const [syncing, setSyncing] = useState(false);
 
   useEffect(() => {
+    if (!auth) {
+      setUser(null);
+      return;
+    }
+    const { onAuthStateChanged } = require("firebase/auth");
     const unsub = onAuthStateChanged(auth, u => setUser(u ?? null));
     return unsub;
   }, []);
 
   async function signOut() {
+    if (!auth) return;
+    const { signOut: firebaseSignOut } = require("firebase/auth");
     await firebaseSignOut(auth);
   }
 
