@@ -578,5 +578,75 @@
     "entryPrice": 0,
     "outcomes": {},
     "fullyScored": false
+  },
+  {
+    "id": "AI_INTERACTION_1772131277750_pdvkr",
+    "timestamp": "2026-02-26T18:41:17.750Z",
+    "type": "AI_INTERACTION",
+    "question": "Explain the kelly decision buckets\nI understand portfolio value, total book cost, unrealized P/L, goal, % of goal. \nWhat I dont understand is portfolio risk - portfolio heat 22% max: 50% optimal cash -9.8% (-8,100.71). Is It recommending to leverage margin because the condition is high even at 22%? Use simple language to explain",
+    "responseLength": 1953,
+    "regime": "NEUTRAL",
+    "portfolioValue": 82887.58510653998,
+    "holdingCount": 10
+  },
+  {
+    "id": "AI_INTERACTION_1772131541332_risx0",
+    "timestamp": "2026-02-26T18:45:41.332Z",
+    "type": "AI_INTERACTION",
+    "question": "follow-up question, i notice that the more i fund ZETA, AXON, CELH for example like i did, it sort of reduced the blended the CAGR from 27.7 to 27.3. This was after i exited BMNR APLD & HOOD and the blended CAGR increased to 27.7. isnt the assets kelly is asking to be trimmed higher in cagr for eg NVDA MSTR BTC? From another angle 27.3 is way above the required cagr of 25.4 so i am still within goal",
+    "responseLength": 2078,
+    "regime": "NEUTRAL",
+    "portfolioValue": 82887.58510653998,
+    "holdingCount": 10
+  },
+  {
+    "id": "AI_INTERACTION_1772197262210_xmhsl",
+    "timestamp": "2026-02-27T13:01:02.210Z",
+    "type": "AI_INTERACTION",
+    "question": "i built jupiter to rid myself of emotional decisions like exiting assets. i am a longterm investor and not a trader. i am not in the habit of buying and selling stocks so how do i differentiate that when i look at recommendations and decisions that has surfaced in the decisions tab when it is asking me to exit those positions? because i do regard kelly and jupiter highly",
+    "responseLength": 2312,
+    "regime": "NEUTRAL",
+    "portfolioValue": 82302.29688066001,
+    "holdingCount": 10
+  },
+  {
+    "id": "AI_INTERACTION_1772238357265_98fdc",
+    "timestamp": "2026-02-28T00:25:57.265Z",
+    "type": "AI_INTERACTION",
+    "question": "in a recent interview, stan druckenmller's duquesne portfolio for the next 3-4 yrs incl. 2026: long eclectic equities  (AI dribs/drabs left, big japan/korea exposure), rolling copper futures (AI/data center demand + tight supply), some gold (geopolicts), short bonds as hedge. it looks very similar to that of ray dalio preaches. obviously i am not copying blindly but these 2 names are some of the most important in the investing game and if i want to make generational wwealth, i may at least need to consider some of what they are doing since they already have millions, even though i invest beyond 3-4 years and both of these individuals near retirement, do u think i have any cause to worry about my portoflio looking at what these titans preach. good to note tht ray dallio latest portfolio had NVDA as his highest holding which i already own. what do u think",
+    "responseLength": 2389,
+    "regime": "NEUTRAL",
+    "portfolioValue": 81907.3817823,
+    "holdingCount": 10
+  },
+  {
+    "id": "AI_INTERACTION_1772238792626_fzpnt",
+    "timestamp": "2026-02-28T00:33:12.626Z",
+    "type": "AI_INTERACTION",
+    "question": "i am not neglecting the kelly decision recommendations. i am just approaching it with caution. what i have noticed is that, the recommendtions switch drastically at times. in the morning or within 24h it could surface ADD MSTR TRIM MSTR ADD CELH to EXIT AVOID MSTR EXIT CELH and then rinse and repeat. i need to be very certain i am making the right moves",
+    "responseLength": 2296,
+    "regime": "NEUTRAL",
+    "portfolioValue": 81907.3817823,
+    "holdingCount": 10
+  },
+  {
+    "id": "AI_INTERACTION_1772238993793_iua6f",
+    "timestamp": "2026-02-28T00:36:33.793Z",
+    "type": "AI_INTERACTION",
+    "question": "this is the reason why i built the daemon to run and scan at 4:30 ET daily for signals and kelly that persist. AMZN now owns 6% OpenAi 15% Anthropic. should i put it on my radar",
+    "responseLength": 2047,
+    "regime": "NEUTRAL",
+    "portfolioValue": 81907.3817823,
+    "holdingCount": 10
+  },
+  {
+    "id": "AI_INTERACTION_1772239129576_73c6e",
+    "timestamp": "2026-02-28T00:38:49.576Z",
+    "type": "AI_INTERACTION",
+    "question": "give me 5 assets that meets or exceeds my 25.6% required cagr that i do not own currently that you feel strongly i need to consider",
+    "responseLength": 2246,
+    "regime": "NEUTRAL",
+    "portfolioValue": 81907.3817823,
+    "holdingCount": 10
   }
 ]

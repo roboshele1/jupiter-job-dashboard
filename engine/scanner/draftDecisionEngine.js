@@ -1,0 +1,331 @@
+/**
+ * engine/scanner/draftDecisionEngine.js
+ * Draft Decision Auto-Staging — Tracks consecutive signal persistence and auto-generates drafts
+ * 
+ * Responsibility: Track signal persistence → auto-generate LCPE drafts → manage approval workflow
+ */
+
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __scanner_dirname = path.dirname(fileURLToPath(import.meta.url));
+const DRAFT_DECISIONS_JSON = path.resolve(__scanner_dirname, '../data/decision_drafts.json');
+const DRAFTS_STATE_JSON = path.resolve(__scanner_dirname, '../data/draft_state.json');
+
+const CONSECUTIVE_THRESHOLD = 3; // Auto-draft when signal persists 3+ scans
+
+// ─────────────────────────────────────────────────────────────
+// HELPERS
+// ─────────────────────────────────────────────────────────────
+
+function generateDraftId() {
+  const ts = Date.now();
+  const rand = Math.random().toString(36).substr(2, 5);
+  return `draft_${ts}_${rand}`;
+}
+
+function loadDrafts(count = 100) {
+  try {
+    if (!fs.existsSync(DRAFT_DECISIONS_JSON)) return [];
+    const raw = fs.readFileSync(DRAFT_DECISIONS_JSON, 'utf-8');
+    const drafts = JSON.parse(raw);
+    return Array.isArray(drafts) ? drafts.slice(-count) : [];
+  } catch (err) {
+    console.error('[DraftDecisionEngine] Error loading drafts:', err.message);
+    return [];
+  }
+}
+
+function loadDraftsState() {
+  try {
+    if (!fs.existsSync(DRAFTS_STATE_JSON)) return {};
+    const raw = fs.readFileSync(DRAFTS_STATE_JSON, 'utf-8');
+    return JSON.parse(raw);
+  } catch (err) {
+    console.error('[DraftDecisionEngine] Error loading draft state:', err.message);
+    return {};
+  }
+}
+
+function saveDraftsState(state) {
+  try {
+    fs.writeFileSync(DRAFTS_STATE_JSON, JSON.stringify(state, null, 2));
+    return true;
+  } catch (err) {
+    console.error('[DraftDecisionEngine] Error saving draft state:', err.message);
+    return false;
+  }
+}
+
+function appendDraft(draftRecord) {
+  try {
+    let drafts = loadDrafts(500);
+    drafts.push(draftRecord);
+    fs.writeFileSync(DRAFT_DECISIONS_JSON, JSON.stringify(drafts, null, 2));
+    console.log(`[DraftDecisionEngine] Appended draft ${draftRecord.draftId}`);
+    return true;
+  } catch (err) {
+    console.error('[DraftDecisionEngine] Error appending draft:', err.message);
+    throw err;
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
+// LCPE GENERATION
+// ─────────────────────────────────────────────────────────────
+
+/**
+ * Generate LCPE-formatted decision content
+ * L = Lesson, C = Context, P = Plan, E = Execution (user-provided)
+ */
+function generateLCPE(holding, signal, consecutiveScans, regime, projectedCAGR) {
+  const { symbol, weight, kellyTarget, currentValue } = holding;
+  
+  // L: Lesson — What pattern triggered this?
+  const lesson = `Kelly signal ${signal} has been consistent across ${consecutiveScans} consecutive daily scans. ` +
+    `Position weight (${weight.toFixed(2)}%) ${signal === 'TRIM' ? 'exceeds' : 'falls short of'} ` +
+    `target (${kellyTarget.toFixed(2)}%) by ${Math.abs(weight - kellyTarget).toFixed(2)} percentage points.`;
+  
+  // C: Context — Current state & metrics
+  const context = `Current weight: ${weight.toFixed(2)}% (target: ${kellyTarget.toFixed(2)}%). ` +
+    `Market regime: ${regime}. Projected CAGR: ${projectedCAGR.toFixed(1)}% (goal: 12%). ` +
+    `Consecutive scans flagging ${signal}: ${consecutiveScans}. ` +
+    `Current position value: $${currentValue.toFixed(2)}.`;
+  
+  // P: Plan — Specific action
+  let plan = '';
+  if (signal === 'TRIM') {
+    const trimAmount = currentValue * 0.15; // Trim 15% as example
+    const dollarAmount = trimAmount.toFixed(2);
+    plan = `Trim ${symbol} by $${dollarAmount} (reduce position by ~15%). ` +
+      `Reallocate proceeds to [AWAITING_USER_DESIGNATION]. Execute at market open or limit order.`;
+  } else if (signal === 'ADD') {
+    const addAmount = 5000; // Example: add $5k
+    plan = `Add $${addAmount.toFixed(2)} to ${symbol} position to reach Kelly target weight. ` +
+      `Execute via limit order near current price or [USER_PREFERENCE]. ` +
+      `Source capital from: [AWAITING_USER_DESIGNATION].`;
+  } else if (signal === 'EXIT_OR_AVOID') {
+    plan = `EXIT ${symbol} position entirely. Sell all ${holding.qty.toFixed(4)} shares at market or limit. ` +
+      `Reason: Projected CAGR below 12% threshold or thesis broken. ` +
+      `Reallocate proceeds to: [AWAITING_USER_DESIGNATION].`;
+  }
+  
+  return {
+    L: lesson,
+    C: context,
+    P: plan,
+    E: null  // User fills this in
+  };
+}
+
+// ─────────────────────────────────────────────────────────────
+// SIGNAL PERSISTENCE TRACKING
+// ─────────────────────────────────────────────────────────────
+
+/**
+ * Update consecutive scan counters
+ * Returns array of holdings that reached CONSECUTIVE_THRESHOLD
+ */
+export function updateConsecutiveSignalCounts(scanRecord) {
+  try {
+    if (!scanRecord || !scanRecord.holdings || !scanRecord.signalChanges) {
+      return { success: true, autoGeneratedDrafts: [] };
+    }
+    
+    console.log('[DraftDecisionEngine] Updating signal persistence counts...');
+    
+    const state = loadDraftsState();
+    const autoGeneratedDrafts = [];
+    
+    // For each holding in the scan
+    scanRecord.holdings.forEach(holding => {
+      const stateKey = `${holding.symbol}_${holding.kellySignal}`;
+      
+      if (!state[stateKey]) {
+        state[stateKey] = {
+          symbol: holding.symbol,
+          signal: holding.kellySignal,
+          consecutiveScans: 1,
+          firstOccurrenceAt: new Date().toISOString(),
+          lastUpdatedAt: new Date().toISOString()
+        };
+      } else {
+        state[stateKey].consecutiveScans += 1;
+        state[stateKey].lastUpdatedAt = new Date().toISOString();
+      }
+      
+      // Check if we've reached threshold
+      if (state[stateKey].consecutiveScans === CONSECUTIVE_THRESHOLD &&
+          (holding.kellySignal === 'TRIM' || holding.kellySignal === 'ADD')) {
+        
+        console.log(
+          `[DraftDecisionEngine] ${holding.symbol} ${holding.kellySignal} ` +
+          `reached ${CONSECUTIVE_THRESHOLD} consecutive scans — auto-generating draft`
+        );
+        
+        // Generate draft decision
+        const draftId = generateDraftId();
+        const draftRecord = {
+          draftId,
+          timestamp: new Date().toISOString(),
+          status: 'PENDING',
+          ticker: holding.symbol,
+          signal: holding.kellySignal,
+          consecutiveScans: state[stateKey].consecutiveScans,
+          lcpe: generateLCPE(
+            holding,
+            holding.kellySignal,
+            state[stateKey].consecutiveScans,
+            scanRecord.regime,
+            holding.projectedCAGR
+          ),
+          dismissedAt: null,
+          approvedAt: null,
+          approvalNotes: null,
+          executionTimestamp: null
+        };
+        
+        // Check if draft for this ticker/signal already exists (avoid duplicates)
+        const existingDraft = loadDrafts(500).find(
+          d => d.ticker === holding.symbol && d.signal === holding.kellySignal && d.status === 'PENDING'
+        );
+        
+        if (!existingDraft) {
+          appendDraft(draftRecord);
+          autoGeneratedDrafts.push(draftRecord);
+        } else {
+          console.log(`[DraftDecisionEngine] Draft already exists for ${holding.symbol} ${holding.kellySignal}`);
+        }
+      }
+    });
+    
+    // Reset counters for signals that are no longer active
+    Object.keys(state).forEach(key => {
+      const [symbol, signal] = key.split('_');
+      const currentHolding = scanRecord.holdings.find(h => h.symbol === symbol);
+      
+      if (!currentHolding || currentHolding.kellySignal !== signal) {
+        delete state[key];
+        console.log(`[DraftDecisionEngine] Reset counter for ${symbol} ${signal}`);
+      }
+    });
+    
+    saveDraftsState(state);
+    
+    return {
+      success: true,
+      autoGeneratedDrafts,
+      error: null
+    };
+    
+  } catch (err) {
+    console.error('[DraftDecisionEngine] Error updating signal counts:', err.message);
+    return {
+      success: false,
+      autoGeneratedDrafts: [],
+      error: err.message
+    };
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
+// DRAFT APPROVAL / DISMISSAL
+// ─────────────────────────────────────────────────────────────
+
+/**
+ * User approves a draft decision
+ */
+export function approveDraft(draftId, executionNotes = '') {
+  try {
+    let drafts = loadDrafts(500);
+    const draft = drafts.find(d => d.draftId === draftId);
+    
+    if (!draft) {
+      return { success: false, error: 'DRAFT_NOT_FOUND' };
+    }
+    
+    if (draft.status !== 'PENDING') {
+      return { success: false, error: 'DRAFT_NOT_PENDING' };
+    }
+    
+    draft.status = 'APPROVED';
+    draft.approvedAt = new Date().toISOString();
+    draft.approvalNotes = executionNotes;
+    draft.lcpe.E = executionNotes; // Fill in E section
+    
+    fs.writeFileSync(DRAFT_DECISIONS_JSON, JSON.stringify(drafts, null, 2));
+    
+    console.log(`[DraftDecisionEngine] Draft ${draftId} approved`);
+    
+    return { success: true, draft };
+  } catch (err) {
+    console.error('[DraftDecisionEngine] Error approving draft:', err.message);
+    return { success: false, error: err.message };
+  }
+}
+
+/**
+ * User dismisses a draft decision
+ */
+export function dismissDraft(draftId, dismissalReason = '') {
+  try {
+    let drafts = loadDrafts(500);
+    const draft = drafts.find(d => d.draftId === draftId);
+    
+    if (!draft) {
+      return { success: false, error: 'DRAFT_NOT_FOUND' };
+    }
+    
+    if (draft.status !== 'PENDING') {
+      return { success: false, error: 'DRAFT_NOT_PENDING' };
+    }
+    
+    draft.status = 'DISMISSED';
+    draft.dismissedAt = new Date().toISOString();
+    draft.approvalNotes = dismissalReason; // Store dismissal reason
+    
+    fs.writeFileSync(DRAFT_DECISIONS_JSON, JSON.stringify(drafts, null, 2));
+    
+    // Reset the signal counter so we don't auto-draft again immediately
+    const state = loadDraftsState();
+    const stateKey = `${draft.ticker}_${draft.signal}`;
+    delete state[stateKey];
+    saveDraftsState(state);
+    
+    console.log(`[DraftDecisionEngine] Draft ${draftId} dismissed`);
+    
+    return { success: true, draft };
+  } catch (err) {
+    console.error('[DraftDecisionEngine] Error dismissing draft:', err.message);
+    return { success: false, error: err.message };
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
+// IPC / ELECTRON INTEGRATION
+// ─────────────────────────────────────────────────────────────
+
+export function getPendingDrafts() {
+  const drafts = loadDrafts(500);
+  return drafts.filter(d => d.status === 'PENDING');
+}
+
+export function getAllDrafts(limit = 50) {
+  return loadDrafts(limit);
+}
+
+export function getDraftStats() {
+  const drafts = loadDrafts(500);
+  const pending = drafts.filter(d => d.status === 'PENDING');
+  const approved = drafts.filter(d => d.status === 'APPROVED');
+  const dismissed = drafts.filter(d => d.status === 'DISMISSED');
+  
+  return {
+    totalDrafts: drafts.length,
+    pendingCount: pending.length,
+    approvedCount: approved.length,
+    dismissedCount: dismissed.length,
+    lastDraftTime: drafts.length > 0 ? drafts[drafts.length - 1].timestamp : null
+  };
+}

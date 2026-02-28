@@ -14,20 +14,6 @@
     "currency": "USD"
   },
   {
-    "symbol": "HOOD",
-    "qty": 35,
-    "totalCostBasis": 3316.68,
-    "assetClass": "equity",
-    "currency": "USD"
-  },
-  {
-    "symbol": "BMNR",
-    "qty": 125,
-    "assetClass": "equity",
-    "totalCostBasis": 4508.81,
-    "currency": "USD"
-  },
-  {
     "symbol": "BTC",
     "qty": 0.281212,
     "totalCostBasis": 24764.31,
@@ -59,39 +45,65 @@
   },
   {
     "symbol": "MSTR",
-    "qty": 35.4873,
-    "totalCostBasis": 8703.86,
+    "qty": 50.4873,
     "assetClass": "equity",
-    "currency": "USD",
-    "addedAt": "2026-02-18T16:34:09.058Z"
-  },
-  {
-    "symbol": "APLD",
-    "qty": 27.8812,
-    "totalCostBasis": 431.38,
-    "assetClass": "equity",
-    "currency": "USD",
-    "addedAt": "2026-02-18T17:43:54.688Z"
+    "totalCostBasis": 10721.1,
+    "currency": "USD"
   },
   {
     "symbol": "CELH",
-    "qty": 10,
+    "qty": 34,
     "assetClass": "equity",
-    "totalCostBasis": 508.22,
+    "totalCostBasis": 1895.87,
     "currency": "USD"
   },
   {
     "symbol": "AXON",
-    "qty": 2.2602,
+    "qty": 4.2602,
     "assetClass": "equity",
-    "totalCostBasis": 999.97,
+    "totalCostBasis": 2041.81,
     "currency": "USD"
   },
   {
     "symbol": "ZETA",
-    "qty": 17,
+    "qty": 40,
     "assetClass": "equity",
-    "totalCostBasis": 300.05,
+    "totalCostBasis": 708.07,
+    "currency": "USD"
+  },
+  {
+    "symbol": "AMZN",
+    "qty": 5,
+    "assetClass": "equity",
+    "totalCostBasis": 1005,
+    "currency": "USD"
+  },
+  {
+    "symbol": "APLD",
+    "qty": 10,
+    "assetClass": "equity",
+    "totalCostBasis": 231,
+    "currency": "USD"
+  },
+  {
+    "symbol": "AFRM",
+    "qty": 10,
+    "assetClass": "equity",
+    "totalCostBasis": 460,
+    "currency": "USD"
+  },
+  {
+    "symbol": "MELI",
+    "qty": 1,
+    "assetClass": "equity",
+    "totalCostBasis": 1757,
+    "currency": "USD"
+  },
+  {
+    "symbol": "CNSWF",
+    "qty": 1,
+    "assetClass": "equity",
+    "totalCostBasis": 1856,
     "currency": "USD"
   }
 ]

@@ -1,0 +1,35 @@
+[2026-02-27T11:20:12.586Z] [INFO] ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[2026-02-27T11:20:12.586Z] [INFO] JUPITER AUTONOMOUS SCANNER DAEMON
+[2026-02-27T11:20:12.586Z] [INFO] Started: 2026-02-27T11:20:12.586Z
+[2026-02-27T11:20:12.586Z] [INFO] Node version: v20.19.6
+[2026-02-27T11:20:12.586Z] [INFO] PID: 30150
+[2026-02-27T11:20:12.586Z] [INFO] Environment: development
+[2026-02-27T11:20:12.587Z] [INFO] ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[2026-02-27T11:20:12.617Z] [INFO] ✓ Cron job scheduled: "30 16 * * 1-5"
+[2026-02-27T11:20:12.617Z] [INFO] ✅ Jupiter Scanner Daemon is running
+[2026-02-27T11:20:12.617Z] [INFO]    Next scan: 4:30 PM ET (30 16 * * 1-5)
+[2026-02-27T11:20:12.617Z] [INFO]    Logs: /Users/theadoos/JUPITER/logs/scanner-daemon.log
+[2026-02-27T11:20:12.617Z] [INFO] 
+[2026-02-27T11:20:12.617Z] [INFO] To stop: Press Ctrl+C or send SIGTERM
+[2026-02-27T11:20:12.617Z] [INFO] 
+[2026-02-27T11:22:13.147Z] [INFO] 
+SIGINT received. Shutting down gracefully...
+[2026-02-27T11:22:13.148Z] [INFO] Cron task stopped
+[2026-02-27T11:22:13.148Z] [INFO] Jupiter Scanner Daemon stopped
+[2026-02-27T11:22:13.337Z] [INFO] 🚀 Jupiter Scanner Daemon starting...
+[2026-02-27T11:22:13.338Z] [INFO] Scheduled scan time: 30 16 * * 1-5 (4:30 PM ET, Mon-Fri)
+[2026-02-27T11:22:13.338Z] [INFO] Current timezone: default (UTC)
+[2026-02-27T11:22:13.338Z] [INFO] ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[2026-02-27T11:22:13.338Z] [INFO] JUPITER AUTONOMOUS SCANNER DAEMON
+[2026-02-27T11:22:13.338Z] [INFO] Started: 2026-02-27T11:22:13.338Z
+[2026-02-27T11:22:13.338Z] [INFO] Node version: v20.19.6
+[2026-02-27T11:22:13.338Z] [INFO] PID: 30252
+[2026-02-27T11:22:13.338Z] [INFO] Environment: development
+[2026-02-27T11:22:13.338Z] [INFO] ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[2026-02-27T11:22:13.348Z] [INFO] ✓ Cron job scheduled: "30 16 * * 1-5"
+[2026-02-27T11:22:13.348Z] [INFO] ✅ Jupiter Scanner Daemon is running
+[2026-02-27T11:22:13.348Z] [INFO]    Next scan: 4:30 PM ET (30 16 * * 1-5)
+[2026-02-27T11:22:13.348Z] [INFO]    Logs: /Users/theadoos/JUPITER/logs/scanner-daemon.log
+[2026-02-27T11:22:13.348Z] [INFO] 
+[2026-02-27T11:22:13.349Z] [INFO] To stop: Press Ctrl+C or send SIGTERM
+[2026-02-27T11:22:13.349Z] [INFO] 
