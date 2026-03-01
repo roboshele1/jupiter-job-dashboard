@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useAlerts } from "../context/AlertContext";
 import AssetSystemStatePanel from "../components/AssetSystemStatePanel.jsx";
 
 function fmt(n, decimals = 2) {
@@ -37,6 +38,26 @@ function pickBestFreshness(positions) {
 }
 
 export default function Dashboard() {
+  const { addAlert } = useAlerts();
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const holdingsRes = await window.jupiter.invoke('holdings:getRaw');
+        if (holdingsRes?.ok) {
+          const result = await window.jupiter.invoke('daemon:runMonitoring', {
+            holdings: holdingsRes.data || []
+          });
+          if (result?.ok && result.data?.length > 0) {
+            result.data.forEach(alert => addAlert(alert));
+          }
+        }
+      } catch (err) {
+        console.error('Monitoring error:', err);
+      }
+    })();
+  }, [addAlert]);
+
   const [valuation,   setValuation]   = useState(null);
   const [systemState, setSystemState] = useState(null);
   const [kellyData,   setKellyData]   = useState(null);

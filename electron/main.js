@@ -4,6 +4,9 @@ import "dotenv/config";
 
 import { valuePortfolio } from "../engine/portfolio/portfolioValuation.js";
 import { registerAllIpc } from "./ipc/registerIpc.js";
+import { registerPortfolioHandlers } from "./ipc/registerIpc.js";
+import { registerMoonshotHandlers } from "./ipc/registerIpc.js";
+import { registerDaemonHandlers } from "./ipc/registerIpc.js";
 
 // =====================================================
 // MOONSHOT — ASYMMETRY SCHEDULER (AUTHORITATIVE)
@@ -73,6 +76,9 @@ function startAsymmetryOnce() {
 
 app.whenReady().then(async () => {
   registerAllIpc(ipcMain);           // IPC FIRST (required)
+registerMoonshotHandlers(ipcMain);
+registerDaemonHandlers(ipcMain);
+registerPortfolioHandlers(ipcMain);
   await computeAndCache();           // Portfolio cache
   createWindow();                    // UI
   startAsymmetryOnce();              // 🔥 AUTONOMOUS SCANS + TELEMETRY

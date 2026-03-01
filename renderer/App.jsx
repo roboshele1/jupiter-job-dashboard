@@ -5,6 +5,8 @@
 import React, { useEffect } from "react";
 import { HashRouter as Router, Routes, Route } from "react-router-dom";
 import { AuthProvider, useAuth } from "./AuthContext";
+import { AlertProvider } from "./context/AlertContext";
+import AlertBanner from "./components/AlertBanner";
 
 import Dashboard     from "./pages/Dashboard";
 import Signals       from "./pages/Signals";
@@ -83,7 +85,9 @@ function AppShell() {
   }, [user?.uid]);
 
   return (
-    <Router>
+    <AlertProvider>
+      <AlertBanner />
+      <Router>
       <div style={{ display: "flex", height: "100vh" }}>
         <Sidebar />
         <main style={{ flex: 1, overflowY: "auto" }}>
@@ -105,6 +109,7 @@ function AppShell() {
         </main>
       </div>
     </Router>
+    </AlertProvider>
   );
 }
 

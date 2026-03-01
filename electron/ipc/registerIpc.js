@@ -252,6 +252,7 @@ export function registerAllIpc(ipcMain) {
 
   registerMoonshotRegistryIpc(ipcMain);
   registerAsymmetryIpc(ipcMain);
+  registerMoonshotHandlers(ipcMain);
 
   // ─── MEMORY LAYER IPC ───────────────────────────────────────────────────────
   registerHandler(ipcMain, "memory:recordAIInteraction", async (_, payload) => {
@@ -342,4 +343,105 @@ export function registerAllIpc(ipcMain) {
   });
 
   console.log("[IPC] All handlers registered: crypto price bridge, discovery rejected, Kelly Decisions, Market Regime \u2713");
+}
+
+// Portfolio Constraints
+export function registerPortfolioHandlers(ipcMain) {
+  ipcMain.handle('portfolio:validateConstraints', async (event, { holdings, portfolioTypeId = 'CORE_GROWTH' }) => {
+    try {
+      const { validatePortfolioConstraints, generateRebalanceRecommendations } = await import('../../engine/constraintEngine.js');
+      const { portfolioTypes } = await import('../../engine/portfolioTypes.js');
+      const pt = portfolioTypes[portfolioTypeId] || portfolioTypes.CORE_GROWTH;
+      const md = (holdings || []).reduce((a, h) => ({ ...a, [h.symbol]: { avgVolume: 5e6, dividendYield: 0 } }), {});
+      const v = validatePortfolioConstraints(holdings || [], pt, md);
+      return { ok: true, data: { validation: v, recommendations: generateRebalanceRecommendations(holdings || [], pt, md) } };
+    } catch (e) {
+      return { ok: false, error: e.message };
+    }
+  });
+}
+
+// Moonshot Screener
+export function registerMoonshotHandlers(ipcMain) {
+  ipcMain.handle('moonshot:screen', async (event, { symbols, profiles, options }) => {
+    try {
+      const { getOverviewData, getIncomeStatement, getQuoteData } = await import('../../engine/alphaVantageConnector.js');
+      const { extractGrowthProfile, scoreAgainstProfile, calculate2x3xProbability } = await import('../../engine/growthProfiler.js');
+
+      const candidates = [];
+
+      for (const symbol of symbols) {
+        try {
+          const overview = await getOverviewData(symbol);
+          if (!overview || overview.marketCap < options.marketCapMin || overview.marketCap > options.marketCapMax) continue;
+
+          const incomeStmt = await getIncomeStatement(symbol);
+          if (!incomeStmt || incomeStmt.length < 2) continue;
+
+          const profile = extractGrowthProfile(incomeStmt);
+          if (!profile || profile.revenueCAGR < options.minRevenueCAGR) continue;
+
+          let bestMatch = 0;
+          for (const portfolioProfile of profiles) {
+            const score = scoreAgainstProfile(profile, portfolioProfile);
+            bestMatch = Math.max(bestMatch, score);
+          }
+
+          if (bestMatch < options.minTrajectoryScore) continue;
+
+          const quote = await getQuoteData(symbol);
+          if (!quote) continue;
+
+          const prob2x = calculate2x3xProbability(quote.price, quote.price * 2, 12, 0.35);
+          const prob3x = calculate2x3xProbability(quote.price, quote.price * 3, 24, 0.35);
+
+          candidates.push({
+            symbol: overview.symbol,
+            name: overview.name,
+            sector: overview.sector,
+            currentPrice: quote.price,
+            marketCap: overview.marketCap,
+            peRatio: overview.peRatio,
+            growth: {
+              revenueCAGR: (profile.revenueCAGR * 100).toFixed(1) + '%',
+              marginExpansion: (profile.marginExpansion * 100).toFixed(1) + '%',
+              trajectoryScore: profile.trajectoryScore.toFixed(0)
+            },
+            technicals: {
+              grossMargin: (overview.grossMargin * 100).toFixed(1) + '%',
+              operatingMargin: (overview.operatingMargin * 100).toFixed(1) + '%'
+            },
+            targets: {
+              prob2x: prob2x.probability,
+              prob3x: prob3x.probability
+            }
+          });
+        } catch (e) {
+          console.error(`Error screening ${symbol}:`, e);
+        }
+      }
+
+      return { ok: true, data: candidates.sort((a, b) => parseFloat(b.growth.trajectoryScore) - parseFloat(a.growth.trajectoryScore)) };
+    } catch (err) {
+      return { ok: false, error: err.message };
+    }
+  });
+}
+
+// Continuous Monitoring Daemon
+export function registerDaemonHandlers(ipcMain) {
+  ipcMain.handle('daemon:runMonitoring', async (event, { holdings }) => {
+    try {
+      const { runContinuousMonitoring } = await import('../../engine/continuousDaemon.js');
+      const alerts = [];
+      
+      await runContinuousMonitoring(holdings, (alert) => {
+        alerts.push(alert);
+      });
+
+      return { ok: true, data: alerts };
+    } catch (err) {
+      return { ok: false, error: err.message };
+    }
+  });
 }
