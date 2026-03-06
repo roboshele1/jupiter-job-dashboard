@@ -45,3 +45,13 @@ logs/
 
 # Transient snapshots
 data/discoverySnapshots.json
+# Runtime data
+engine/runtime/
+engine/data/users/*/holdings.json
+snapshots/decision_ledger.json
+logs/
+*.log
+*.pid
+
+# Transient snapshots
+data/discoverySnapshots.json
