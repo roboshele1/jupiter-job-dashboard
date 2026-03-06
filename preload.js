@@ -39,3 +39,8 @@ contextBridge.exposeInMainWorld("jupiter", ipc);
 // Backward-compat aliases
 contextBridge.exposeInMainWorld("api", ipc);
 contextBridge.exposeInMainWorld("electronAPI", ipc);
+
+// Also expose raw electron object for backward compatibility
+contextBridge.exposeInMainWorld("electron", {
+  ipcRenderer: ipcRenderer
+});

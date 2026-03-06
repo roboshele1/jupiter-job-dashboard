@@ -343,6 +343,7 @@ export function registerAllIpc(ipcMain) {
   });
 
   console.log("[IPC] All handlers registered: crypto price bridge, discovery rejected, Kelly Decisions, Market Regime \u2713");
+  registerExecutionRecorder(ipcMain);
 }
 
 // Portfolio Constraints
@@ -440,6 +441,38 @@ export function registerDaemonHandlers(ipcMain) {
       });
 
       return { ok: true, data: alerts };
+    } catch (err) {
+      return { ok: false, error: err.message };
+    }
+  });
+}
+
+function registerExecutionRecorder(ipcMain) {
+  ipcMain.handle('execution:record', async (e, { symbol, entryPrice, kellySize, thesisType, conviction }) => {
+    try {
+      const { recordExecution } = await import('../../engine/execution/decisionRecorder.js');
+      const result = recordExecution(symbol, entryPrice, kellySize, thesisType, conviction);
+      return { ok: true, data: result };
+    } catch (err) {
+      return { ok: false, error: err.message };
+    }
+  });
+
+  ipcMain.handle('execution:recordOutcome', async (e, { executionId, currentPrice, daysElapsed }) => {
+    try {
+      const { recordOutcome } = await import('../../engine/execution/decisionRecorder.js');
+      const result = recordOutcome(executionId, currentPrice, daysElapsed);
+      return { ok: true, data: result };
+    } catch (err) {
+      return { ok: false, error: err.message };
+    }
+  });
+
+  ipcMain.handle('execution:getThesisAccuracy', async (e, { thesisType }) => {
+    try {
+      const { getThesisAccuracy } = await import('../../engine/execution/decisionRecorder.js');
+      const accuracy = getThesisAccuracy(thesisType);
+      return { ok: true, data: { thesisType, accuracy } };
     } catch (err) {
       return { ok: false, error: err.message };
     }

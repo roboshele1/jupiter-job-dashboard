@@ -1,3 +1,4 @@
+import ConfirmInvestmentButton from '../components/ConfirmInvestmentButton.jsx';
 /**
  * Insights.jsx — Session 8
  * Features:
@@ -656,15 +657,12 @@ export default function Insights({ onNavigate }) {
     // Log to LCPE feedback loop for 30/60/90 day outcome scoring
     const pos = positions.find(p => p.symbol === symbol);
     const lcpeEntry = lcpe?.ranked?.find(r => r.symbol === symbol);
-    window.jupiter.invoke("lcpe:recordExecution", {
+    window.jupiter.invoke("execution:record", {
       symbol,
-      amount,
-      rank:       lcpeEntry?.rank ?? 0,
-      cesScore:   lcpeEntry?.score ?? 0,
-      cagr:       lcpeEntry?.cagr ?? 0,
-      regime,
-      kellyFrac:  lcpeEntry?.kellyFrac ?? 0,
       entryPrice: pos?.livePrice ?? 0,
+      kellySize: lcpeEntry?.kellyFrac ?? 0.25,
+      thesisType: "LCPE_DCA",
+      conviction: lcpeEntry?.cesScore ?? 0,
     }).catch(() => {});
   }, [executions]);
 
@@ -678,15 +676,12 @@ export default function Insights({ onNavigate }) {
     const undoAmount = undoneExec?.amount ?? 0;
     const pos = positions.find(p => p.symbol === symbol);
     const lcpeEntry = lcpe?.ranked?.find(r => r.symbol === symbol);
-    window.jupiter.invoke("lcpe:recordExecution", {
+    window.jupiter.invoke("execution:record", {
       symbol,
-      amount: undoAmount,
-      rank:       lcpeEntry?.rank ?? 0,
-      cesScore:   lcpeEntry?.score ?? 0,
-      cagr:       lcpeEntry?.cagr ?? 0,
-      regime,
-      kellyFrac:  lcpeEntry?.kellyFrac ?? 0,
       entryPrice: pos?.livePrice ?? 0,
+      kellySize: lcpeEntry?.kellyFrac ?? 0.25,
+      thesisType: "LCPE_DCA",
+      conviction: lcpeEntry?.cesScore ?? 0,
     }).catch(() => {});
   }, [executions]);
 

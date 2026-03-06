@@ -8,7 +8,7 @@ directories:
 
 files:
   - electron/**/*
-  - renderer/dist/**/*
+  - dist/**/*
   - engine/**/*
   - main.js
   - preload.js
@@ -56,9 +56,6 @@ dmg:
       type: link
       path: /Applications
 
-asar: true
-asarUnpack:
-  - "engine/data/**"
-  - "**/*.node"
+asar: false
 
 publish: null

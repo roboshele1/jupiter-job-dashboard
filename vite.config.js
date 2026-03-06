@@ -10,6 +10,10 @@ export default defineConfig(({ mode }) => {
   return {
     base: './',
     root: "electron/renderer",
+    build: {
+      outDir: "../../dist",
+      emptyOutDir: true,
+    },
     plugins: [react()],
     define: {
       process: {},
