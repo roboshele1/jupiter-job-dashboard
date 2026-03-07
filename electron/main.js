@@ -7,6 +7,8 @@ import { registerAllIpc } from "./ipc/registerIpc.js";
 import { registerPortfolioHandlers } from "./ipc/registerIpc.js";
 import { registerMoonshotHandlers } from "./ipc/registerIpc.js";
 import { registerDaemonHandlers } from "./ipc/registerIpc.js";
+import { registerCalculatorHandlers } from "./ipc/registerIpc.js";
+import { registerOptimizerHandlers, registerRebalanceHandlers, registerThesisTrackerHandlers } from "./ipc/registerIpc.js";
 
 // =====================================================
 // MOONSHOT — ASYMMETRY SCHEDULER (AUTHORITATIVE)
@@ -78,6 +80,10 @@ app.whenReady().then(async () => {
   registerAllIpc(ipcMain);           // IPC FIRST (required)
 registerMoonshotHandlers(ipcMain);
 registerDaemonHandlers(ipcMain);
+registerCalculatorHandlers(ipcMain);
+  registerOptimizerHandlers(ipcMain);
+  registerRebalanceHandlers(ipcMain);
+  registerThesisTrackerHandlers(ipcMain);
 registerPortfolioHandlers(ipcMain);
   await computeAndCache();           // Portfolio cache
   createWindow();                    // UI

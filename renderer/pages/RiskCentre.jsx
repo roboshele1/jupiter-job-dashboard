@@ -1,3 +1,4 @@
+import { C } from "../styles/colorScheme.js";
 /**
  * RiskCentre.jsx — Session 6c
  * Full institutional risk intelligence display
@@ -5,22 +6,6 @@
 
 import { useState, useEffect } from 'react';
 
-const C = {
-  bg:        '#060910',
-  surface:   '#0c1220',
-  panel:     '#0f172a',
-  border:    '#1a2540',
-  borderAcc: '#2d3f55',
-  text:      '#e2e8f0',
-  textSec:   '#94a3b8',
-  textMuted: '#6b7280',
-  green:     '#22c55e',
-  red:       '#ef4444',
-  blue:      '#3b82f6',
-  gold:      '#f59e0b',
-  cyan:      '#06b6d4',
-  purple:    '#a855f7',
-};
 
 const mono = { fontFamily: 'IBM Plex Mono' };
 

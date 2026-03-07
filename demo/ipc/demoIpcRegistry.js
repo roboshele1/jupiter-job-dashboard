@@ -69,3 +69,45 @@ function registerDemoIpc(ipcMain) {
 }
 
 module.exports = { registerDemoIpc };
+
+  // LCPE execution logging to decision_ledger
+  ipcMain.handle("lcpe:recordExecution", async (event, payload) => {
+    const fs = require("fs");
+    const path = require("path");
+    
+    const ledgerPath = path.join(__dirname, "../../engine/snapshots/decision_ledger.json");
+    
+    try {
+      let ledger = [];
+      if (fs.existsSync(ledgerPath)) {
+        const raw = fs.readFileSync(ledgerPath, "utf8");
+        ledger = JSON.parse(raw || "[]");
+      }
+      
+      const entry = {
+        id: Date.now(),
+        ticker: payload.symbol,
+        action: "BUY",
+        amount_usd: payload.amount,
+        date_executed: new Date().toISOString(),
+        win_probability_at_time: null,
+        lcpe_rank: payload.rank,
+        ces_score: payload.cesScore,
+        cagr: payload.cagr,
+        regime: payload.regime,
+        kelly_frac: payload.kellyFrac,
+        entry_price: payload.entryPrice,
+        outcome_30d: null,
+        outcome_60d: null,
+        outcome_90d: null
+      };
+      
+      ledger.push(entry);
+      fs.writeFileSync(ledgerPath, JSON.stringify(ledger, null, 2));
+      
+      return { success: true, entryId: entry.id };
+    } catch (err) {
+      console.error("[LCPE] recordExecution failed:", err);
+      return { success: false, error: err.message };
+    }
+  });

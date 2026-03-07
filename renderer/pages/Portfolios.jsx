@@ -1,3 +1,4 @@
+import { C } from "../styles/colorScheme.js";
 // renderer/pages/Portfolios.jsx
 // JUPITER — Portfolio Holdings Manager
 // Reads/writes engine/data/users/default/holdings.json via IPC
@@ -5,20 +6,6 @@
 import React, { useEffect, useState, useCallback } from "react";
 
 // ─── Theme ────────────────────────────────────────────────────────────────────
-const C = {
-  bg:        "#060910",
-  panel:     "#0d1117",
-  border:    "#1e2530",
-  accent:    "#3b82f6",
-  accentDim: "#1d4ed8",
-  green:     "#22c55e",
-  red:       "#ef4444",
-  yellow:    "#f59e0b",
-  muted:     "#6b7280",
-  text:      "#e2e8f0",
-  subtext:   "#94a3b8",
-  mono:      "'IBM Plex Mono', monospace",
-};
 
 const ASSET_CLASSES = ["equity", "crypto", "etf"];
 const CURRENCIES    = ["CAD", "USD"];

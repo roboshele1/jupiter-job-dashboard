@@ -1,3 +1,4 @@
+import { C } from "../styles/colorScheme.js";
 import React from "react";
 import RiskMetricsPanelSafe from "../components/RiskMetricsPanelSafe";
 

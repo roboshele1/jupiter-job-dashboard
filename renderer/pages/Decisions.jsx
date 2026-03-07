@@ -1,3 +1,4 @@
+import { C } from "../styles/colorScheme.js";
 import { useState, useEffect } from 'react';
 
 export default function Decisions() {

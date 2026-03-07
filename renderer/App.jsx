@@ -18,6 +18,10 @@ import MarketMonitor from "./pages/MarketMonitor";
 import MoonshotLab   from "./pages/MoonshotLab";
 import GoalEngine    from "./pages/GoalEngine";
 import Decisions     from "./pages/Decisions";
+import Performance   from "./pages/Performance";
+import Rebalancing  from "./pages/Rebalancing";
+import LearningLoop   from "./pages/LearningLoop";
+import DaemonMonitor   from "./pages/DaemonMonitor";
 import JupiterAI     from "./pages/JupiterAI";
 import Portfolios    from "./pages/Portfolios";
 import Login         from "./pages/Login";
@@ -103,6 +107,10 @@ function AppShell() {
             <Route path="/moonshot"   element={<MoonshotLab />}   />
             <Route path="/goal"       element={<GoalEngine />}    />
             <Route path="/decisions"  element={<Decisions />}     />
+            <Route path="/rebalancing" element={<Rebalancing />}   />
+            <Route path="/learningloop" element={<LearningLoop />}  />
+            <Route path="/daemon" element={<DaemonMonitor />}      />
+            <Route path="/performance" element={<Performance />}    />
             <Route path="/jupiterai"  element={<JupiterAI />}     />
             <Route path="/portfolios" element={<Portfolios />}    />
           </Routes>

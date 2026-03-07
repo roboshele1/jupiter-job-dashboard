@@ -1,3 +1,4 @@
+import { C } from "../styles/colorScheme.js";
 /**
  * DiscoveryLab.jsx — JUPITER Intelligence Surface (V2)
  * Upgraded: per-asset differentiation, goal anchoring, re-entry watchlist,
@@ -13,28 +14,6 @@
 import { useEffect, useMemo, useState, useCallback } from "react";
 
 // ─── Colour tokens (matches Portfolio + MoonshotLab system) ──────────────────
-const C = {
-  bg:          "#060910",
-  surface:     "#0c1220",
-  panel:       "#0f172a",
-  panelHov:    "#111a2e",
-  border:      "#1a2540",
-  borderAcc:   "#2d3f55",
-  text:        "#e2e8f0",
-  textSec:     "#94a3b8",
-  textMuted:   "#6b7280",
-  textDim:     "#374151",
-  green:       "#22c55e",
-  greenDim:    "rgba(34,197,94,0.10)",
-  red:         "#ef4444",
-  redDim:      "rgba(239,68,68,0.10)",
-  blue:        "#3b82f6",
-  blueDim:     "rgba(59,130,246,0.10)",
-  gold:        "#f59e0b",
-  goldDim:     "rgba(245,158,11,0.10)",
-  cyan:        "#06b6d4",
-  cyanDim:     "rgba(6,182,212,0.10)",
-};
 
 const mono = { fontFamily: "'IBM Plex Mono', monospace" };
 

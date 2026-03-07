@@ -1,23 +1,23 @@
 [
   {
     "symbol": "NVDA",
-    "qty": 73.4588,
-    "totalCostBasis": 12967.25,
+    "qty": 59.257,
     "assetClass": "equity",
+    "totalCostBasis": 10466.32,
     "currency": "USD"
   },
   {
     "symbol": "ASML",
-    "qty": 10.0901,
+    "qty": 7.0901,
     "assetClass": "equity",
-    "totalCostBasis": 8765.6,
+    "totalCostBasis": 6127.63,
     "currency": "USD"
   },
   {
     "symbol": "BTC",
-    "qty": 0.281212,
-    "totalCostBasis": 24764.31,
+    "qty": 0.188206,
     "assetClass": "crypto",
+    "totalCostBasis": 17764.31,
     "currency": "USD"
   },
   {
@@ -29,81 +29,72 @@
   },
   {
     "symbol": "AVGO",
-    "qty": 41.2876,
-    "totalCostBasis": 12989.22,
+    "qty": 30.8728,
     "assetClass": "equity",
-    "currency": "USD",
-    "addedAt": "2026-02-17T16:49:56.556Z"
-  },
-  {
-    "symbol": "NOW",
-    "qty": 100,
-    "totalCostBasis": 10509.4,
-    "assetClass": "equity",
-    "currency": "USD",
-    "addedAt": "2026-02-18T16:32:17.267Z"
-  },
-  {
-    "symbol": "MSTR",
-    "qty": 50.4873,
-    "assetClass": "equity",
-    "totalCostBasis": 10721.1,
+    "totalCostBasis": 9413.41,
     "currency": "USD"
   },
   {
-    "symbol": "CELH",
-    "qty": 34,
+    "symbol": "NOW",
+    "qty": 90,
     "assetClass": "equity",
-    "totalCostBasis": 1895.87,
+    "totalCostBasis": 9442.84,
+    "currency": "USD"
+  },
+  {
+    "symbol": "MSTR",
+    "qty": 58.4873,
+    "assetClass": "equity",
+    "totalCostBasis": 11840.86,
     "currency": "USD"
   },
   {
     "symbol": "AXON",
-    "qty": 4.2602,
+    "qty": 4.6949,
     "assetClass": "equity",
-    "totalCostBasis": 2041.81,
+    "totalCostBasis": 2290.79,
     "currency": "USD"
   },
   {
     "symbol": "ZETA",
-    "qty": 40,
+    "qty": 299,
     "assetClass": "equity",
-    "totalCostBasis": 708.07,
-    "currency": "USD"
-  },
-  {
-    "symbol": "AMZN",
-    "qty": 5,
-    "assetClass": "equity",
-    "totalCostBasis": 1005,
-    "currency": "USD"
-  },
-  {
-    "symbol": "APLD",
-    "qty": 10,
-    "assetClass": "equity",
-    "totalCostBasis": 231,
-    "currency": "USD"
-  },
-  {
-    "symbol": "AFRM",
-    "qty": 10,
-    "assetClass": "equity",
-    "totalCostBasis": 460,
+    "totalCostBasis": 5599.67,
     "currency": "USD"
   },
   {
     "symbol": "MELI",
-    "qty": 1,
+    "qty": 1.8454,
     "assetClass": "equity",
-    "totalCostBasis": 1757,
+    "totalCostBasis": 3279.87,
     "currency": "USD"
   },
   {
-    "symbol": "CNSWF",
-    "qty": 1,
+    "symbol": "NU",
+    "qty": 100,
     "assetClass": "equity",
-    "totalCostBasis": 1856,
+    "totalCostBasis": 1487.97,
+    "currency": "USD"
+  },
+  {
+    "symbol": "VST",
+    "qty": 2,
+    "assetClass": "equity",
+    "totalCostBasis": 331.8,
+    "currency": "USD"
+  },
+  {
+    "symbol": "FTAI",
+    "qty": 2,
+    "assetClass": "equity",
+    "totalCostBasis": 512.66,
+    "currency": "USD"
+  },
+  {
+    "symbol": "RKLB",
+    "qty": 5,
+    "assetClass": "equity",
+    "totalCostBasis": 358.98,
     "currency": "USD"
   }
 ]

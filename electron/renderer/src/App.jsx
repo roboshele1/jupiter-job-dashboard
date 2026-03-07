@@ -9,6 +9,7 @@ import Insights from "./pages/Insights";
 import Risk from "./pages/Risk";
 import Alerts from "./pages/Alerts";
 import Chat from "./pages/Chat";
+import Decisions from "./pages/Decisions";
 
 export default function App() {
   const [activeTab, setActiveTab] = useState("dashboard");
@@ -32,6 +33,9 @@ export default function App() {
       case "alerts":
         return <Alerts />;
       case "chat":
+      case "decisions":
+        return <Decisions />;
+
         return <Chat />;
       default:
         return <Home />;

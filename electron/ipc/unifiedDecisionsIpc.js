@@ -132,6 +132,7 @@ export async function computeKellyData(valuation) {
       optimalCashPct:     totalMarketValue > 0 ? Number(((cashReserve / totalMarketValue) * 100).toFixed(2)) : 0
     },
     actions,
+    convictions,
     summary: {
       totalActions: actions.length,
       numAdds:      actions.filter(a => a.action === 'ADD').length,
@@ -167,6 +168,7 @@ export function registerUnifiedDecisionsIpc(ipcMain) {
       discoveryResults,
       marketRegime,
       portfolioPositions: valuation.positions,
+      convictions:        kellyData.convictions,
     });
   });
 

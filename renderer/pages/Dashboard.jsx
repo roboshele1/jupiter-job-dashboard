@@ -1,3 +1,4 @@
+import { C } from "../styles/colorScheme.js";
 import { useEffect, useMemo, useState } from "react";
 import { useAlerts } from "../context/AlertContext";
 import AssetSystemStatePanel from "../components/AssetSystemStatePanel.jsx";

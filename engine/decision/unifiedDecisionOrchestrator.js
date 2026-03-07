@@ -13,6 +13,7 @@ import { computeConstraints } from './constraintEngine.js';
 import { rankByLCPE }         from './lcpeRankingEngine.js';
 
 export async function runUnifiedDecisions({
+  convictions,
   kellyResults,
   discoveryResults,
   marketRegime,
@@ -25,7 +26,7 @@ export async function runUnifiedDecisions({
     ...portfolioPositions.map(p => ({
       symbol:         p.symbol,
       trajectoryScore: p.trajectoryScore  ?? 0.3,
-      conviction:      p.conviction        ?? 0.5,
+      conviction:      convictions[p.symbol]?.conviction ?? 0.5,
       momentumScore:   p.momentumScore     ?? 0.3,
       projectedCAGR:   p.projectedCAGR     ?? null,
       isHeld: true,

@@ -1,3 +1,4 @@
+import { C } from "../styles/colorScheme.js";
 import { useEffect, useState } from "react";
 
 export default function RiskLab() {

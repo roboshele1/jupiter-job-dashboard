@@ -33,3 +33,7 @@ SIGINT received. Shutting down gracefully...
 [2026-02-27T11:22:13.348Z] [INFO] 
 [2026-02-27T11:22:13.349Z] [INFO] To stop: Press Ctrl+C or send SIGTERM
 [2026-02-27T11:22:13.349Z] [INFO] 
+[2026-03-03T17:48:12.966Z] [INFO] 
+SIGTERM received. Shutting down gracefully...
+[2026-03-03T17:48:12.987Z] [INFO] Cron task stopped
+[2026-03-03T17:48:12.988Z] [INFO] Jupiter Scanner Daemon stopped

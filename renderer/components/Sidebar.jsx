@@ -10,14 +10,15 @@ const items = [
   { label: "Portfolios",     path: "/portfolios" },
   { label: "Signals",        path: "/signals"    },
   { label: "Discovery Lab",  path: "/discovery"  },
-  { label: "Growth Engine",  path: "/growth"     },
   { label: "Insights",       path: "/insights"   },
   { label: "Risk Centre",    path: "/risk"       },
-  { label: "Market Monitor", path: "/market"     },
-  { label: "Moonshot Lab",   path: "/moonshot"   },
   { label: "Goal Engine",    path: "/goal"       },
   { label: "Decisions",      path: "/decisions"  },
+  { label: "Performance",    path: "/performance" },
+  { label: "Rebalancing",    path: "/rebalancing" },
+  { label: "Learning Loop",  path: "/learningloop" },
   { label: "Jupiter AI",     path: "/jupiterai"  },
+  { label: "Daemon Monitor", path: "/daemon" },
 ];
 
 const C = {
