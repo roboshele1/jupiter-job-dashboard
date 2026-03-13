@@ -1,0 +1,31 @@
+{
+  "thesisAudits": [
+    {
+      "symbol": "NVDA",
+      "auditDate": "2026-03-13",
+      "thesis": "AI compute leader, data center secular growth, 30%+ revenue CAGR",
+      "thesisStillHolds": true,
+      "conviction": 0.75,
+      "nextAuditDate": "2026-06-13",
+      "notes": "Earnings beat. Thesis intact."
+    },
+    {
+      "symbol": "ASML",
+      "auditDate": "2026-03-13",
+      "thesis": "Chip equipment monopoly, AI capex tailwind, 15%+ growth",
+      "thesisStillHolds": true,
+      "conviction": 0.70,
+      "nextAuditDate": "2026-06-13",
+      "notes": "Valuation extended but thesis intact."
+    },
+    {
+      "symbol": "NOW",
+      "auditDate": "2026-03-13",
+      "thesis": "Enterprise SaaS, workflow automation, secular TAM expansion",
+      "thesisStillHolds": false,
+      "conviction": 0.2,
+      "nextAuditDate": "2026-03-20",
+      "notes": "Growth deceleration, macro headwinds. Thesis broken."
+    }
+  ]
+}
