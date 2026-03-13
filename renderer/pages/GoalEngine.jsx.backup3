@@ -5,6 +5,7 @@
 // IPC channels used (all pre-existing, no new handlers needed):
 //   decisions:getKellyRecommendations  -> goal metrics, required CAGR, all positions
 //   portfolio:getValuation             -> live position values for per-asset projection
+//   portfolio:getGoalConfig            -> [NEW] goal target, year, monthly DCA
 //
 // Design rules: IBM Plex Mono, #060910 bg, inline styles only, C token colours
 
@@ -35,9 +36,6 @@ const C = {
 
 const mono = { fontFamily: "'IBM Plex Mono', monospace" };
 
-const GOAL_TARGET = 1_000_000;
-const GOAL_YEAR   = 2037;
-
 // ── Helpers ──────────────────────────────────────────────────────────────────
 function fmtMoney(n) {
   return "$" + Number(n || 0).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 });
@@ -64,13 +62,32 @@ function projectValue(currentValue, cagrPct, years) {
   return currentValue * Math.pow(1 + r, years);
 }
 
-// Calculate compound growth with monthly DCA contributions
-function projectWithDCA(startValue, monthlyContribution, monthlyRate, totalMonths) {
-  let val = startValue;
-  for (let i = 0; i < totalMonths; i++) {
-    val = val * (1 + monthlyRate) + monthlyContribution;
+// Project portfolio with monthly DCA contributions
+function projectValueWithDCA(currentValue, monthlyDCA, cagrPct, months) {
+  if (!months) return currentValue || 0;
+  const monthlyRate = Math.pow(1 + cagrPct / 100, 1 / 12) - 1;
+  let balance = currentValue || 0;
+  
+  for (let m = 0; m < months; m++) {
+    balance = balance * (1 + monthlyRate) + monthlyDCA;
   }
-  return val;
+  
+  return balance;
+}
+
+// Calculate months to reach target given current value, monthly DCA, CAGR
+function monthsToTarget(currentValue, monthlyDCA, cagrPct, target) {
+  const monthlyRate = Math.pow(1 + cagrPct / 100, 1 / 12) - 1;
+  let balance = currentValue || 0;
+  let months = 0;
+  const maxMonths = 600; // 50 year safety limit
+  
+  while (balance < target && months < maxMonths) {
+    balance = balance * (1 + monthlyRate) + monthlyDCA;
+    months++;
+  }
+  
+  return months >= maxMonths ? null : months;
 }
 
 // Conviction CAGR assumptions (mirrors Kelly convictions)
@@ -109,8 +126,8 @@ function StatCard({ label, value, sub, color, bg, border }) {
 }
 
 // ── Compounding curve ─────────────────────────────────────────────────────────
-function CompoundingCurve({ portfolioValue, requiredCAGR, goalTarget, dcaAmount }) {
-  const years = GOAL_YEAR - new Date().getFullYear();
+function CompoundingCurve({ portfolioValue, requiredCAGR, goalTarget, goalYear, monthlyDCA }) {
+  const years = goalYear - new Date().getFullYear();
   const steps = years * 4; // quarterly points
 
   const curve = useMemo(() => {
@@ -122,35 +139,30 @@ function CompoundingCurve({ portfolioValue, requiredCAGR, goalTarget, dcaAmount 
     const totalMonths = years * 12;
     const interval    = Math.ceil(totalMonths / steps);
 
-    // WITH DCA curve
-    let withDCA = portfolioValue;
-    // WITHOUT DCA curve
     let req  = portfolioValue;
     let cons = portfolioValue;
 
     for (let m = 0; m <= totalMonths; m += interval) {
-      pts.push({ month: m, withDCA, required: req, conservative: cons });
+      pts.push({ month: m, required: req, conservative: cons });
       for (let i = 0; i < interval; i++) {
-        withDCA = withDCA * (1 + reqMonthly) + (dcaAmount || 0);
-        req  = req  * (1 + reqMonthly);
-        cons = cons * (1 + consMonthly);
+        req  = req  * (1 + reqMonthly) + monthlyDCA;
+        cons = cons * (1 + consMonthly) + monthlyDCA;
       }
     }
     return pts;
-  }, [portfolioValue, requiredCAGR, years, steps, dcaAmount]);
+  }, [portfolioValue, requiredCAGR, years, steps, monthlyDCA]);
 
   if (!curve.length) return null;
 
   const W = 660, H = 200, PAD = { l: 60, r: 20, t: 16, b: 32 };
   const innerW = W - PAD.l - PAD.r;
   const innerH = H - PAD.t - PAD.b;
-  const maxVal = Math.max(...curve.map(p => Math.max(p.withDCA, p.required)), goalTarget);
+  const maxVal = Math.max(...curve.map(p => p.required), goalTarget);
   const totalMonths = years * 12;
 
   function xPos(m)  { return PAD.l + (m / totalMonths) * innerW; }
   function yPos(v)  { return PAD.t + innerH - (v / maxVal) * innerH; }
 
-  const withDCAPath = curve.map((p, i) => `${i === 0 ? "M" : "L"}${xPos(p.month).toFixed(1)},${yPos(p.withDCA).toFixed(1)}`).join(" ");
   const reqPath  = curve.map((p, i) => `${i === 0 ? "M" : "L"}${xPos(p.month).toFixed(1)},${yPos(p.required).toFixed(1)}`).join(" ");
   const consPath = curve.map((p, i) => `${i === 0 ? "M" : "L"}${xPos(p.month).toFixed(1)},${yPos(p.conservative).toFixed(1)}`).join(" ");
   const goalY    = yPos(goalTarget);
@@ -163,24 +175,19 @@ function CompoundingCurve({ portfolioValue, requiredCAGR, goalTarget, dcaAmount 
 
   return (
     <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 10, padding: "20px 24px", marginBottom: 20 }}>
-      <SectionLabel sub="Required CAGR trajectory with/without DCA vs conservative (60%) scenario">Compounding Curve to 2037</SectionLabel>
+      <SectionLabel sub="Required CAGR trajectory vs conservative (60%) scenario">Compounding Curve to {goalYear}</SectionLabel>
 
-      <svg width="100%" viewBox={`0 0 ${W} ${H}`} style={{ overflow: "visible" }}>
+      <svg width="100%" viewBox={`0 0 ${W} ${H}`} style={{ overflow: "hidden" }}>
         {/* Goal line */}
         <line x1={PAD.l} y1={goalY} x2={W - PAD.r} y2={goalY}
           stroke={C.green} strokeWidth="1" strokeDasharray="4,3" opacity="0.5" />
-        <text x={W - PAD.r + 4} y={goalY + 4} style={{ ...mono, fontSize: 9, fill: C.green, fontFamily: "'IBM Plex Mono', monospace" }}>$1M</text>
+        <text x={PAD.l + 8} y={goalY + 4} style={{ ...mono, fontSize: 9, fill: C.green, fontFamily: "'IBM Plex Mono', monospace" }}>{fmtMoney(goalTarget)}</text>
 
         {/* Conservative path */}
         <path d={consPath} fill="none" stroke={C.blue} strokeWidth="1.5" opacity="0.5" strokeDasharray="3,2" />
 
-        {/* Required path (organic only) */}
+        {/* Required path */}
         <path d={reqPath} fill="none" stroke={C.gold} strokeWidth="2" />
-
-        {/* With DCA path */}
-        {dcaAmount > 0 && (
-          <path d={withDCAPath} fill="none" stroke={C.purple} strokeWidth="2.5" opacity="0.9" />
-        )}
 
         {/* Current value dot */}
         <circle cx={xPos(0)} cy={yPos(portfolioValue)} r="4" fill={C.gold} />
@@ -203,12 +210,6 @@ function CompoundingCurve({ portfolioValue, requiredCAGR, goalTarget, dcaAmount 
       </svg>
 
       <div style={{ display: "flex", gap: 20, marginTop: 8 }}>
-        {dcaAmount > 0 && (
-          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-            <div style={{ width: 20, height: 2, background: C.purple }} />
-            <span style={{ ...mono, fontSize: 10, color: C.textMuted }}>With DCA ({fmtMoney(dcaAmount)}/mo)</span>
-          </div>
-        )}
         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
           <div style={{ width: 20, height: 2, background: C.gold }} />
           <span style={{ ...mono, fontSize: 10, color: C.textMuted }}>Required ({fmtCAGR(requiredCAGR)})</span>
@@ -222,210 +223,222 @@ function CompoundingCurve({ portfolioValue, requiredCAGR, goalTarget, dcaAmount 
   );
 }
 
-// ── DCA Sensitivity Slider ────────────────────────────────────────────────────
-function DcaSensitivitySlider({ portfolioValue, requiredCAGR, yearsRemaining, dcaAmount, onDCAChange }) {
-  const totalMonths = yearsRemaining * 12;
-
-  // Calculate with DCA
-  const monthlyRate = Math.pow(1 + requiredCAGR / 100, 1 / 12) - 1;
-  const projectedWithDCA = projectWithDCA(portfolioValue, dcaAmount, monthlyRate, totalMonths);
-  const totalContributed = dcaAmount * totalMonths;
-
-  // Calculate without DCA
-  const projectedNoDCA = projectValue(portfolioValue, requiredCAGR, yearsRemaining);
-
-  // Impact of DCA
-  const dcaImpact = projectedWithDCA - projectedNoDCA;
-
-  // Determine verdicts
-  const verdictWith = projectedWithDCA >= GOAL_TARGET ? "ON TRACK" 
-    : projectedWithDCA >= GOAL_TARGET * 0.9 ? "ACHIEVABLE" : "SHORT";
-  const verdictColorWith = projectedWithDCA >= GOAL_TARGET ? C.green 
-    : projectedWithDCA >= GOAL_TARGET * 0.9 ? C.cyan : C.gold;
-
-  const verdictWithout = projectedNoDCA >= GOAL_TARGET ? "ON TRACK" 
-    : projectedNoDCA >= GOAL_TARGET * 0.9 ? "ACHIEVABLE" : "SHORT";
-  const verdictColorWithout = projectedNoDCA >= GOAL_TARGET ? C.green 
-    : projectedNoDCA >= GOAL_TARGET * 0.9 ? C.cyan : C.gold;
+// ── DCA SENSITIVITY CALCULATOR [NEW] ──────────────────────────────────────────
+function DCASensitivityCalculator({ portfolioValue, requiredCAGR, goalTarget, goalYear, baselineDCA }) {
+  const [sliderDCA, setSliderDCA] = useState(baselineDCA || 500);
+  
+  const yearsRemaining = goalYear - new Date().getFullYear();
+  const monthsRemaining = yearsRemaining * 12;
+  
+  // Calculate projection at adjusted DCA
+  const projectionAt2037 = useMemo(() => {
+    return projectValueWithDCA(portfolioValue, sliderDCA, requiredCAGR, monthsRemaining);
+  }, [portfolioValue, sliderDCA, requiredCAGR, monthsRemaining]);
+  
+  // Calculate months to reach goal at adjusted DCA
+  const monthsToGoal = useMemo(() => {
+    return monthsToTarget(portfolioValue, sliderDCA, requiredCAGR, goalTarget);
+  }, [portfolioValue, sliderDCA, requiredCAGR, goalTarget]);
+  
+  const yearsToGoal = monthsToGoal ? monthsToGoal / 12 : null;
+  
+  // Calculate increase vs baseline
+  const dcaDelta = sliderDCA - baselineDCA;
+  const dcaDeltaPct = baselineDCA > 0 ? (dcaDelta / baselineDCA) * 100 : 0;
 
   const handleSliderChange = (e) => {
     const val = Number(e.target.value);
-    if (onDCAChange) onDCAChange(val);
+    setSliderDCA(Math.max(0, val));
   };
 
   const handleInputChange = (e) => {
-    const val = Number(e.target.value) || 0;
-    if (onDCAChange) onDCAChange(Math.max(0, val));
+    const val = Number(e.target.value);
+    setSliderDCA(Math.max(0, isNaN(val) ? 0 : val));
   };
 
   return (
     <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 10, padding: "22px 24px", marginBottom: 20 }}>
-      <SectionLabel sub="Simulate portfolio trajectory at different monthly DCA amounts">DCA Sensitivity Analysis</SectionLabel>
+      <SectionLabel sub="Adjust monthly DCA and see real-time impact on 2037 projections">DCA Sensitivity Calculator</SectionLabel>
 
-      {/* Slider + input row */}
-      <div style={{ display: "flex", alignItems: "flex-end", gap: 16, marginBottom: 20 }}>
-        <div style={{ flex: 1 }}>
-          <div style={{ ...mono, fontSize: 10, color: C.textMuted, marginBottom: 8, letterSpacing: "0.1em" }}>MONTHLY DCA AMOUNT</div>
-          <input
-            type="range"
-            min="0"
-            max="50000"
-            step="100"
-            value={dcaAmount}
-            onChange={handleSliderChange}
-            style={{
-              width: "100%", height: 6, borderRadius: 3,
-              background: C.border, outline: "none", cursor: "pointer",
-              WebkitAppearance: "none",
-              appearance: "none",
-            }}
-          />
-          <style>{`
-            input[type="range"]::-webkit-slider-thumb {
-              -webkit-appearance: none;
-              appearance: none;
-              width: 16px;
-              height: 16px;
-              border-radius: 50%;
-              background: ${C.blue};
-              cursor: pointer;
-              box-shadow: 0 0 8px ${C.blue}60;
-              border: 2px solid ${C.surface};
-            }
-            input[type="range"]::-moz-range-thumb {
-              width: 16px;
-              height: 16px;
-              border-radius: 50%;
-              background: ${C.blue};
-              cursor: pointer;
-              border: 2px solid ${C.surface};
-              box-shadow: 0 0 8px ${C.blue}60;
-            }
-          `}</style>
-          <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
-            <span style={{ ...mono, fontSize: 10, color: C.textMuted }}>$0</span>
-            <span style={{ flex: 1, textAlign: "center", ...mono, fontSize: 10, color: C.textMuted }}>$10k</span>
-            <span style={{ ...mono, fontSize: 10, color: C.textMuted }}>$50k+</span>
+      {/* Slider + Input */}
+      <div style={{ marginBottom: 24 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+          <label style={{ ...mono, fontSize: 11, color: C.textMuted, letterSpacing: "0.1em", fontWeight: 700 }}>
+            MONTHLY DCA
+          </label>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <span style={{ ...mono, fontSize: 12, color: C.textMuted }}>$</span>
+            <input
+              type="number"
+              value={sliderDCA}
+              onChange={handleInputChange}
+              style={{
+                fontFamily: "'IBM Plex Mono', monospace",
+                width: 100,
+                padding: "6px 8px",
+                fontSize: 13,
+                fontWeight: 600,
+                background: C.panel,
+                border: `1px solid ${C.border}`,
+                borderRadius: 6,
+                color: C.text,
+                textAlign: "right",
+              }}
+              min="0"
+              step="50"
+            />
+            <span style={{ ...mono, fontSize: 11, color: C.textMuted }}>/mo</span>
           </div>
         </div>
 
-        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-          <div style={{ ...mono, fontSize: 10, color: C.textMuted, letterSpacing: "0.1em" }}>ENTER AMOUNT</div>
-          <input
-            type="number"
-            min="0"
-            value={dcaAmount}
-            onChange={handleInputChange}
-            style={{
-              ...mono, fontSize: 14, fontWeight: 700, color: C.blue,
-              background: C.panel, border: `1px solid ${C.border}`,
-              borderRadius: 6, padding: "8px 12px", width: 140, textAlign: "right",
-              outline: "none",
-            }}
-            onFocus={(e) => e.target.style.borderColor = C.blue}
-            onBlur={(e) => e.target.style.borderColor = C.border}
-          />
-        </div>
-      </div>
+        {/* Range slider */}
+        <input
+          type="range"
+          min="0"
+          max={Math.max(sliderDCA * 2, 10000)}
+          value={sliderDCA}
+          onChange={handleSliderChange}
+          style={{
+            width: "100%",
+            height: 6,
+            borderRadius: 3,
+            background: C.panel,
+            outline: "none",
+            WebkitAppearance: "none",
+            appearance: "none",
+            cursor: "pointer",
+          }}
+        />
+        <style>{`
+          input[type="range"]::-webkit-slider-thumb {
+            appearance: none;
+            width: 16px;
+            height: 16px;
+            borderRadius: 50%;
+            background: ${C.blue};
+            cursor: pointer;
+            boxShadow: 0 0 8px ${C.blue}80;
+          }
+          input[type="range"]::-moz-range-thumb {
+            width: 16px;
+            height: 16px;
+            borderRadius: 50%;
+            background: ${C.blue};
+            cursor: pointer;
+            border: none;
+            boxShadow: 0 0 8px ${C.blue}80;
+          }
+          input[type="range"]::-webkit-slider-runnable-track {
+            background: linear-gradient(90deg, ${C.blue}40, ${C.cyan}40);
+            height: 6px;
+            borderRadius: 3px;
+          }
+          input[type="range"]::-moz-range-track {
+            background: transparent;
+            border: none;
+          }
+          input[type="range"]::-moz-range-progress {
+            background: linear-gradient(90deg, ${C.blue}40, ${C.cyan}40);
+            height: 6px;
+            borderRadius: 3px;
+          }
+        `}</style>
 
-      {/* Side-by-side comparison: With DCA vs Without DCA */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 16 }}>
-        {/* WITH DCA */}
-        <div style={{ background: C.panel, border: `1px solid ${C.border}`, borderRadius: 8, padding: "16px" }}>
-          <div style={{ marginBottom: 12 }}>
-            <div style={{ ...mono, fontSize: 10, color: C.textMuted, marginBottom: 4, letterSpacing: "0.1em" }}>WITH DCA ({fmtMoney(dcaAmount)}/mo)</div>
-            <div style={{
-              display: "inline-block",
-              padding: "6px 12px", borderRadius: 4, background: `${verdictColorWith}15`,
-              border: `1px solid ${verdictColorWith}40`,
-              ...mono, fontSize: 11, fontWeight: 700, color: verdictColorWith, letterSpacing: "0.08em",
-            }}>
-              {verdictWith}
-            </div>
-          </div>
-
-          <div style={{ marginBottom: 12 }}>
-            <div style={{ ...mono, fontSize: 9, color: C.textMuted, marginBottom: 3 }}>TOTAL 2037 VALUE</div>
-            <div style={{ ...mono, fontSize: 18, fontWeight: 800, color: C.text }}>
-              {fmtMoney(projectedWithDCA)}
-            </div>
-          </div>
-
-          <div style={{ marginBottom: 12 }}>
-            <div style={{ ...mono, fontSize: 9, color: C.textMuted, marginBottom: 3 }}>vs $1M GOAL</div>
-            <div style={{ ...mono, fontSize: 14, fontWeight: 700, color: projectedWithDCA >= GOAL_TARGET ? C.green : C.gold }}>
-              {projectedWithDCA >= GOAL_TARGET ? "+" : ""}{fmtMoney(projectedWithDCA - GOAL_TARGET)}
-            </div>
-          </div>
-
-          <div style={{ borderTop: `1px solid ${C.border}`, paddingTop: 12 }}>
-            <div style={{ ...mono, fontSize: 9, color: C.textMuted, marginBottom: 3 }}>REQUIRED CAGR</div>
-            <div style={{ ...mono, fontSize: 12, fontWeight: 600, color: C.cyan }}>
-              {fmtCAGR(requiredCAGR)}
-            </div>
-          </div>
-
-          <div style={{ marginTop: 12, ...mono, fontSize: 9, color: C.textMuted, lineHeight: 1.5 }}>
-            Total contributed: {fmtMoney(totalContributed)}
-          </div>
-        </div>
-
-        {/* WITHOUT DCA */}
-        <div style={{ background: C.panel, border: `1px solid ${C.border}`, borderRadius: 8, padding: "16px" }}>
-          <div style={{ marginBottom: 12 }}>
-            <div style={{ ...mono, fontSize: 10, color: C.textMuted, marginBottom: 4, letterSpacing: "0.1em" }}>WITHOUT DCA (Organic only)</div>
-            <div style={{
-              display: "inline-block",
-              padding: "6px 12px", borderRadius: 4, background: `${verdictColorWithout}15`,
-              border: `1px solid ${verdictColorWithout}40`,
-              ...mono, fontSize: 11, fontWeight: 700, color: verdictColorWithout, letterSpacing: "0.08em",
-            }}>
-              {verdictWithout}
-            </div>
-          </div>
-
-          <div style={{ marginBottom: 12 }}>
-            <div style={{ ...mono, fontSize: 9, color: C.textMuted, marginBottom: 3 }}>TOTAL 2037 VALUE</div>
-            <div style={{ ...mono, fontSize: 18, fontWeight: 800, color: C.text }}>
-              {fmtMoney(projectedNoDCA)}
-            </div>
-          </div>
-
-          <div style={{ marginBottom: 12 }}>
-            <div style={{ ...mono, fontSize: 9, color: C.textMuted, marginBottom: 3 }}>vs $1M GOAL</div>
-            <div style={{ ...mono, fontSize: 14, fontWeight: 700, color: projectedNoDCA >= GOAL_TARGET ? C.green : C.gold }}>
-              {projectedNoDCA >= GOAL_TARGET ? "+" : ""}{fmtMoney(projectedNoDCA - GOAL_TARGET)}
-            </div>
-          </div>
-
-          <div style={{ borderTop: `1px solid ${C.border}`, paddingTop: 12 }}>
-            <div style={{ ...mono, fontSize: 9, color: C.textMuted, marginBottom: 3 }}>DCA IMPACT</div>
-            <div style={{ ...mono, fontSize: 12, fontWeight: 600, color: C.green }}>
-              +{fmtMoney(dcaImpact)}
-            </div>
-          </div>
-
-          <div style={{ marginTop: 12, ...mono, fontSize: 9, color: C.textMuted, lineHeight: 1.5 }}>
-            Pure compounding · no contributions
-          </div>
+        <div style={{ display: "flex", justifyContent: "space-between", marginTop: 8 }}>
+          <span style={{ ...mono, fontSize: 9, color: C.textMuted }}>$0</span>
+          <span style={{ ...mono, fontSize: 9, color: C.textMuted }}>Max: {fmtMoney(Math.max(sliderDCA * 2, 10000))}</span>
         </div>
       </div>
 
-      {/* Impact note */}
-      <div style={{
-        ...mono, fontSize: 10, color: C.textMuted, padding: "10px 14px", background: C.panel,
-        borderRadius: 6, border: `1px solid ${C.border}`, lineHeight: 1.6,
-      }}>
-        <strong>Slider insight:</strong> {dcaAmount === 0 
-          ? "At $0 DCA, you're relying entirely on required CAGR to hit $1M." 
-          : `At ${fmtMoney(dcaAmount)}/mo, DCA contributes ${fmtMoney(dcaImpact)} to your 2037 projection — the power of compounding on fresh capital.`}
+      {/* Output cards */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 14 }}>
+        {/* 2037 Projection */}
+        <div style={{
+          background: C.panel, borderRadius: 8, padding: "16px 18px",
+          border: `1px solid ${projectionAt2037 >= goalTarget ? C.green + "40" : C.border}`,
+        }}>
+          <div style={{ ...mono, fontSize: 9, color: C.textMuted, letterSpacing: "0.1em", marginBottom: 8 }}>2037 PROJECTION</div>
+          <div style={{
+            ...mono, fontSize: 18, fontWeight: 800,
+            color: projectionAt2037 >= goalTarget ? C.green : C.gold,
+            marginBottom: 6,
+          }}>
+            {fmtMoney(projectionAt2037)}
+          </div>
+          <div style={{ ...mono, fontSize: 10, color: C.textMuted }}>
+            {projectionAt2037 >= goalTarget ? "✓ Exceeds" : "vs"} {fmtMoney(goalTarget)}
+          </div>
+          <div style={{
+            ...mono, fontSize: 11, fontWeight: 600,
+            color: projectionAt2037 >= goalTarget ? C.green : C.gold,
+            marginTop: 4,
+          }}>
+            {projectionAt2037 >= goalTarget
+              ? `+${fmtMoney(projectionAt2037 - goalTarget)}`
+              : `-${fmtMoney(goalTarget - projectionAt2037)}`}
+          </div>
+        </div>
+
+        {/* Years to $1M */}
+        <div style={{
+          background: C.panel, borderRadius: 8, padding: "16px 18px",
+          border: `1px solid ${yearsToGoal ? C.cyan + "40" : C.border}`,
+        }}>
+          <div style={{ ...mono, fontSize: 9, color: C.textMuted, letterSpacing: "0.1em", marginBottom: 8 }}>YEARS TO GOAL</div>
+          <div style={{
+            ...mono, fontSize: 18, fontWeight: 800,
+            color: yearsToGoal ? C.cyan : C.textMuted,
+            marginBottom: 6,
+          }}>
+            {yearsToGoal ? yearsToGoal.toFixed(1) : "∞"}
+          </div>
+          <div style={{ ...mono, fontSize: 10, color: C.textMuted }}>
+            to reach {fmtMoney(goalTarget)}
+          </div>
+          {yearsToGoal && (
+            <div style={{
+              ...mono, fontSize: 11, fontWeight: 600,
+              color: yearsToGoal < yearsRemaining ? C.green : C.gold,
+              marginTop: 4,
+            }}>
+              {yearsToGoal < yearsRemaining
+                ? `✓ ${(yearsRemaining - yearsToGoal).toFixed(1)}yr early`
+                : `${(yearsToGoal - yearsRemaining).toFixed(1)}yr late`}
+            </div>
+          )}
+        </div>
+
+        {/* vs Current DCA */}
+        <div style={{
+          background: C.panel, borderRadius: 8, padding: "16px 18px",
+          border: `1px solid ${dcaDelta !== 0 ? C.gold + "40" : C.border}`,
+        }}>
+          <div style={{ ...mono, fontSize: 9, color: C.textMuted, letterSpacing: "0.1em", marginBottom: 8 }}>VS BASELINE (${baselineDCA})</div>
+          <div style={{
+            ...mono, fontSize: 18, fontWeight: 800,
+            color: dcaDelta > 0 ? C.green : dcaDelta < 0 ? C.red : C.textMuted,
+            marginBottom: 6,
+          }}>
+            {dcaDelta >= 0 ? "+" : ""}{fmtMoney(dcaDelta)}
+          </div>
+          <div style={{ ...mono, fontSize: 10, color: C.textMuted }}>
+            per month adjustment
+          </div>
+          <div style={{
+            ...mono, fontSize: 11, fontWeight: 600,
+            color: dcaDelta > 0 ? C.green : dcaDelta < 0 ? C.red : C.textMuted,
+            marginTop: 4,
+          }}>
+            {dcaDelta > 0 ? "+" : ""}{dcaDeltaPct.toFixed(0)}%
+          </div>
+        </div>
       </div>
     </div>
   );
 }
 
 // ── Per-asset 2037 projection table ──────────────────────────────────────────
-function AssetProjectionTable({ positions, portfolioValue, yearsRemaining }) {
+function AssetProjectionTable({ positions, portfolioValue, yearsRemaining, goalTarget }) {
   const rows = useMemo(() => {
     if (!positions?.length) return [];
     return positions
@@ -435,11 +448,11 @@ function AssetProjectionTable({ positions, portfolioValue, yearsRemaining }) {
         const projected  = projectValue(currentVal, assumed, yearsRemaining);
         const gain       = projected - currentVal;
         const weight     = portfolioValue > 0 ? (currentVal / portfolioValue) * 100 : 0;
-        const contribution = (gain / GOAL_TARGET) * 100;
+        const contribution = (gain / goalTarget) * 100;
         return { symbol: p.symbol, currentVal, projected, gain, weight, assumed, contribution };
       })
       .sort((a, b) => b.projected - a.projected);
-  }, [positions, portfolioValue, yearsRemaining]);
+  }, [positions, portfolioValue, yearsRemaining, goalTarget]);
 
   const totalProjected = rows.reduce((s, r) => s + r.projected, 0);
   const totalGain      = totalProjected - portfolioValue;
@@ -451,14 +464,14 @@ function AssetProjectionTable({ positions, portfolioValue, yearsRemaining }) {
         <div style={{ display: "flex", gap: 20 }}>
           <div>
             <div style={{ ...mono, fontSize: 10, color: C.textMuted }}>Total projected 2037</div>
-            <div style={{ ...mono, fontSize: 18, fontWeight: 800, color: totalProjected >= GOAL_TARGET ? C.green : C.gold }}>
+            <div style={{ ...mono, fontSize: 18, fontWeight: 800, color: totalProjected >= goalTarget ? C.green : C.gold }}>
               {fmtMoney(totalProjected)}
             </div>
           </div>
           <div>
-            <div style={{ ...mono, fontSize: 10, color: C.textMuted }}>vs $1M goal</div>
-            <div style={{ ...mono, fontSize: 18, fontWeight: 800, color: deltaColor(totalProjected - GOAL_TARGET) }}>
-              {totalProjected >= GOAL_TARGET ? "+" : ""}{fmtMoney(totalProjected - GOAL_TARGET)}
+            <div style={{ ...mono, fontSize: 10, color: C.textMuted }}>vs goal</div>
+            <div style={{ ...mono, fontSize: 18, fontWeight: 800, color: deltaColor(totalProjected - goalTarget) }}>
+              {totalProjected >= goalTarget ? "+" : ""}{fmtMoney(totalProjected - goalTarget)}
             </div>
           </div>
         </div>
@@ -522,7 +535,7 @@ function AssetProjectionTable({ positions, portfolioValue, yearsRemaining }) {
       }}>
         <span style={{ ...mono, fontSize: 11, color: C.textMuted, fontWeight: 700 }}>TOTAL</span>
         <div style={{ ...mono, fontSize: 13, fontWeight: 700, color: C.text }}>{fmtMoney(portfolioValue)}</div>
-        <div style={{ ...mono, fontSize: 13, fontWeight: 800, color: totalProjected >= GOAL_TARGET ? C.green : C.gold }}>
+        <div style={{ ...mono, fontSize: 13, fontWeight: 800, color: totalProjected >= goalTarget ? C.green : C.gold }}>
           {fmtMoney(totalProjected)}
         </div>
         <div style={{ ...mono, fontSize: 13, fontWeight: 700, color: C.green }}>+{fmtMoney(totalGain)}</div>
@@ -534,9 +547,9 @@ function AssetProjectionTable({ positions, portfolioValue, yearsRemaining }) {
 }
 
 // ── Gap analysis ──────────────────────────────────────────────────────────────
-function GapAnalysis({ portfolioValue, requiredCAGR, goal }) {
-  const yearsRemaining = goal?.yearsRemaining || 0;
-  const gap            = GOAL_TARGET - portfolioValue;
+function GapAnalysis({ portfolioValue, requiredCAGR, goalTarget, goalYear }) {
+  const yearsRemaining = goalYear - new Date().getFullYear();
+  const gap            = goalTarget - portfolioValue;
   const isOnTrack      = requiredCAGR <= 28; // <=28% is aggressive but achievable
   const verdict        = requiredCAGR <= 20 ? "ON TRACK"
     : requiredCAGR <= 28 ? "ACHIEVABLE"
@@ -550,7 +563,7 @@ function GapAnalysis({ portfolioValue, requiredCAGR, goal }) {
   // What monthly contribution would the portfolio need to grow at exactly 20% CAGR?
   const targetCAGR   = 20;
   const projAt20     = projectValue(portfolioValue, targetCAGR, yearsRemaining);
-  const shortfall20  = Math.max(0, GOAL_TARGET - projAt20);
+  const shortfall20  = Math.max(0, goalTarget - projAt20);
 
   return (
     <div style={{ background: C.surface, border: `1px solid ${verdictColor}30`, borderRadius: 10, padding: "22px 24px", marginBottom: 20 }}>
@@ -565,29 +578,29 @@ function GapAnalysis({ portfolioValue, requiredCAGR, goal }) {
           {verdict}
         </div>
         <div style={{ ...mono, fontSize: 12, color: C.textSec }}>
-          {fmtCAGR(requiredCAGR)} required to reach $1M by {GOAL_YEAR}
+          {fmtCAGR(requiredCAGR)} required to reach {fmtMoney(goalTarget)} by {goalYear}
         </div>
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 14, marginBottom: 16 }}>
         <div style={{ background: C.panel, borderRadius: 8, padding: "14px 16px", border: `1px solid ${C.border}` }}>
-          <div style={{ ...mono, fontSize: 9, color: C.textMuted, marginBottom: 6, letterSpacing: "0.1em" }}>GAP TO $1M</div>
+          <div style={{ ...mono, fontSize: 9, color: C.textMuted, marginBottom: 6, letterSpacing: "0.1em" }}>GAP TO GOAL</div>
           <div style={{ ...mono, fontSize: 18, fontWeight: 800, color: C.text }}>{fmtMoney(gap)}</div>
-          <div style={{ ...mono, fontSize: 10, color: C.textMuted, marginTop: 3 }}>{((gap / GOAL_TARGET) * 100).toFixed(1)}% remaining</div>
+          <div style={{ ...mono, fontSize: 10, color: C.textMuted, marginTop: 3 }}>{((gap / goalTarget) * 100).toFixed(1)}% remaining</div>
         </div>
         <div style={{ background: C.panel, borderRadius: 8, padding: "14px 16px", border: `1px solid ${C.border}` }}>
           <div style={{ ...mono, fontSize: 9, color: C.textMuted, marginBottom: 6, letterSpacing: "0.1em" }}>AT 20% CAGR</div>
-          <div style={{ ...mono, fontSize: 18, fontWeight: 800, color: projAt20 >= GOAL_TARGET ? C.green : C.gold }}>
+          <div style={{ ...mono, fontSize: 18, fontWeight: 800, color: projAt20 >= goalTarget ? C.green : C.gold }}>
             {fmtMoney(projAt20)}
           </div>
           <div style={{ ...mono, fontSize: 10, color: C.textMuted, marginTop: 3 }}>
-            {projAt20 >= GOAL_TARGET ? "Exceeds goal" : `${fmtMoney(shortfall20)} short`}
+            {projAt20 >= goalTarget ? "Exceeds goal" : `${fmtMoney(shortfall20)} short`}
           </div>
         </div>
         <div style={{ background: C.panel, borderRadius: 8, padding: "14px 16px", border: `1px solid ${C.border}` }}>
           <div style={{ ...mono, fontSize: 9, color: C.textMuted, marginBottom: 6, letterSpacing: "0.1em" }}>YEARS REMAINING</div>
           <div style={{ ...mono, fontSize: 18, fontWeight: 800, color: C.text }}>{yearsRemaining.toFixed(1)}</div>
-          <div style={{ ...mono, fontSize: 10, color: C.textMuted, marginTop: 3 }}>to Jan 1, {GOAL_YEAR}</div>
+          <div style={{ ...mono, fontSize: 10, color: C.textMuted, marginTop: 3 }}>to Jan 1, {goalYear}</div>
         </div>
       </div>
 
@@ -602,20 +615,20 @@ function GapAnalysis({ portfolioValue, requiredCAGR, goal }) {
         { label: "Required",      cagr: requiredCAGR, color: verdictColor },
       ].map(s => {
         const proj = projectValue(portfolioValue, s.cagr, yearsRemaining);
-        const barW = Math.min((proj / GOAL_TARGET) * 100, 100);
+        const barW = Math.min((proj / goalTarget) * 100, 100);
         return (
           <div key={s.label} style={{ marginBottom: 10 }}>
             <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
               <span style={{ ...mono, fontSize: 10, color: C.textSec }}>{s.label} ({s.cagr.toFixed(0)}% / yr)</span>
-              <span style={{ ...mono, fontSize: 10, fontWeight: 700, color: proj >= GOAL_TARGET ? C.green : s.color }}>
-                {fmtMoney(proj)} {proj >= GOAL_TARGET ? "\u2713" : ""}
+              <span style={{ ...mono, fontSize: 10, fontWeight: 700, color: proj >= goalTarget ? C.green : s.color }}>
+                {fmtMoney(proj)} {proj >= goalTarget ? "\u2713" : ""}
               </span>
             </div>
             <div style={{ height: 4, background: C.border, borderRadius: 2, overflow: "hidden" }}>
               <div style={{
                 width: `${barW}%`, height: "100%", background: s.color,
                 borderRadius: 2, transition: "width 0.6s ease",
-                boxShadow: proj >= GOAL_TARGET ? `0 0 6px ${s.color}60` : "none",
+                boxShadow: proj >= goalTarget ? `0 0 6px ${s.color}60` : "none",
               }} />
             </div>
           </div>
@@ -632,19 +645,21 @@ function GapAnalysis({ portfolioValue, requiredCAGR, goal }) {
 // ── Main component ────────────────────────────────────────────────────────────
 export default function GoalEngine() {
   const [kellyData,    setKellyData]    = useState(null);
+  const [goalConfig,   setGoalConfig]   = useState(null);
   const [valuation,    setValuation]    = useState(null);
   const [loading,      setLoading]      = useState(true);
   const [error,        setError]        = useState(null);
   const [lastRefresh,  setLastRefresh]  = useState(null);
-  const [dcaAmount,    setDcaAmount]    = useState(500); // Lift state to main component
 
   const load = useCallback(async () => {
     try {
-      const [kelly, val] = await Promise.all([
+      const [kelly, config, val] = await Promise.all([
         window.jupiter.invoke("decisions:getKellyRecommendations"),
+        window.jupiter.invoke("portfolio:getGoalConfig"),
         window.jupiter.invoke("portfolio:getValuation"),
       ]);
       setKellyData(kelly);
+      setGoalConfig(config);
       setValuation(val);
       setLastRefresh(new Date());
       setError(null);
@@ -658,11 +673,16 @@ export default function GoalEngine() {
 
   useEffect(() => { load(); }, [load]);
 
+  // Use real values from goalConfig, fallback to defaults only for safety
+  const goalTarget     = goalConfig?.goalTarget     || 1_000_000;
+  const goalYear       = goalConfig?.goalYear       || 2037;
+  const monthlyDCA     = goalConfig?.monthlyDCA     || 500;
+  
   const goal           = kellyData?.goal           || null;
   const portfolioValue = kellyData?.portfolioValue || 0;
   const requiredCAGR   = goal?.requiredCAGR        || 0;
   const progressPct    = goal?.progressPct         || 0;
-  const yearsRemaining = goal?.yearsRemaining      || (GOAL_YEAR - new Date().getFullYear());
+  const yearsRemaining = goal?.yearsRemaining      || (goalYear - new Date().getFullYear());
   const positions      = useMemo(() => valuation?.positions || [], [valuation]);
 
   if (loading) {
@@ -701,7 +721,7 @@ export default function GoalEngine() {
         <div>
           <h1 style={{ fontSize: 26, fontWeight: 800, margin: 0, letterSpacing: "-0.02em" }}>Goal Engine</h1>
           <p style={{ ...mono, fontSize: 11, color: C.textMuted, margin: "4px 0 0" }}>
-            $100k \u2192 $1M by {GOAL_YEAR} \u00b7 live trajectory intelligence \u00b7 read-only
+            {fmtMoney(portfolioValue)} \u2192 {fmtMoney(goalTarget)} by {goalYear} \u00b7 live trajectory intelligence \u00b7 read-only
           </p>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
@@ -734,7 +754,7 @@ export default function GoalEngine() {
               {fmtMoney(portfolioValue)}
             </div>
             <div style={{ ...mono, fontSize: 12, color: C.textMuted, marginTop: 6 }}>
-              {fmtMoney(GOAL_TARGET - portfolioValue)} remaining to goal
+              {fmtMoney(goalTarget - portfolioValue)} remaining to goal
             </div>
           </div>
           <div style={{ textAlign: "right" }}>
@@ -742,7 +762,7 @@ export default function GoalEngine() {
             <div style={{ fontSize: 38, fontWeight: 800, color: C.blue, letterSpacing: "-0.02em" }}>
               {progressPct.toFixed(1)}%
             </div>
-            <div style={{ ...mono, fontSize: 11, color: C.textMuted, marginTop: 4 }}>of $1M</div>
+            <div style={{ ...mono, fontSize: 11, color: C.textMuted, marginTop: 4 }}>of {fmtMoney(goalTarget)}</div>
           </div>
         </div>
 
@@ -759,11 +779,11 @@ export default function GoalEngine() {
         {/* Milestones */}
         <div style={{ display: "flex", justifyContent: "space-between" }}>
           {[
-            { label: "$100k", val: 100_000 },
-            { label: "$250k", val: 250_000 },
-            { label: "$500k", val: 500_000 },
-            { label: "$750k", val: 750_000 },
-            { label: "$1M",   val: 1_000_000 },
+            { label: "25%", val: goalTarget * 0.25 },
+            { label: "50%", val: goalTarget * 0.50 },
+            { label: "75%", val: goalTarget * 0.75 },
+            { label: "90%", val: goalTarget * 0.90 },
+            { label: "100%", val: goalTarget },
           ].map(m => {
             const reached = portfolioValue >= m.val;
             return (
@@ -783,13 +803,13 @@ export default function GoalEngine() {
         <StatCard
           label="Required CAGR"
           value={fmtCAGR(requiredCAGR)}
-          sub={`to hit $1M by ${GOAL_YEAR}`}
+          sub={`to hit ${fmtMoney(goalTarget)} by ${goalYear}`}
           color={requiredCAGR <= 20 ? C.green : requiredCAGR <= 28 ? C.cyan : requiredCAGR <= 40 ? C.gold : C.red}
         />
         <StatCard
           label="Years Remaining"
           value={yearsRemaining.toFixed(1)}
-          sub={`to Jan 1, ${GOAL_YEAR}`}
+          sub={`to Jan 1, ${goalYear}`}
           color={C.text}
         />
         <StatCard
@@ -802,9 +822,9 @@ export default function GoalEngine() {
           }
         />
         <StatCard
-          label="Months to 2037"
-          value={goal?.monthsRemaining || "\u2014"}
-          sub="calendar months"
+          label="Current Monthly DCA"
+          value={fmtMoney(monthlyDCA)}
+          sub="see calculator below"
           color={C.textSec}
         />
       </div>
@@ -813,24 +833,26 @@ export default function GoalEngine() {
       <CompoundingCurve
         portfolioValue={portfolioValue}
         requiredCAGR={requiredCAGR}
-        goalTarget={GOAL_TARGET}
-        dcaAmount={dcaAmount}
+        goalTarget={goalTarget}
+        goalYear={goalYear}
+        monthlyDCA={monthlyDCA}
       />
 
-      {/* DCA Sensitivity Slider — INSERTED ABOVE GapAnalysis */}
-      <DcaSensitivitySlider
+      {/* DCA SENSITIVITY CALCULATOR [NEW] */}
+      <DCASensitivityCalculator
         portfolioValue={portfolioValue}
         requiredCAGR={requiredCAGR}
-        yearsRemaining={yearsRemaining}
-        dcaAmount={dcaAmount}
-        onDCAChange={setDcaAmount}
+        goalTarget={goalTarget}
+        goalYear={goalYear}
+        baselineDCA={monthlyDCA}
       />
 
       {/* Gap / feasibility */}
       <GapAnalysis
         portfolioValue={portfolioValue}
         requiredCAGR={requiredCAGR}
-        goal={goal}
+        goalTarget={goalTarget}
+        goalYear={goalYear}
       />
 
       {/* Per-asset projection table */}
@@ -838,6 +860,7 @@ export default function GoalEngine() {
         positions={positions}
         portfolioValue={portfolioValue}
         yearsRemaining={yearsRemaining}
+        goalTarget={goalTarget}
       />
 
       {/* Footer note */}

@@ -8,9 +8,9 @@
   },
   {
     "symbol": "ASML",
-    "qty": 7.0901,
+    "qty": 7.4509,
     "assetClass": "equity",
-    "totalCostBasis": 6127.63,
+    "totalCostBasis": 6627.55,
     "currency": "USD"
   },
   {
@@ -43,9 +43,9 @@
   },
   {
     "symbol": "MSTR",
-    "qty": 58.4873,
+    "qty": 29.3561,
     "assetClass": "equity",
-    "totalCostBasis": 11840.86,
+    "totalCostBasis": 5943.2,
     "currency": "USD"
   },
   {
@@ -57,16 +57,16 @@
   },
   {
     "symbol": "ZETA",
-    "qty": 299,
+    "qty": 350,
     "assetClass": "equity",
-    "totalCostBasis": 5599.67,
+    "totalCostBasis": 6570.77,
     "currency": "USD"
   },
   {
     "symbol": "MELI",
-    "qty": 1.8454,
+    "qty": 2,
     "assetClass": "equity",
-    "totalCostBasis": 3279.87,
+    "totalCostBasis": 3549.83,
     "currency": "USD"
   },
   {
@@ -77,24 +77,10 @@
     "currency": "USD"
   },
   {
-    "symbol": "VST",
+    "symbol": "LLY",
     "qty": 2,
     "assetClass": "equity",
-    "totalCostBasis": 331.8,
-    "currency": "USD"
-  },
-  {
-    "symbol": "FTAI",
-    "qty": 2,
-    "assetClass": "equity",
-    "totalCostBasis": 512.66,
-    "currency": "USD"
-  },
-  {
-    "symbol": "RKLB",
-    "qty": 5,
-    "assetClass": "equity",
-    "totalCostBasis": 358.98,
-    "currency": "USD"
+    "totalCostBasis": 1997.97,
+    "currency": "CAD"
   }
 ]
