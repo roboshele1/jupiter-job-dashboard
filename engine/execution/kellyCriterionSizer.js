@@ -68,6 +68,10 @@ export function calculatePositionSize({
       winProbability: CONVICTION_TO_WIN_PROBABILITY.AVOID,
     });
   }
+  // CONVICTION ADJUSTMENT: Intentional bias to differentiate thesis quality
+  // Conviction adds 0-10% to base win probability (capped at 85% max)
+  // This is NOT "pure Kelly" but represents business logic: stronger conviction = larger sizing
+
   
   let winProbability = CONVICTION_TO_WIN_PROBABILITY[confidence];
   const winLossRatio = CONVICTION_TO_WIN_LOSS_RATIO[confidence];
