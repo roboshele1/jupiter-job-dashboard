@@ -14,9 +14,6 @@ const items = [
   { label: "Risk Centre",    path: "/risk"       },
   { label: "Goal Engine",    path: "/goal"       },
   { label: "Decisions",      path: "/decisions"  },
-  { label: "Performance",    path: "/performance" },
-  { label: "Rebalancing",    path: "/rebalancing" },
-  { label: "Learning Loop",  path: "/learningloop" },
   { label: "Jupiter AI",     path: "/jupiterai"  },
   { label: "Daemon Monitor", path: "/daemon" },
 ];
