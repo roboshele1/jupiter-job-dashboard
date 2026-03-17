@@ -72,6 +72,15 @@ async function saveExecutions(list) {
 // These are the ONLY numbers used for projections and CES scoring.
 // Kelly win probability controls position SIZING only — never CAGR.
 const BASE_CAGR = {
+  PLTR:  45,             // High-conviction AI infrastructure
+  APP:   40,             // AppLovin ad-tech compounder
+  RKLB:  38,             // Rocket Lab space infrastructure
+  AXON:  25,             // Public safety SaaS compounder
+  MELI:  25,             // LatAm fintech/ecommerce
+  NU:    28,             // LatAm digital banking
+  LLY:   23,             // GLP-1 pharma compounder
+  ZETA:  21,             // Marketing cloud growth
+  BTC:   20,             // Long-term cycle-adjusted
   CNSWF: 26, CSU:  26,   // Constellation Software ~25-28% 10yr
   NVDA:  35,             // 5yr blended, forward-moderated
   ASML:  22,             // 10yr litho monopoly compounder
@@ -81,7 +90,6 @@ const BASE_CAGR = {
   HOOD:  20,             // Early stage fintech
   APLD:  22,             // AI infrastructure buildout
   BMNR:  15,             // Speculative, early revenue
-  BTC:   30,             // Long-term cycle-adjusted
   ETH:   25,             // Conservative vs BTC
   MSTR:  28,             // BTC proxy + leverage premium
   WBTC:  30,             // Tracks BTC

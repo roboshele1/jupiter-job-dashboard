@@ -4,83 +4,103 @@
     "qty": 59.257,
     "assetClass": "equity",
     "totalCostBasis": 10466.32,
-    "currency": "USD"
+    "currency": "USD",
+    "expectedCagr": 0.28
   },
   {
     "symbol": "ASML",
-    "qty": 7.4509,
+    "qty": 5.4509,
     "assetClass": "equity",
-    "totalCostBasis": 6627.55,
-    "currency": "USD"
+    "totalCostBasis": 4808.76,
+    "currency": "USD",
+    "expectedCagr": 0.15
   },
   {
     "symbol": "BTC",
     "qty": 0.188206,
     "assetClass": "crypto",
     "totalCostBasis": 17764.31,
-    "currency": "USD"
-  },
-  {
-    "symbol": "ETH",
-    "qty": 0.25,
-    "totalCostBasis": 597.9,
-    "assetClass": "crypto",
-    "currency": "USD"
+    "currency": "USD",
+    "expectedCagr": 0.2
   },
   {
     "symbol": "AVGO",
-    "qty": 30.8728,
+    "qty": 31.8728,
     "assetClass": "equity",
-    "totalCostBasis": 9413.41,
-    "currency": "USD"
+    "totalCostBasis": 9736.86,
+    "currency": "USD",
+    "expectedCagr": 0.3
   },
   {
     "symbol": "NOW",
     "qty": 90,
     "assetClass": "equity",
     "totalCostBasis": 9442.84,
-    "currency": "USD"
-  },
-  {
-    "symbol": "MSTR",
-    "qty": 29.3561,
-    "assetClass": "equity",
-    "totalCostBasis": 5943.2,
-    "currency": "USD"
+    "currency": "USD",
+    "expectedCagr": 0.22
   },
   {
     "symbol": "AXON",
-    "qty": 4.6949,
+    "qty": 6.2895,
     "assetClass": "equity",
-    "totalCostBasis": 2290.79,
-    "currency": "USD"
+    "totalCostBasis": 3065.69,
+    "currency": "USD",
+    "expectedCagr": 0.25
   },
   {
     "symbol": "ZETA",
-    "qty": 350,
+    "qty": 294.3826,
     "assetClass": "equity",
-    "totalCostBasis": 6570.77,
-    "currency": "USD"
+    "totalCostBasis": 5505.44,
+    "currency": "USD",
+    "expectedCagr": 0.21
   },
   {
     "symbol": "MELI",
-    "qty": 2,
+    "qty": 3,
     "assetClass": "equity",
-    "totalCostBasis": 3549.83,
-    "currency": "USD"
+    "totalCostBasis": 5258.82,
+    "currency": "USD",
+    "expectedCagr": 0.25
   },
   {
     "symbol": "NU",
-    "qty": 100,
+    "qty": 150,
     "assetClass": "equity",
-    "totalCostBasis": 1487.97,
-    "currency": "USD"
+    "totalCostBasis": 2202.37,
+    "currency": "USD",
+    "expectedCagr": 0.28
   },
   {
     "symbol": "LLY",
-    "qty": 2,
+    "qty": 4,
     "assetClass": "equity",
-    "totalCostBasis": 1997.97,
-    "currency": "CAD"
+    "totalCostBasis": 3962.54,
+    "currency": "USD",
+    "expectedCagr": 0.23
+  },
+  {
+    "symbol": "RKLB",
+    "qty": 16,
+    "assetClass": "equity",
+    "totalCostBasis": 1115.14,
+    "currency": "USD",
+    "expectedCagr": 0.38
+  },
+  {
+    "symbol": "PLTR",
+    "qty": 14,
+    "assetClass": "equity",
+    "totalCostBasis": 2136.84,
+    "currency": "USD",
+    "expectedCagr": 0.45
+  },
+  {
+    "symbol": "APP",
+    "qty": 4,
+    "assetClass": "equity",
+    "totalCostBasis": 1851.96,
+    "currency": "USD",
+    "expectedCagr": 0.4
   }
 ]

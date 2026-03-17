@@ -75,9 +75,11 @@ function projectWithDCA(startValue, monthlyContribution, monthlyRate, totalMonth
 
 // Conviction CAGR assumptions (mirrors Kelly convictions)
 const CAGR_ASSUMPTIONS = {
-  NVDA: 28, ASML: 18, AVGO: 25, MSTR: 35,
-  HOOD: 15, BMNR: 12, APLD: 10, NOW: 20,
-  BTC:  40, ETH:  25,
+  PLTR: 45, APP: 40, RKLB: 38, AVGO: 30, NU: 28, NVDA: 28,
+  AXON: 25, MELI: 25, LLY: 23, NOW: 22, ZETA: 21, BTC: 20,
+  ASML: 15, ETH: 15, MSTR: 18,
+  // Legacy/exited positions
+  HOOD: 15, BMNR: 12, APLD: 10,
 };
 
 // ── Sub-components ────────────────────────────────────────────────────────────
