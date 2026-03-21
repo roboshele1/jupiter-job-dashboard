@@ -201,19 +201,37 @@ function runLCPE(positions, kellyActions, portfolioValue, monthlyDCA, regime, ex
     return sum;
   }, 0);
 
-  // Allocation logic
+  // Allocation logic — MDP rules applied:
+  // Rule 1: CAGR floor — only assets meeting required rate qualify
+  // Rule 2: Split across all qualifiers weighted by (gap × CAGR score)
+  // Rule 3: Minimum $50 per slot to avoid dust allocations
+  const cagrFloor = requiredCAGR;
+  const qualifies = eligible.filter(s => s.cagr >= cagrFloor);
+  const pool      = qualifies.length > 0 ? qualifies : eligible;
+
   let allocation = [];
-  if (eligible.length === 0) {
+  if (pool.length === 0) {
     allocation = [{ symbol: 'CASH', pct: 100, amount: monthlyDCA }];
-  } else if (eligible.length === 1 || eligible[0].score > eligible[1].score * 1.15) {
-    allocation = [{ symbol: eligible[0].symbol, pct: 100, amount: monthlyDCA }];
   } else {
-    const tot = eligible[0].score + eligible[1].score;
-    const p0 = eligible[0].score / tot, p1 = eligible[1].score / tot;
-    allocation = [
-      { symbol: eligible[0].symbol, pct: p0 * 100, amount: monthlyDCA * p0 },
-      { symbol: eligible[1].symbol, pct: p1 * 100, amount: monthlyDCA * p1 },
-    ];
+    const weights = pool.map(s => {
+      const gap    = Math.max(0, s.targetW - s.currentW);
+      const weight = (gap + 0.5) * (s.cagr / 100);
+      return { ...s, weight };
+    });
+    const totalWeight = weights.reduce((sum, s) => sum + s.weight, 0);
+    const raw = weights.map(s => ({
+      symbol: s.symbol,
+      pct:    (s.weight / totalWeight) * 100,
+      amount: monthlyDCA * (s.weight / totalWeight),
+    }));
+    const valid = raw.filter(r => r.amount >= 50);
+    const dust  = raw.filter(r => r.amount < 50).reduce((s, r) => s + r.amount, 0);
+    if (valid.length > 0) valid[0].amount += dust;
+    const finalTotal = valid.reduce((s, r) => s + r.amount, 0);
+    allocation = valid.map(r => ({ ...r, pct: (r.amount / finalTotal) * 100 }));
+    if (allocation.length === 0) {
+      allocation = [{ symbol: pool[0].symbol, pct: 100, amount: monthlyDCA }];
+    }
   }
 
   const currentBlended = scored.reduce((s, p) => s + (p.currentW / 100) * p.cagr, 0);

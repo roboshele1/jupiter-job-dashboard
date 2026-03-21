@@ -1,0 +1,510 @@
+/**
+ * renderer/pages/MonteCarlo.jsx
+ * JUPITER — Monte Carlo Probability Analysis Tab
+ * 
+ * Answers: "What's the probability I hit $1M by 2037?"
+ * 
+ * Features:
+ *   - 10,000 simulation paths with full percentile bands
+ *   - Interactive DCA slider (300–2000/month)
+ *   - Probability gauge (success % with confidence coloring)
+ *   - Distribution histogram (outcomes visualization)
+ *   - Sensitivity table (DCA impact on probability)
+ *   - Worst-case drawdown resilience
+ */
+
+import { useEffect, useState, useMemo, useCallback } from "react";
+import { runMonteCarloSimulation, generatePercentileBands, sensitivityAnalysis } from "../../engine/probabilityModels/monteCarloEngine.js";
+
+// ── Color tokens (match JUPITER theme) ────────────────────────────────────────
+const C = {
+  bg:        "#060910",
+  surface:   "#0c1220",
+  panel:     "#0f172a",
+  border:    "#1a2540",
+  borderAcc: "#2d3f55",
+  text:      "#e2e8f0",
+  textSec:   "#94a3b8",
+  textMuted: "#6b7280",
+  textDim:   "#374151",
+  green:     "#22c55e",
+  greenDim:  "rgba(34,197,94,0.10)",
+  red:       "#ef4444",
+  redDim:    "rgba(239,68,68,0.10)",
+  blue:      "#3b82f6",
+  blueDim:   "rgba(59,130,246,0.10)",
+  gold:      "#f59e0b",
+  goldDim:   "rgba(245,158,11,0.10)",
+  cyan:      "#06b6d4",
+  cyanDim:   "rgba(6,182,212,0.10)",
+  purple:    "#a855f7",
+};
+
+const mono = { fontFamily: "'IBM Plex Mono', monospace" };
+
+const GOAL_TARGET = 1_000_000;
+const GOAL_YEAR = 2037;
+const CURRENT_YEAR = new Date().getFullYear();
+const YEARS_TO_GOAL = GOAL_YEAR - CURRENT_YEAR;
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
+function fmtMoney(n) {
+  return "$" + Number(n || 0).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+}
+
+function fmtPct(n, decimals = 1) {
+  return Number(n || 0).toFixed(decimals) + "%";
+}
+
+function probabilityColor(pct) {
+  if (pct >= 80) return C.green;
+  if (pct >= 60) return C.blue;
+  if (pct >= 40) return C.gold;
+  return C.red;
+}
+
+// ── Sub-components ────────────────────────────────────────────────────────────
+
+function SectionLabel({ children, sub }) {
+  return (
+    <div style={{ marginBottom: 16 }}>
+      <div style={{ ...mono, fontSize: 10, fontWeight: 700, letterSpacing: "0.18em", color: C.textMuted, textTransform: "uppercase" }}>
+        {children}
+      </div>
+      {sub && <div style={{ ...mono, fontSize: 9, color: C.textDim, marginTop: 3 }}>{sub}</div>}
+    </div>
+  );
+}
+
+function StatBox({ label, value, color, bg, border, sub }) {
+  return (
+    <div style={{
+      background: bg || C.surface,
+      border: `1px solid ${border || C.border}`,
+      borderRadius: 10,
+      padding: "16px 18px",
+    }}>
+      <div style={{ ...mono, fontSize: 9, color: C.textMuted, letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 8 }}>
+        {label}
+      </div>
+      <div style={{ ...mono, fontSize: 24, fontWeight: 800, color: color || C.text, marginBottom: 4 }}>
+        {value}
+      </div>
+      {sub && <div style={{ ...mono, fontSize: 10, color: C.textMuted }}>{sub}</div>}
+    </div>
+  );
+}
+
+// ── Probability Gauge (circular progress) ──────────────────────────────────────
+function ProbabilityGauge({ probability }) {
+  const radius = 45;
+  const circumference = 2 * Math.PI * radius;
+  const offset = circumference - (probability / 100) * circumference;
+  const color = probabilityColor(probability);
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12 }}>
+      <svg width="120" height="120" style={{ transform: "rotate(-90deg)" }}>
+        {/* Background ring */}
+        <circle cx="60" cy="60" r={radius} fill="none" stroke={C.border} strokeWidth="6" />
+        {/* Progress ring */}
+        <circle
+          cx="60"
+          cy="60"
+          r={radius}
+          fill="none"
+          stroke={color}
+          strokeWidth="6"
+          strokeDasharray={circumference}
+          strokeDashoffset={offset}
+          strokeLinecap="round"
+          style={{ transition: "stroke-dashoffset 0.6s ease" }}
+        />
+      </svg>
+      <div style={{ ...mono, fontSize: 28, fontWeight: 900, color, textAlign: "center" }}>
+        {fmtPct(probability, 0)}
+      </div>
+      <div style={{ ...mono, fontSize: 10, color: C.textMuted, textAlign: "center", textTransform: "uppercase", letterSpacing: "0.08em" }}>
+        Probability of Success
+      </div>
+    </div>
+  );
+}
+
+// ── Histogram visualization ────────────────────────────────────────────────────
+function OutcomeHistogram({ histogram, bucketMin, bucketMax, targetValue }) {
+  const maxCount = Math.max(...histogram);
+  const targetBucket = targetValue >= bucketMax ? 9 : Math.floor(((targetValue - bucketMin) / (bucketMax - bucketMin)) * 10);
+
+  return (
+    <div style={{
+      background: C.surface,
+      border: `1px solid ${C.border}`,
+      borderRadius: 10,
+      padding: "16px 18px",
+    }}>
+      <SectionLabel>Outcome Distribution</SectionLabel>
+      <div style={{ display: "flex", alignItems: "flex-end", gap: 6, height: 140 }}>
+        {histogram.map((count, idx) => (
+          <div
+            key={idx}
+            style={{
+              flex: 1,
+              height: `${(count / maxCount) * 100}%`,
+              background: idx <= targetBucket ? C.green : C.textMuted,
+              opacity: idx <= targetBucket ? 0.8 : 0.3,
+              borderRadius: "4px 4px 0 0",
+              cursor: "pointer",
+              title: `${count} paths`,
+            }}
+          />
+        ))}
+      </div>
+      <div style={{ ...mono, fontSize: 9, color: C.textMuted, marginTop: 12, display: "flex", justifyContent: "space-between" }}>
+        <span>{fmtMoney(bucketMin)}</span>
+        <span style={{ color: C.green }}>Target {fmtMoney(targetValue)}</span>
+        <span>{fmtMoney(bucketMax)}</span>
+      </div>
+    </div>
+  );
+}
+
+// ── Percentile bands table ─────────────────────────────────────────────────────
+function PercentileBands({ p10, p25, p50, p75, p90, targetValue }) {
+  return (
+    <div style={{
+      background: C.surface,
+      border: `1px solid ${C.border}`,
+      borderRadius: 10,
+      padding: "16px 18px",
+    }}>
+      <SectionLabel>Percentile Outcomes (2037)</SectionLabel>
+      <table style={{ width: "100%", ...mono, fontSize: 11 }}>
+        <thead>
+          <tr style={{ color: C.textMuted, borderBottom: `1px solid ${C.border}` }}>
+            <th style={{ textAlign: "left", paddingBottom: 8, fontWeight: 600 }}>Percentile</th>
+            <th style={{ textAlign: "right", paddingBottom: 8, fontWeight: 600 }}>2037 Value</th>
+            <th style={{ textAlign: "right", paddingBottom: 8, fontWeight: 600 }}>vs Target</th>
+          </tr>
+        </thead>
+        <tbody>
+          {[
+            { pct: 10, val: p10, label: "10th" },
+            { pct: 25, val: p25, label: "25th" },
+            { pct: 50, val: p50, label: "50th (Median)" },
+            { pct: 75, val: p75, label: "75th" },
+            { pct: 90, val: p90, label: "90th" },
+          ].map((row) => (
+            <tr key={row.pct} style={{ borderBottom: `1px solid ${C.borderAcc}`, color: C.text }}>
+              <td style={{ paddingTop: 8, paddingBottom: 8 }}>{row.label}</td>
+              <td style={{ textAlign: "right", paddingTop: 8, paddingBottom: 8 }}>{fmtMoney(row.val)}</td>
+              <td style={{
+                textAlign: "right",
+                paddingTop: 8,
+                paddingBottom: 8,
+                color: row.val >= targetValue ? C.green : C.red,
+              }}>
+                {row.val >= targetValue ? "✓" : "✗"} {fmtMoney(row.val - targetValue)}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+// ── Sensitivity analysis table ─────────────────────────────────────────────────
+function SensitivityTable({ sensitivityData, currentDCA }) {
+  if (!sensitivityData) return null;
+
+  const rows = Object.values(sensitivityData).sort((a, b) => a.dca - b.dca);
+
+  return (
+    <div style={{
+      background: C.surface,
+      border: `1px solid ${C.border}`,
+      borderRadius: 10,
+      padding: "16px 18px",
+    }}>
+      <SectionLabel>DCA Sensitivity Analysis</SectionLabel>
+      <table style={{ width: "100%", ...mono, fontSize: 11 }}>
+        <thead>
+          <tr style={{ color: C.textMuted, borderBottom: `1px solid ${C.border}` }}>
+            <th style={{ textAlign: "left", paddingBottom: 8, fontWeight: 600 }}>Monthly DCA</th>
+            <th style={{ textAlign: "center", paddingBottom: 8, fontWeight: 600 }}>Success %</th>
+            <th style={{ textAlign: "right", paddingBottom: 8, fontWeight: 600 }}>Median 2037</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row) => (
+            <tr
+              key={row.dca}
+              style={{
+                borderBottom: `1px solid ${C.borderAcc}`,
+                color: row.dca === currentDCA ? C.blue : C.text,
+                background: row.dca === currentDCA ? "rgba(59, 130, 246, 0.05)" : "transparent",
+              }}
+            >
+              <td style={{ paddingTop: 8, paddingBottom: 8 }}>{fmtMoney(row.dca)}/mo</td>
+              <td style={{ textAlign: "center", paddingTop: 8, paddingBottom: 8, color: probabilityColor(row.probability) }}>
+                {fmtPct(row.probability, 0)}
+              </td>
+              <td style={{ textAlign: "right", paddingTop: 8, paddingBottom: 8 }}>{fmtMoney(row.median)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+// ── Main component ─────────────────────────────────────────────────────────────
+export default function MonteCarlo() {
+  const [state, setState] = useState({
+    loading: true,
+    monthlyDCA: 500,
+    results: null,
+    sensitivityData: null,
+    error: null,
+  });
+
+  const holdings = useMemo(() => [
+    { symbol: "NVDA", weight: 10.234, cagr: 28 },
+    { symbol: "ASML", weight: 4.809, cagr: 15 },
+    { symbol: "AVGO", weight: 9.737, cagr: 30 },
+    { symbol: "BTC", weight: 17.764, cagr: 20 },
+    { symbol: "NOW", weight: 9.443, cagr: 22 },
+    { symbol: "AXON", weight: 3.066, cagr: 25 },
+    { symbol: "ZETA", weight: 5.505, cagr: 21 },
+    { symbol: "MELI", weight: 5.259, cagr: 25 },
+    { symbol: "NU", weight: 2.202, cagr: 28 },
+    { symbol: "LLY", weight: 3.963, cagr: 23 },
+    { symbol: "RKLB", weight: 1.115, cagr: 38 },
+    { symbol: "PLTR", weight: 2.137, cagr: 45 },
+    { symbol: "APP", weight: 1.852, cagr: 40 },
+  ], []);
+
+  // Compute simulation on mount and when DCA changes
+  useEffect(() => {
+    const runSimulation = async () => {
+      try {
+        setState(prev => ({ ...prev, loading: true }));
+
+        const results = runMonteCarloSimulation({
+          startValue: 74232,
+          holdings,
+          monthlyDCA: state.monthlyDCA,
+          targetValue: GOAL_TARGET,
+          years: YEARS_TO_GOAL,
+          simCount: 10000,
+          targetReturn: 27.3,
+        });
+
+        // Also run sensitivity analysis (happens in background)
+        const sensitivity = sensitivityAnalysis({
+          startValue: 74232,
+          holdings,
+          targetValue: GOAL_TARGET,
+          years: YEARS_TO_GOAL,
+          targetReturn: 27.3,
+        }, [300, 500, 750, 1000, 1500]);
+
+        setState(prev => ({
+          ...prev,
+          loading: false,
+          results,
+          sensitivityData: sensitivity,
+          error: null,
+        }));
+      } catch (err) {
+        setState(prev => ({
+          ...prev,
+          loading: false,
+          error: err.message,
+        }));
+      }
+    };
+
+    runSimulation();
+  }, [state.monthlyDCA, holdings]);
+
+  const handleDCAChange = (newDCA) => {
+    setState(prev => ({ ...prev, monthlyDCA: newDCA }));
+  };
+
+  const { results, sensitivityData, loading } = state;
+
+  if (loading || !results) {
+    return (
+      <div style={{
+        background: C.bg,
+        minHeight: "100vh",
+        padding: "24px 32px",
+        fontFamily: "'IBM Plex Mono', monospace",
+        color: C.text,
+      }}>
+        <div style={{ ...mono, fontSize: 16, fontWeight: 700, marginBottom: 24 }}>
+          ◈ Monte Carlo Analysis
+        </div>
+        <div style={{ ...mono, fontSize: 12, color: C.textMuted }}>
+          Running 10,000 simulations…
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{
+      background: C.bg,
+      minHeight: "100vh",
+      padding: "24px 32px",
+      fontFamily: "'IBM Plex Mono', monospace",
+      color: C.text,
+    }}>
+      {/* Header */}
+      <div style={{ marginBottom: 32 }}>
+        <div style={{ ...mono, fontSize: 16, fontWeight: 700, marginBottom: 8 }}>
+          ◈ Monte Carlo Analysis
+        </div>
+        <div style={{ ...mono, fontSize: 11, color: C.textMuted }}>
+          {results.simulationCount.toLocaleString()} stochastic paths · {YEARS_TO_GOAL}-year horizon · Target: {fmtMoney(GOAL_TARGET)}
+        </div>
+      </div>
+
+      {/* Main KPI row */}
+      <div style={{
+        display: "grid",
+        gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+        gap: 16,
+        marginBottom: 32,
+      }}>
+        <StatBox
+          label="Probability of Success"
+          value={fmtPct(results.probabilityOfSuccess, 0)}
+          color={probabilityColor(results.probabilityOfSuccess)}
+        />
+        <StatBox
+          label="Expected Outcome (2037)"
+          value={fmtMoney(results.expectedFinalValue)}
+          sub="vs $1M target"
+          color={results.expectedFinalValue >= GOAL_TARGET ? C.green : C.gold}
+        />
+        <StatBox
+          label="Median Outcome (50th %ile)"
+          value={fmtMoney(results.percentile50)}
+          color={results.percentile50 >= GOAL_TARGET ? C.green : C.textSec}
+        />
+        <StatBox
+          label="Worst-Case Drawdown"
+          value={fmtPct(results.maxDrawdown * 100, 1)}
+          color={results.maxDrawdown < 0.4 ? C.green : C.gold}
+          sub="Maximum loss in path"
+        />
+      </div>
+
+      {/* DCA Control */}
+      <div style={{
+        background: C.surface,
+        border: `1px solid ${C.border}`,
+        borderRadius: 10,
+        padding: "20px 24px",
+        marginBottom: 32,
+      }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+          <SectionLabel>Monthly DCA</SectionLabel>
+          <div style={{ ...mono, fontSize: 18, fontWeight: 800, color: C.blue }}>
+            {fmtMoney(state.monthlyDCA)}/month
+          </div>
+        </div>
+        <input
+          type="range"
+          min="300"
+          max="2000"
+          step="50"
+          value={state.monthlyDCA}
+          onChange={(e) => handleDCAChange(Number(e.target.value))}
+          style={{
+            width: "100%",
+            height: 8,
+            borderRadius: 4,
+            background: C.border,
+            outline: "none",
+            WebkitAppearance: "none",
+            MozAppearance: "none",
+            cursor: "pointer",
+          }}
+        />
+        <div style={{
+          ...mono,
+          fontSize: 9,
+          color: C.textMuted,
+          marginTop: 12,
+          display: "flex",
+          justifyContent: "space-between",
+        }}>
+          <span>$300</span>
+          <span>$1,150</span>
+          <span>$2,000</span>
+        </div>
+      </div>
+
+      {/* Main content grid */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24, marginBottom: 32 }}>
+        {/* Probability Gauge */}
+        <div style={{
+          background: C.surface,
+          border: `1px solid ${C.border}`,
+          borderRadius: 10,
+          padding: "24px 20px",
+          display: "flex",
+          justifyContent: "center",
+          alignItems: "center",
+        }}>
+          <ProbabilityGauge probability={results.probabilityOfSuccess} />
+        </div>
+
+        {/* Histogram */}
+        <OutcomeHistogram
+          histogram={results.histogram}
+          bucketMin={results.bucketMin}
+          bucketMax={results.bucketMax}
+          targetValue={GOAL_TARGET}
+        />
+      </div>
+
+      {/* Percentile bands */}
+      <div style={{ marginBottom: 32 }}>
+        <PercentileBands
+          p10={results.percentile10}
+          p25={results.percentile25}
+          p50={results.percentile50}
+          p75={results.percentile75}
+          p90={results.percentile90}
+          targetValue={GOAL_TARGET}
+        />
+      </div>
+
+      {/* Sensitivity */}
+      {sensitivityData && (
+        <div style={{ marginBottom: 32 }}>
+          <SensitivityTable sensitivityData={sensitivityData} currentDCA={state.monthlyDCA} />
+        </div>
+      )}
+
+      {/* Footer note */}
+      <div style={{
+        background: C.panel,
+        border: `1px solid ${C.borderAcc}`,
+        borderRadius: 10,
+        padding: "14px 16px",
+        ...mono,
+        fontSize: 9,
+        color: C.textMuted,
+        lineHeight: "1.6",
+      }}>
+        Monte Carlo assumes: (1) Log-normal asset returns with volatility derived from conviction tier; (2) No forced rebalancing or taxes; (3) DCA contributions made uniformly each month; (4) Correlation between holdings embedded in diversification. Results are stochastic — actual outcomes will vary. Use for planning, not prediction.
+      </div>
+    </div>
+  );
+}

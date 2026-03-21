@@ -13,9 +13,9 @@ const items = [
   { label: "Insights",       path: "/insights"   },
   { label: "Risk Centre",    path: "/risk"       },
   { label: "Goal Engine",    path: "/goal"       },
-  { label: "Decisions",      path: "/decisions"  },
+  { label: "Monte Carlo",    path: "/monte-carlo" },
+
   { label: "Jupiter AI",     path: "/jupiterai"  },
-  { label: "Daemon Monitor", path: "/daemon" },
 ];
 
 const C = {
