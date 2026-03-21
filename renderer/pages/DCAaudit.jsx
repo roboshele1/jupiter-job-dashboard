@@ -272,7 +272,179 @@ function LogExecutionDialog({ onClose, onSubmit, buckets }) {
   );
 }
 
-// ── Execution Ledger Table ───────────────────────────────────────────────────
+function CAGRPerformancePanel({ executions, currentPortfolioValue }) {
+  const [portfolioBlendedCAGR, setPortfolioBlendedCAGR] = useState(null);
+  const [totalMarketValue, setTotalMarketValue] = useState(0);
+
+  // Load portfolio blended CAGR from live market values via IPC
+  useEffect(() => {
+    const loadBlendedCAGR = async () => {
+      try {
+        const data = await window.jupiter.invoke("portfolio:get-market-values", {});
+        if (!data) return;
+
+        setPortfolioBlendedCAGR(data.blendedCAGR);
+        setTotalMarketValue(data.totalMarketValue);
+      } catch (err) {
+        console.error("[DCA AUDIT] Failed to load blended CAGR from market values:", err);
+      }
+    };
+
+    loadBlendedCAGR();
+  }, []);
+
+  // Calculate execution-based blended CAGR (only new DCA allocations)
+  const calculateExecutionBlendedCAGR = () => {
+    if (!executions || executions.length === 0) return null;
+
+    // Group by symbol, calculate weighted average
+    const symbolCAGR = {};
+    const symbolWeights = {};
+
+    executions.forEach(exec => {
+      if (!symbolCAGR[exec.symbol]) {
+        symbolCAGR[exec.symbol] = exec.cagr;
+        symbolWeights[exec.symbol] = exec.amount;
+      } else {
+        symbolWeights[exec.symbol] += exec.amount;
+      }
+    });
+
+    const totalAmount = Object.values(symbolWeights).reduce((s, w) => s + w, 0);
+    const blended = Object.entries(symbolCAGR).reduce((sum, [symbol, cagr]) => {
+      return sum + (cagr * (symbolWeights[symbol] / totalAmount));
+    }, 0);
+
+    return blended;
+  };
+
+  // Calculate overall blended CAGR (current holdings at market value + DCA allocations combined)
+  const calculateOverallBlendedCAGR = () => {
+    if (!portfolioBlendedCAGR) return null;
+
+    const executionBlended = calculateExecutionBlendedCAGR();
+    if (!executionBlended) return portfolioBlendedCAGR; // No executions yet
+
+    // Current portfolio market value and DCA allocation value
+    const dcaValue = (executions || []).reduce((s, e) => s + e.amount, 0);
+    const totalValue = totalMarketValue + dcaValue;
+
+    // Weighted blended
+    const portfolioWeight = totalMarketValue / totalValue;
+    const dcaWeight = dcaValue / totalValue;
+
+    const overall = (portfolioBlendedCAGR * portfolioWeight) + (executionBlended * dcaWeight);
+    return overall;
+  };
+
+  const REQUIRED_CAGR = 26.7;
+  const GOAL_TARGET = 1_000_000;
+  const GOAL_YEAR = 2037;
+  const CURRENT_YEAR = new Date().getFullYear();
+  const YEARS_TO_GOAL = GOAL_YEAR - CURRENT_YEAR;
+
+  const executionBlendedCAGR = calculateExecutionBlendedCAGR();
+  const overallBlendedCAGR = calculateOverallBlendedCAGR();
+
+  // Project 2037 value using live market value (not cost basis)
+  const projectedValue2037 = overallBlendedCAGR
+    ? (totalMarketValue || 74232) * Math.pow(1 + overallBlendedCAGR / 100, YEARS_TO_GOAL)
+    : (totalMarketValue || 74232);
+
+  const shortfall = GOAL_TARGET - projectedValue2037;
+  const statusColor = overallBlendedCAGR >= REQUIRED_CAGR ? C.green : (overallBlendedCAGR >= REQUIRED_CAGR - 0.5 ? C.gold : C.red);
+
+  return (
+    <div style={{
+      background: C.surface,
+      border: `1px solid ${C.border}`,
+      borderRadius: 10,
+      padding: "20px 24px",
+      marginBottom: 32,
+    }}>
+      <SectionLabel>CAGR Performance vs Target</SectionLabel>
+      
+      <div style={{
+        display: "grid",
+        gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+        gap: 16,
+        marginBottom: 24,
+      }}>
+        <div>
+          <div style={{ ...mono, fontSize: 10, color: C.textMuted, marginBottom: 8, fontWeight: 700, textTransform: "uppercase" }}>
+            Portfolio Baseline CAGR
+          </div>
+          <div style={{ ...mono, fontSize: 24, fontWeight: 800, color: C.blue }}>
+            {portfolioBlendedCAGR ? portfolioBlendedCAGR.toFixed(1) : "—"}%
+          </div>
+        </div>
+
+        {executions && executions.length > 0 && (
+          <div>
+            <div style={{ ...mono, fontSize: 10, color: C.textMuted, marginBottom: 8, fontWeight: 700, textTransform: "uppercase" }}>
+              Execution Blended CAGR
+            </div>
+            <div style={{ ...mono, fontSize: 24, fontWeight: 800, color: statusColor }}>
+              {executionBlendedCAGR ? executionBlendedCAGR.toFixed(1) : "—"}%
+            </div>
+          </div>
+        )}
+
+        <div>
+          <div style={{ ...mono, fontSize: 10, color: C.textMuted, marginBottom: 8, fontWeight: 700, textTransform: "uppercase" }}>
+            Overall Blended CAGR
+          </div>
+          <div style={{ ...mono, fontSize: 24, fontWeight: 800, color: statusColor }}>
+            {overallBlendedCAGR ? overallBlendedCAGR.toFixed(1) : portfolioBlendedCAGR ? portfolioBlendedCAGR.toFixed(1) : "—"}%
+          </div>
+        </div>
+
+        <div>
+          <div style={{ ...mono, fontSize: 10, color: C.textMuted, marginBottom: 8, fontWeight: 700, textTransform: "uppercase" }}>
+            Required CAGR
+          </div>
+          <div style={{ ...mono, fontSize: 24, fontWeight: 800, color: C.blue }}>
+            {REQUIRED_CAGR.toFixed(1)}%
+          </div>
+        </div>
+
+        <div>
+          <div style={{ ...mono, fontSize: 10, color: C.textMuted, marginBottom: 8, fontWeight: 700, textTransform: "uppercase" }}>
+            2037 Projection
+          </div>
+          <div style={{ ...mono, fontSize: 24, fontWeight: 800, color: projectedValue2037 >= GOAL_TARGET ? C.green : C.gold }}>
+            {fmtMoney(projectedValue2037)}
+          </div>
+        </div>
+      </div>
+
+      {/* Shortfall/Surplus message */}
+      <div style={{
+        background: C.panel,
+        border: `1px solid ${C.borderAcc}`,
+        borderRadius: 8,
+        padding: "12px 16px",
+        ...mono,
+        fontSize: 11,
+        color: C.textMuted,
+        lineHeight: "1.6",
+      }}>
+        {shortfall > 0 ? (
+          <span>
+            <span style={{ color: C.red, fontWeight: 700 }}>Shortfall: {fmtMoney(shortfall)}</span>
+            {" "}— To reach $1M by 2037, blended CAGR needs to be {REQUIRED_CAGR.toFixed(1)}% or higher. DCA Audit allocations targeting higher-CAGR assets (PLTR 45%, APP 40%, RKLB 38%) can lift overall CAGR above {REQUIRED_CAGR.toFixed(1)}%.
+          </span>
+        ) : (
+          <span>
+            <span style={{ color: C.green, fontWeight: 700 }}>On Track: {fmtMoney(Math.abs(shortfall))}</span>
+            {" "}— Overall blended CAGR of {overallBlendedCAGR?.toFixed(1)}% projects to {fmtMoney(projectedValue2037)} by 2037, exceeding $1M target.
+          </span>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function ExecutionLedger({ executions }) {
   if (!executions || executions.length === 0) {
     return (
@@ -455,6 +627,9 @@ export default function DCAaudit() {
           color={stats?.aggregateReturnPct >= 0 ? C.green : C.red}
         />
       </div>
+
+      {/* CAGR Performance Panel */}
+      <CAGRPerformancePanel executions={executions} currentPortfolioValue={stats?.currentValue || 74232} />
 
       {/* Drift Summary */}
       {stats && (

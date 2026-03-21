@@ -5,6 +5,8 @@
 import { createRequire } from "module";
 import fs from "fs";
 import path from "path";
+import { registerPortfolioValuesIpc } from "./portfolioValuesIpc.js";
+import { registerHoldingsIpc } from "./holdingsIpc.js";
 import { fileURLToPath } from "url";
 
 import { registerPortfolioIpc } from "./portfolioIpc.js";
@@ -105,7 +107,9 @@ function registerHandler(ipcMain, channel, fn) {
   } catch {}
   ipcMain.handle(channel, fn);
 }
+  registerPortfolioValuesIpc();
 
+  registerHoldingsIpc();
 export function registerAllIpc(ipcMain) {
   registerPortfolioIpc();
   registerGrowthEngineIpc(ipcMain);
