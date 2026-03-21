@@ -10,7 +10,6 @@ const items = [
   { label: "Portfolios",     path: "/portfolios" },
   { label: "Signals",        path: "/signals"    },
   { label: "Discovery Lab",  path: "/discovery"  },
-  { label: "Insights",       path: "/insights"   },
   { label: "Risk Centre",    path: "/risk"       },
   { label: "Goal Engine",    path: "/goal"       },
   { label: "Monte Carlo",    path: "/monte-carlo" },

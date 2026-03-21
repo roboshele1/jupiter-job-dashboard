@@ -12,7 +12,6 @@ import Dashboard     from "./pages/Dashboard";
 import Signals       from "./pages/Signals";
 import DiscoveryLab  from "./pages/DiscoveryLab";
 import GrowthEngine  from "./pages/GrowthEngine";
-import Insights      from "./pages/Insights";
 import RiskCentre    from "./pages/RiskCentre";
 import MarketMonitor from "./pages/MarketMonitor";
 import MoonshotLab   from "./pages/MoonshotLab";
@@ -102,7 +101,6 @@ function AppShell() {
             <Route path="/discovery"  element={<DiscoveryLab />}  />
             <Route path="/growth"     element={<GrowthEngine />}  />
             <Route path="/insights"   element={<Insights />}      />
-            <Route path="/risk"       element={<RiskCentre />}    />
             <Route path="/market"     element={<MarketMonitor />} />
             <Route path="/moonshot"   element={<MoonshotLab />}   />
             <Route path="/goal"       element={<GoalEngine />}    />
