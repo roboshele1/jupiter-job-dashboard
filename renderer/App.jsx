@@ -21,6 +21,7 @@ import Performance   from "./pages/Performance";
 import Rebalancing  from "./pages/Rebalancing";
 import LearningLoop   from "./pages/LearningLoop";
 import JupiterAI     from "./pages/JupiterAI";
+import DCAaudit       from "./pages/DCAaudit";
 import MonteCarlo    from "./pages/MonteCarlo";
 import Portfolios    from "./pages/Portfolios";
 import Login         from "./pages/Login";
@@ -106,6 +107,8 @@ function AppShell() {
             <Route path="/moonshot"   element={<MoonshotLab />}   />
             <Route path="/goal"       element={<GoalEngine />}    />
             <Route path="/monte-carlo" element={<MonteCarlo />} />
+            <Route path="/audit" element={<DCAaudit />} />
+
 
             <Route path="/rebalancing" element={<Rebalancing />}   />
             <Route path="/learningloop" element={<LearningLoop />}  />

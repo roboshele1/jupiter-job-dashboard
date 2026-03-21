@@ -14,6 +14,8 @@ const items = [
   { label: "Risk Centre",    path: "/risk"       },
   { label: "Goal Engine",    path: "/goal"       },
   { label: "Monte Carlo",    path: "/monte-carlo" },
+  { label: "DCA Audit",      path: "/audit" },
+
 
   { label: "Jupiter AI",     path: "/jupiterai"  },
 ];
