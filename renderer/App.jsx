@@ -100,7 +100,6 @@ function AppShell() {
             <Route path="/signals"    element={<Signals />}       />
             <Route path="/discovery"  element={<DiscoveryLab />}  />
             <Route path="/growth"     element={<GrowthEngine />}  />
-            <Route path="/insights"   element={<Insights />}      />
             <Route path="/market"     element={<MarketMonitor />} />
             <Route path="/moonshot"   element={<MoonshotLab />}   />
             <Route path="/goal"       element={<GoalEngine />}    />
