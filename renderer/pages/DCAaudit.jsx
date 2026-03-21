@@ -275,6 +275,7 @@ function LogExecutionDialog({ onClose, onSubmit, buckets }) {
 function CAGRPerformancePanel({ executions, currentPortfolioValue }) {
   const [portfolioBlendedCAGR, setPortfolioBlendedCAGR] = useState(null);
   const [totalMarketValue, setTotalMarketValue] = useState(0);
+  const [topCAGRAssets, setTopCAGRAssets] = useState([]);
 
   // Load portfolio blended CAGR from live market values via IPC
   useEffect(() => {
@@ -285,6 +286,15 @@ function CAGRPerformancePanel({ executions, currentPortfolioValue }) {
 
         setPortfolioBlendedCAGR(data.blendedCAGR);
         setTotalMarketValue(data.totalMarketValue);
+        
+        // Get top 3 highest CAGR assets
+        if (data.holdings && data.holdings.length > 0) {
+          const sorted = [...data.holdings]
+            .sort((a, b) => b.expectedCagr - a.expectedCagr)
+            .slice(0, 3)
+            .map(h => `${h.symbol} ${h.expectedCagr.toFixed(0)}%`);
+          setTopCAGRAssets(sorted);
+        }
       } catch (err) {
         console.error("[DCA AUDIT] Failed to load blended CAGR from market values:", err);
       }
@@ -432,7 +442,7 @@ function CAGRPerformancePanel({ executions, currentPortfolioValue }) {
         {shortfall > 0 ? (
           <span>
             <span style={{ color: C.red, fontWeight: 700 }}>Shortfall: {fmtMoney(shortfall)}</span>
-            {" "}— To reach $1M by 2037, blended CAGR needs to be {REQUIRED_CAGR.toFixed(1)}% or higher. DCA Audit allocations targeting higher-CAGR assets (PLTR 45%, APP 40%, RKLB 38%) can lift overall CAGR above {REQUIRED_CAGR.toFixed(1)}%.
+            {" "}— To reach $1M by 2037, blended CAGR needs to be {REQUIRED_CAGR.toFixed(1)}% or higher. DCA Audit allocations targeting highest-CAGR assets ({topCAGRAssets.length > 0 ? topCAGRAssets.join(", ") : "loading..."}) can lift overall CAGR above {REQUIRED_CAGR.toFixed(1)}%.
           </span>
         ) : (
           <span>
