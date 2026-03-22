@@ -112,6 +112,7 @@ function AppShell() {
             <Route path="/performance" element={<Performance />}    />
             <Route path="/jupiterai"  element={<JupiterAI />}     />
             <Route path="/portfolios" element={<Portfolios />}    />
+            <Route path="/risk"       element={<RiskCentre />}    />
           </Routes>
         </main>
       </div>
