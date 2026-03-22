@@ -11,6 +11,7 @@
  *   - Beat/miss signal
  */
 
+import { computeQuantitativeConvictions } from "../conviction/quantitativeConvictions.js";
 const STORAGE_KEY = "jupiter:dca:executions";
 const POLYGON_KEY = process.env.POLYGON_API_KEY || process.env.VITE_POLYGON_API_KEY || 'YnaWTNmcXAkNMDpZTrFqpeLbvxisYOc3';
 
@@ -98,6 +99,10 @@ export async function logDCAExecutionWithPrice(allocation) {
       console.warn(`[DCA AUDIT] Failed to fetch price for ${allocation.symbol}, using placeholder`);
     }
 
+    // Fetch conviction at execution time (derived from live market data)
+    const convictionResults = await computeQuantitativeConvictions([allocation.symbol.toUpperCase()]);
+    const convictionAtExecution = convictionResults[allocation.symbol.toUpperCase()]?.conviction || 0.5;
+
     const id = `exec_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
     
     const record = {
@@ -107,6 +112,7 @@ export async function logDCAExecutionWithPrice(allocation) {
       amount: Number(allocation.amount),
       entryPrice: entryPrice || null,
       entryPriceFetchedAt: entryPrice ? Date.now() : null,
+      convictionAtExecution: Number(convictionAtExecution.toFixed(2)),
       cagr: CAGR_BY_SYMBOL[allocation.symbol.toUpperCase()] || 20,
       expectedMonthlyDrift: monthlyDriftFromCAGR(CAGR_BY_SYMBOL[allocation.symbol.toUpperCase()] || 20),
       currentPrice: null,
@@ -124,7 +130,6 @@ export async function logDCAExecutionWithPrice(allocation) {
     throw err;
   }
 }
-
 /**
  * Log batch DCA execution with live prices
  * @param {Array} allocations - [{ symbol, amount }, ...]
