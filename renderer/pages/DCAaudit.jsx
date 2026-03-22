@@ -534,6 +534,130 @@ function ExecutionLedger({ executions }) {
 }
 
 // ── Main component ─────────────────────────────────────────────────────────────
+
+function PerformanceAuditPanel({ executions }) {
+  if (!executions || executions.length === 0) {
+    return (
+      <div style={{
+        background: C.surface,
+        border: `1px solid ${C.border}`,
+        borderRadius: 10,
+        padding: "24px",
+        marginBottom: 32,
+        textAlign: "center",
+        color: C.textMuted,
+        ...mono,
+        fontSize: 12,
+      }}>
+        <div style={{ ...mono, fontSize: 14, fontWeight: 700, marginBottom: 12, color: C.text }}>
+          Performance Audit
+        </div>
+        No executions logged yet. Once you log DCA allocations, actual vs expected performance will appear here.
+      </div>
+    );
+  }
+
+  const symbolMetrics = {};
+  executions.forEach(exec => {
+    if (!symbolMetrics[exec.symbol]) {
+      symbolMetrics[exec.symbol] = {
+        symbol: exec.symbol,
+        executions: [],
+        totalAmount: 0,
+      };
+    }
+    symbolMetrics[exec.symbol].executions.push(exec);
+    symbolMetrics[exec.symbol].totalAmount += exec.amount;
+  });
+
+  const metrics = Object.values(symbolMetrics).map(sym => {
+    const execs = sym.executions;
+    const avgConviction = execs.reduce((s, e) => s + (e.convictionAtExecution || 0.5), 0) / execs.length;
+    const avgActualReturn = execs.reduce((s, e) => s + (e.actualReturnPct || 0), 0) / execs.length;
+    const avgMonthsHeld = execs.reduce((s, e) => {
+      const months = (Date.now() - e.timestamp) / (1000 * 60 * 60 * 24 * 30);
+      return s + months;
+    }, 0) / execs.length;
+    const expectedReturnFromCAGR = execs.length > 0 
+      ? (Math.pow(1 + (execs[0].cagr || 20) / 100, avgMonthsHeld / 12) - 1) * 100
+      : 0;
+
+    return {
+      symbol: sym.symbol,
+      convictionAtExecution: Number(avgConviction.toFixed(2)),
+      actualReturnPct: Number(avgActualReturn.toFixed(2)),
+      expectedReturnFromCAGR: Number(expectedReturnFromCAGR.toFixed(2)),
+      convictionAccuracy: avgActualReturn >= expectedReturnFromCAGR * 0.9 ? "ACCURATE" : "OPTIMISTIC",
+      totalAllocated: sym.totalAmount,
+      executionCount: execs.length,
+    };
+  });
+
+  metrics.sort((a, b) => b.convictionAtExecution - a.convictionAtExecution);
+
+  return (
+    <div style={{
+      background: C.surface,
+      border: `1px solid ${C.border}`,
+      borderRadius: 10,
+      padding: "20px 24px",
+      marginBottom: 32,
+    }}>
+      <div style={{ marginBottom: 20 }}>
+        <div style={{ ...mono, fontSize: 12, fontWeight: 700, color: C.text, marginBottom: 4 }}>
+          Performance Audit
+        </div>
+        <div style={{ ...mono, fontSize: 10, color: C.textMuted }}>
+          Expected CAGR vs Actual Return • Conviction Accuracy
+        </div>
+      </div>
+
+      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+        {metrics.map(m => (
+          <div key={m.symbol} style={{
+            background: C.panel,
+            border: `1px solid ${C.borderAcc}`,
+            borderRadius: 8,
+            padding: "14px 16px",
+            display: "grid",
+            gridTemplateColumns: "80px 1fr 1fr 1fr 1fr",
+            gap: 16,
+            alignItems: "center",
+          }}>
+            <div style={{ ...mono, fontSize: 12, fontWeight: 700, color: C.text }}>
+              {m.symbol}
+            </div>
+            <div>
+              <div style={{ ...mono, fontSize: 9, color: C.textMuted, marginBottom: 4 }}>CONVICTION</div>
+              <div style={{ ...mono, fontSize: 13, fontWeight: 700, color: C.blue }}>
+                {(m.convictionAtExecution * 100).toFixed(0)}%
+              </div>
+            </div>
+            <div>
+              <div style={{ ...mono, fontSize: 9, color: C.textMuted, marginBottom: 4 }}>EXPECTED</div>
+              <div style={{ ...mono, fontSize: 13, fontWeight: 700, color: C.gold }}>
+                {m.expectedReturnFromCAGR.toFixed(1)}%
+              </div>
+            </div>
+            <div>
+              <div style={{ ...mono, fontSize: 9, color: C.textMuted, marginBottom: 4 }}>ACTUAL</div>
+              <div style={{ ...mono, fontSize: 13, fontWeight: 700, color: m.actualReturnPct >= 0 ? C.green : C.red }}>
+                {m.actualReturnPct.toFixed(1)}%
+              </div>
+            </div>
+            <div>
+              <div style={{ ...mono, fontSize: 9, color: C.textMuted, marginBottom: 4 }}>STATUS</div>
+              <div style={{ ...mono, fontSize: 11, fontWeight: 700, color: m.convictionAccuracy === "ACCURATE" ? C.green : C.gold }}>
+                {m.convictionAccuracy}
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export default function DCAaudit() {
   const [showLogDialog, setShowLogDialog] = useState(false);
   const [executions, setExecutions] = useState([]);
@@ -679,6 +803,9 @@ export default function DCAaudit() {
           </div>
         </div>
       )}
+
+      {/* Performance Audit Panel */}
+      <PerformanceAuditPanel executions={executions} />
 
       {/* Log Execution Button */}
       <div style={{ marginBottom: 32 }}>
