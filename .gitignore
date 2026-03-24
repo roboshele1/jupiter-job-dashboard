@@ -55,3 +55,7 @@ logs/
 
 # Transient snapshots
 data/discoverySnapshots.json
+.vercel
+dist-electron/
+node_modules/
+*.dmg
