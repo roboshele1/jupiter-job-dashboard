@@ -5,15 +5,15 @@
     "assetClass": "equity",
     "totalCostBasis": 10466.32,
     "currency": "USD",
-    "expectedCagr": 0.28
+    "expectedCagr": 28
   },
   {
     "symbol": "ASML",
-    "qty": 5.4509,
+    "qty": 4.4509,
     "assetClass": "equity",
-    "totalCostBasis": 4808.76,
+    "totalCostBasis": 3899.36,
     "currency": "USD",
-    "expectedCagr": 0.15
+    "expectedCagr": 15
   },
   {
     "symbol": "BTC",
@@ -21,7 +21,7 @@
     "assetClass": "crypto",
     "totalCostBasis": 17764.31,
     "currency": "USD",
-    "expectedCagr": 0.2
+    "expectedCagr": 20
   },
   {
     "symbol": "AVGO",
@@ -29,7 +29,7 @@
     "assetClass": "equity",
     "totalCostBasis": 9736.86,
     "currency": "USD",
-    "expectedCagr": 0.3
+    "expectedCagr": 30
   },
   {
     "symbol": "NOW",
@@ -37,7 +37,7 @@
     "assetClass": "equity",
     "totalCostBasis": 9442.84,
     "currency": "USD",
-    "expectedCagr": 0.22
+    "expectedCagr": 22
   },
   {
     "symbol": "AXON",
@@ -45,7 +45,7 @@
     "assetClass": "equity",
     "totalCostBasis": 3065.69,
     "currency": "USD",
-    "expectedCagr": 0.25
+    "expectedCagr": 25
   },
   {
     "symbol": "ZETA",
@@ -53,7 +53,7 @@
     "assetClass": "equity",
     "totalCostBasis": 5505.44,
     "currency": "USD",
-    "expectedCagr": 0.21
+    "expectedCagr": 21
   },
   {
     "symbol": "MELI",
@@ -61,7 +61,7 @@
     "assetClass": "equity",
     "totalCostBasis": 5258.82,
     "currency": "USD",
-    "expectedCagr": 0.25
+    "expectedCagr": 25
   },
   {
     "symbol": "NU",
@@ -69,7 +69,7 @@
     "assetClass": "equity",
     "totalCostBasis": 2202.37,
     "currency": "USD",
-    "expectedCagr": 0.28
+    "expectedCagr": 28
   },
   {
     "symbol": "LLY",
@@ -77,7 +77,7 @@
     "assetClass": "equity",
     "totalCostBasis": 3962.54,
     "currency": "USD",
-    "expectedCagr": 0.23
+    "expectedCagr": 23
   },
   {
     "symbol": "RKLB",
@@ -85,7 +85,7 @@
     "assetClass": "equity",
     "totalCostBasis": 1115.14,
     "currency": "USD",
-    "expectedCagr": 0.38
+    "expectedCagr": 38
   },
   {
     "symbol": "PLTR",
@@ -93,7 +93,7 @@
     "assetClass": "equity",
     "totalCostBasis": 2136.84,
     "currency": "USD",
-    "expectedCagr": 0.45
+    "expectedCagr": 45
   },
   {
     "symbol": "APP",
@@ -101,6 +101,6 @@
     "assetClass": "equity",
     "totalCostBasis": 1851.96,
     "currency": "USD",
-    "expectedCagr": 0.4
+    "expectedCagr": 40
   }
 ]

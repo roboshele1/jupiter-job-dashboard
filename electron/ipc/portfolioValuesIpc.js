@@ -14,6 +14,12 @@ const __dirname = path.dirname(__filename);
 const HOLDINGS_PATH = path.join(__dirname, "../../engine/data/users/default/holdings.json");
 const POLYGON_KEY = process.env.POLYGON_API_KEY || 'YnaWTNmcXAkNMDpZTrFqpeLbvxisYOc3';
 
+const CAGR_FALLBACK = {
+  PLTR:45, APP:40, RKLB:38, AVGO:30, NVDA:28, NU:28,
+  AXON:25, MELI:25, LLY:23, NOW:22, ZETA:21, BTC:20,
+  ASML:15, ETH:15, MSTR:18,
+};
+
 async function fetchLivePrice(symbol) {
   try {
     const isCrypto = ['BTC', 'ETH'].includes(symbol.toUpperCase());
@@ -74,17 +80,17 @@ export function registerPortfolioValuesIpc() {
           livePrice: price,
           costBasis: h.totalCostBasis,
           marketValue: marketValue,
-          expectedCagr: h.expectedCagr * 100, // Convert to percentage
+          expectedCagr: h.expectedCagr ?? CAGR_FALLBACK[h.symbol?.toUpperCase()] ?? 20,
         };
       });
 
       // Calculate blended CAGR by live market value
-      const blendedCAGR = enriched.reduce((s, h) => {
+      const blendedCAGR = totalMarketValue > 0 ? enriched.reduce((s, h) => {
         const weight = h.marketValue / totalMarketValue;
         return s + (h.expectedCagr * weight);
-      }, 0);
+      }, 0) : null;
 
-      console.log(`[PORTFOLIO VALUES IPC] Total market value: $${totalMarketValue.toFixed(2)}, Blended CAGR: ${blendedCAGR.toFixed(1)}%`);
+      console.log(`[PORTFOLIO VALUES IPC] Total market value: $${totalMarketValue.toFixed(2)}, Blended CAGR: ${blendedCAGR != null ? blendedCAGR.toFixed(1) : "n/a"}%`);
 
       return {
         holdings: enriched,
@@ -99,3 +105,4 @@ export function registerPortfolioValuesIpc() {
 
   console.log("[IPC] Portfolio values handler registered");
 }
+

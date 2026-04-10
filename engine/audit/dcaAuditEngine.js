@@ -17,6 +17,7 @@ const POLYGON_KEY = process.env.POLYGON_API_KEY || process.env.VITE_POLYGON_API_
 
 // CAGR assumptions (monthly equivalent)
 const CAGR_BY_SYMBOL = {
+  // Auto-fallback: any symbol not listed defaults to 20%
   PLTR: 45, RKLB: 38, APP: 40, AVGO: 30, NVDA: 28, NU: 28,
   AXON: 25, MELI: 25, LLY: 23, NOW: 22, ZETA: 21, BTC: 20,
   ASML: 15, ETH: 15, MSTR: 18,
