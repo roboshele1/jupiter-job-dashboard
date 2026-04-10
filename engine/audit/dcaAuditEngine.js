@@ -144,7 +144,6 @@ export async function logBatchDCAExecutionWithPrices(allocations) {
   saveExecutions(executions);
   return records;
 }
-}
 
 /**
  * Update current prices and recalculate drift for all executions
