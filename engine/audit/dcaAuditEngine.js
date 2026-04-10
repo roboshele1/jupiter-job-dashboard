@@ -123,7 +123,6 @@ export async function logDCAExecutionWithPrice(allocation) {
     };
     
     executions.push(record);
-    saveExecutions(executions);
     
     return record;
   } catch (err) {
@@ -140,7 +139,11 @@ export async function logBatchDCAExecutionWithPrices(allocations) {
   const records = await Promise.all(
     allocations.map(a => logDCAExecutionWithPrice(a))
   );
+  const executions = loadExecutions();
+  records.forEach(record => executions.push(record));
+  saveExecutions(executions);
   return records;
+}
 }
 
 /**
