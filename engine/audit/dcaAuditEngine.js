@@ -335,6 +335,7 @@ function saveExecutions(executions) {
 }
 
 export function updateExecutionPricesFromSnapshot(marketData) {
+  console.log('DEBUG: marketData keys:', Object.keys(marketData || {}).slice(0, 5));
   const executions = loadExecutions();
   executions.forEach(exec => {
     if (marketData[exec.symbol]) {

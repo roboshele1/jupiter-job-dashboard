@@ -682,9 +682,21 @@ export default function DCAaudit() {
   const handleRefreshPrices = async () => {
     setIsRefreshing(true);
     try {
-      await window.jupiter.invoke("dca-audit:update-prices-live");
-      const loaded = getExecutions();
-      setExecutions(loaded);
+      const marketData = await window.jupiter.invoke("dca-audit:update-prices-live");
+      const raw = localStorage.getItem("jupiter:dca:executions");
+      const loaded = raw ? JSON.parse(raw) : [];
+      const updated = loaded.map(exec => {
+        const price = marketData[exec.symbol];
+        if (price == null) return exec;
+        const actualReturnPct = exec.entryPrice ? ((price - exec.entryPrice) / exec.entryPrice) * 100 : null;
+        const daysHeld = (Date.now() - exec.timestamp) / (1000 * 60 * 60 * 24);
+        const monthsHeld = daysHeld / 30;
+        const expectedReturn = (Math.pow(1 + exec.expectedMonthlyDrift / 100, monthsHeld) - 1) * 100;
+        const driftStatus = monthsHeld < 0.5 ? "TOO_EARLY" : actualReturnPct >= expectedReturn * 0.95 ? "BEATING" : actualReturnPct >= expectedReturn * 0.80 ? "ON_TRACK" : "LAGGING";
+        return { ...exec, currentPrice: price, actualReturnPct, driftStatus, lastUpdated: Date.now() };
+      });
+      localStorage.setItem("jupiter:dca:executions", JSON.stringify(updated));
+      setExecutions(updated);
       const computed = calculateAuditStats();
       setStats(computed);
     } catch (err) {
