@@ -236,10 +236,19 @@ export default function JupiterAI() {
       const apiKey = import.meta.env.VITE_ANTHROPIC_API_KEY;
       if (!apiKey) throw new Error("VITE_ANTHROPIC_API_KEY not set in .env — add your Anthropic API key to activate Jupiter AI");
 
-      const freshMemory = await window.jupiter.invoke("memory:getSummary").catch(() => memory);
+      const [freshSnap, freshKelly, freshRisk, freshMemory] = await Promise.all([
+        window.jupiter.invoke("portfolio:getValuation").catch(() => null),
+        window.jupiter.invoke("decisions:getKellyRecommendations").catch(() => null),
+        window.jupiter.invoke("riskCentre:intelligence:v2").catch(() => null),
+        window.jupiter.invoke("memory:getSummary").catch(() => memory),
+      ]);
+
+      const freshPositions = (freshSnap?.positions || []).filter(p => p.symbol);
+      const freshPortfolioValue = freshSnap?.totals?.liveValue || freshPositions.reduce((s,p) => s + Number(p.liveValue||0), 0);
+      const freshRegime = freshRisk?.regime || freshSnap?.regime || "NEUTRAL";
 
       const systemPrompt = buildSystemPrompt({
-        positions, portfolioValue, kelly:data?.kelly, risk:data?.risk, regime, memory:freshMemory,
+        positions:freshPositions, portfolioValue:freshPortfolioValue, kelly:freshKelly, risk:freshRisk, regime:freshRegime, memory:freshMemory,
       });
 
       const res = await fetch("https://api.anthropic.com/v1/messages", {
