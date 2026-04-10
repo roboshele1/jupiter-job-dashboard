@@ -112,8 +112,9 @@ function registerHandler(ipcMain, channel, fn) {
   registerHoldingsIpc();
 export function registerAllIpc(ipcMain) {
   ipcMain.handle("dca-audit:update-prices-live", async () => {
-    const { updateExecutionPricesLive } = await import("../../engine/audit/dcaAuditEngine.js");
-    return updateExecutionPricesLive();
+    const snap = await getCachedSnapshot();
+    const { updateExecutionPricesFromSnapshot } = await import("../../engine/audit/dcaAuditEngine.js");
+    return updateExecutionPricesFromSnapshot(snap.marketData);
   });
   registerPortfolioIpc();
   registerGrowthEngineIpc(ipcMain);

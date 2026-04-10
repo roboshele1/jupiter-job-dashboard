@@ -333,3 +333,22 @@ function saveExecutions(executions) {
     console.error('[DCA AUDIT] saveExecutions failed:', err);
   }
 }
+
+export function updateExecutionPricesFromSnapshot(marketData) {
+  const executions = loadExecutions();
+  executions.forEach(exec => {
+    if (marketData[exec.symbol]) {
+      exec.currentPrice = marketData[exec.symbol];
+      if (exec.entryPrice) {
+        exec.actualReturnPct = ((exec.currentPrice - exec.entryPrice) / exec.entryPrice) * 100;
+        const daysHeld = (Date.now() - exec.timestamp) / (1000 * 60 * 60 * 24);
+        const monthsHeld = daysHeld / 30;
+        const expectedReturn = (Math.pow(1 + exec.expectedMonthlyDrift / 100, monthsHeld) - 1) * 100;
+        exec.driftStatus = monthsHeld < 0.5 ? "TOO_EARLY" : actualReturn >= expectedReturn * 0.95 ? "BEATING" : actualReturn >= expectedReturn * 0.80 ? "ON_TRACK" : "LAGGING";
+      }
+      exec.lastUpdated = Date.now();
+    }
+  });
+  saveExecutions(executions);
+  return executions;
+}
