@@ -682,7 +682,7 @@ export default function DCAaudit() {
   const handleRefreshPrices = async () => {
     setIsRefreshing(true);
     try {
-      await updateExecutionPricesLive();
+      await window.jupiter.invoke("dca-audit:update-prices-live");
       const loaded = getExecutions();
       setExecutions(loaded);
       const computed = calculateAuditStats();

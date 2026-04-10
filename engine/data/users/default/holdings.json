@@ -41,11 +41,10 @@
   },
   {
     "symbol": "AXON",
-    "qty": 6.2895,
+    "qty": 6.7427,
     "assetClass": "equity",
-    "totalCostBasis": 3065.69,
-    "currency": "USD",
-    "expectedCagr": 25
+    "totalCostBasis": 3225.66,
+    "currency": "USD"
   },
   {
     "symbol": "ZETA",
@@ -57,50 +56,44 @@
   },
   {
     "symbol": "MELI",
-    "qty": 3,
+    "qty": 3.0664,
     "assetClass": "equity",
-    "totalCostBasis": 5258.82,
-    "currency": "USD",
-    "expectedCagr": 25
+    "totalCostBasis": 5378.79,
+    "currency": "USD"
   },
   {
     "symbol": "NU",
-    "qty": 150,
+    "qty": 158.0321,
     "assetClass": "equity",
-    "totalCostBasis": 2202.37,
-    "currency": "USD",
-    "expectedCagr": 28
+    "totalCostBasis": 2322.37,
+    "currency": "USD"
   },
   {
     "symbol": "LLY",
-    "qty": 4,
+    "qty": 4.2129,
     "assetClass": "equity",
-    "totalCostBasis": 3962.54,
-    "currency": "USD",
-    "expectedCagr": 23
+    "totalCostBasis": 4162.48,
+    "currency": "USD"
   },
   {
     "symbol": "RKLB",
-    "qty": 16,
+    "qty": 18.0524,
     "assetClass": "equity",
-    "totalCostBasis": 1115.14,
-    "currency": "USD",
-    "expectedCagr": 38
+    "totalCostBasis": 1255.13,
+    "currency": "USD"
   },
   {
     "symbol": "PLTR",
-    "qty": 14,
+    "qty": 15.2782,
     "assetClass": "equity",
-    "totalCostBasis": 2136.84,
-    "currency": "USD",
-    "expectedCagr": 45
+    "totalCostBasis": 2296.84,
+    "currency": "USD"
   },
   {
     "symbol": "APP",
-    "qty": 4,
+    "qty": 4.2698,
     "assetClass": "equity",
-    "totalCostBasis": 1851.96,
-    "currency": "USD",
-    "expectedCagr": 40
+    "totalCostBasis": 1951.92,
+    "currency": "USD"
   }
 ]

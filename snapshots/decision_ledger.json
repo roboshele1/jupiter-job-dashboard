@@ -1039,5 +1039,55 @@
     "conviction": null,
     "status": "PENDING",
     "outcomes": {}
+  },
+  {
+    "id": "AI_INTERACTION_1775779623282_88l8v",
+    "timestamp": "2026-04-10T00:07:03.282Z",
+    "type": "AI_INTERACTION",
+    "question": "i havent checked in on you in a while. geopolitcal tensions is kicking my portfolio but i am staying true and committed. it is a marathon and not a sprint. NOW and ZETA are leading the losses outside of BTC",
+    "responseLength": 2120,
+    "regime": "NEUTRAL",
+    "portfolioValue": 74181.60870607999,
+    "holdingCount": 13
+  },
+  {
+    "id": "AI_INTERACTION_1775780117975_h9e88",
+    "timestamp": "2026-04-10T00:15:17.975Z",
+    "type": "AI_INTERACTION",
+    "question": "kelly signals which used to be housed under the decisions tab has been removed. the signals you see from kelly are outdated or not pertinent to my case. we came to an conclusion that kelly is not 100% right for my setting. i am long term and DCA, Kelly, at least they way it has been set up moves with price so if could say BUY in the AM and EXIT/AVOID at night, that is signal for day traders, and not for me, i have decided t ignore kelly for now and rely on monte carlo and other tabs that are currently in production. the only reason kelly is still spewing data is that , removing it from code breaks the entire aoo",
+    "responseLength": 1872,
+    "regime": "NEUTRAL",
+    "portfolioValue": 74181.60870607999,
+    "holdingCount": 13
+  },
+  {
+    "id": "AI_INTERACTION_1775780283718_gu54w",
+    "timestamp": "2026-04-10T00:18:03.718Z",
+    "type": "AI_INTERACTION",
+    "question": "can you not access the main components of the app? monte carlo has been alive for months now. PLTR also has the highest CAGR per holding. please take your time and familiarize yourself with the app - a lot of things have been moved around and i need you to be update and accurate",
+    "responseLength": 1553,
+    "regime": "NEUTRAL",
+    "portfolioValue": 74181.60870607999,
+    "holdingCount": 13
+  },
+  {
+    "id": "AI_INTERACTION_1775780395873_oqlyu",
+    "timestamp": "2026-04-10T00:19:55.873Z",
+    "type": "AI_INTERACTION",
+    "question": "give me a prompt that i can go back to the ai LLM and update the snapshot. you are my assistant so you need to be sharp and accurate. wwont it better for you to access live data rather than snapshots? which means i need to manually change the snapshot anytime something changes",
+    "responseLength": 2054,
+    "regime": "NEUTRAL",
+    "portfolioValue": 74181.60870607999,
+    "holdingCount": 13
+  },
+  {
+    "id": "AI_INTERACTION_1775781594183_hzndw",
+    "timestamp": "2026-04-10T00:39:54.183Z",
+    "type": "AI_INTERACTION",
+    "question": "Which of my holdings is dragging my CAGR the most, and should I trim it?",
+    "responseLength": 1957,
+    "regime": "NEUTRAL",
+    "portfolioValue": 74180.54652327001,
+    "holdingCount": 13
   }
 ]
