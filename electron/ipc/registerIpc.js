@@ -88,9 +88,16 @@ async function computeSnapshot() {
     }))
   );
 
+  const marketData = {};
+  const positions = valuation.positions || [];
+  positions.forEach(item => {
+    marketData[item.symbol] = item.livePrice || 0;
+  });
+
   cachedSnapshot = Object.freeze({
     timestamp: Date.now(),
-    portfolio: valuation
+    portfolio: valuation,
+    marketData: marketData
   });
 
   return cachedSnapshot;
