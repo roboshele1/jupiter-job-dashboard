@@ -279,7 +279,7 @@ export default function MonteCarlo() {
     { symbol: "ZETA", weight: 5.505, cagr: 21 },
     { symbol: "MELI", weight: 5.259, cagr: 25 },
     { symbol: "NU", weight: 2.202, cagr: 28 },
-    { symbol: "SPOT", weight: 2.589, cagr: 15 },
+    { symbol: "SPOT", weight: 3.963, cagr: 23 },
     { symbol: "RKLB", weight: 1.115, cagr: 38 },
     { symbol: "PLTR", weight: 2.137, cagr: 45 },
     { symbol: "APP", weight: 1.852, cagr: 40 },
