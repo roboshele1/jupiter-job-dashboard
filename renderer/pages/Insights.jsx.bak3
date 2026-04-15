@@ -78,7 +78,7 @@ const BASE_CAGR = {
   AXON:  25,             // Public safety SaaS compounder
   MELI:  25,             // LatAm fintech/ecommerce
   NU:    28,             // LatAm digital banking
-  SPOT:  23,             // Spotify streaming leader
+  LLY:   23,             // GLP-1 pharma compounder
   ZETA:  21,             // Marketing cloud growth
   BTC:   20,             // Long-term cycle-adjusted
   CNSWF: 26, CSU:  26,   // Constellation Software ~25-28% 10yr

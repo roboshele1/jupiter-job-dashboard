@@ -69,13 +69,6 @@
     "currency": "USD"
   },
   {
-    "symbol": "LLY",
-    "qty": 4.2129,
-    "assetClass": "equity",
-    "totalCostBasis": 4162.48,
-    "currency": "USD"
-  },
-  {
     "symbol": "RKLB",
     "qty": 18.0524,
     "assetClass": "equity",
@@ -94,6 +87,13 @@
     "qty": 4.2698,
     "assetClass": "equity",
     "totalCostBasis": 1951.92,
+    "currency": "USD"
+  },
+  {
+    "symbol": "SPOT",
+    "qty": 5,
+    "assetClass": "equity",
+    "totalCostBasis": 2658.46,
     "currency": "USD"
   }
 ]

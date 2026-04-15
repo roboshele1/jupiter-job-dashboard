@@ -133,7 +133,7 @@ function LogExecutionDialog({ onClose, onSubmit, buckets }) {
     
     // Bucket C: 20% of DCA (SPOT 100%)
     const bucketCTotal = amount * 0.20;
-    allocs.push({ symbol: "SPOT", amount: bucketCTotal, bucket: "C" });
+    allocs.push({ symbol: "LLY", amount: bucketCTotal, bucket: "C" });
     
     return allocs;
   };
