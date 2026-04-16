@@ -1099,5 +1099,55 @@
     "regime": "NEUTRAL",
     "portfolioValue": 78539.54935758999,
     "holdingCount": 13
+  },
+  {
+    "id": "AI_INTERACTION_1776284455190_bvu5m",
+    "timestamp": "2026-04-15T20:20:55.190Z",
+    "type": "AI_INTERACTION",
+    "question": "I have nothing against SPOT. Great company maybe wrong portfolio allocation for me. my portfolio has specific requirements - it must have moat which it does but it must have and or maintain or aspire to have over 20% cagr which at the moment it does not. i am contemplating switching with something with a higher cagr non ai capex. i need 2 candidates i can do my due diliegence backed by math and data",
+    "responseLength": 2216,
+    "regime": "NEUTRAL",
+    "portfolioValue": 77486.81980781001,
+    "holdingCount": 13
+  },
+  {
+    "id": "AI_INTERACTION_1776284703514_ukof0",
+    "timestamp": "2026-04-15T20:25:03.514Z",
+    "type": "AI_INTERACTION",
+    "question": "not financial advice but you have known me for a while now - what is your best bank and why. i need compoound gains",
+    "responseLength": 2002,
+    "regime": "NEUTRAL",
+    "portfolioValue": 77486.81980781001,
+    "holdingCount": 13
+  },
+  {
+    "id": "AI_INTERACTION_1776285026787_g4tcs",
+    "timestamp": "2026-04-15T20:30:26.787Z",
+    "type": "AI_INTERACTION",
+    "question": "the amount i have in SPOT right now swapping into SHOP would lift it beyond 3.4%",
+    "responseLength": 1234,
+    "regime": "NEUTRAL",
+    "portfolioValue": 77486.81980781001,
+    "holdingCount": 13
+  },
+  {
+    "id": "AI_INTERACTION_1776285469568_f7l28",
+    "timestamp": "2026-04-15T20:37:49.568Z",
+    "type": "AI_INTERACTION",
+    "question": "maybe i am approaching this wrongly. instead of looking for another, why dont i fund the current with the sale of SPOT? I already own winners with similar high conviction and cagr that are non ai",
+    "responseLength": 1887,
+    "regime": "NEUTRAL",
+    "portfolioValue": 77486.81980781001,
+    "holdingCount": 13
+  },
+  {
+    "id": "AI_INTERACTION_1776285619697_i7d6d",
+    "timestamp": "2026-04-15T20:40:19.697Z",
+    "type": "AI_INTERACTION",
+    "question": "you keep referencing kelly but i have told u on numerous occasion that is not valid. only reason is thre is the error i get into trying to remove. i didnt ask for kelly recommendations. i aksed for non ai assets with higher cagr that would concentrate me in ai",
+    "responseLength": 1708,
+    "regime": "NEUTRAL",
+    "portfolioValue": 77486.81980781001,
+    "holdingCount": 13
   }
 ]

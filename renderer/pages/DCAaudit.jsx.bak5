@@ -47,6 +47,9 @@ const PRIORITY_BUCKETS = {
     { symbol: "NU", pct: 0.30 },
     { symbol: "MELI", pct: 0.30 },
   ],
+  BUCKET_C: [
+    { symbol: "LLY", pct: 1.0 },
+  ],
 };
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
