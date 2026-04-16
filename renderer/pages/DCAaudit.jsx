@@ -123,7 +123,7 @@ function LogExecutionDialog({ onClose, onSubmit, buckets }) {
     allocs.push({ symbol: "APP", amount: bucketATotal * 0.25, bucket: "A" });
     
     // Bucket B: 40% of DCA (AXON 40%, NU 30%, MELI 30%)
-    const bucketBTotal = amount * 0.40;
+    const bucketBTotal = amount * 0.60;
     allocs.push({ symbol: "AXON", amount: bucketBTotal * 0.40, bucket: "B" });
     allocs.push({ symbol: "NU", amount: bucketBTotal * 0.30, bucket: "B" });
     allocs.push({ symbol: "MELI", amount: bucketBTotal * 0.30, bucket: "B" });
