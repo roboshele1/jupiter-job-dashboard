@@ -113,105 +113,8 @@ function DistanceBadge({ label, price, sma, note }) {
 }
 
 // Goal anchor row — shown inside each equity card
-function GoalAnchorRow({ symbol, kellyMap, portfolioValue, goal }) {
-  const item = kellyMap?.get(symbol);
-
-  const progressPct = goal?.progressPct ?? null;
-  const requiredCAGR = goal?.requiredCAGR ?? null;
-
-  // Contribution: this holding's current value as % of the $1M target
-  const currentValue = item?.currentValue ?? null;
-  const contributionPct = currentValue ? (currentValue / 1_000_000) * 100 : null;
-
-  const action = item?.action ?? null;
-  const currentPct = item?.currentPct ?? null;
-  const optimalPct = item?.optimalPct ?? null;
-  const deltaPct = item?.deltaPct ?? null;
-  const conviction = item?.conviction ?? null;
-
-  return (
-    <div style={{
-      marginTop: 14,
-      paddingTop: 12,
-      borderTop: ` 1px dashed ${C.borderDash}`,
-      fontSize: 12,
-      fontFamily: C.font,
-    }}>
-      <div style={{
-        display: "flex",
-        alignItems: "center",
-        gap: 8,
-        marginBottom: 8,
-      }}>
-        <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.08em", color: C.accent, textTransform: "uppercase" }}>
-          Goal Context
-        </span>
-        {progressPct !== null && (
-          <span style={{ fontSize: 10, color: C.textMuted }}>
-            — portfolio {fmt(progressPct, 1)}% toward $1M
-          </span>
-        )}
-      </div>
-
-      <div style={{ display: "flex", flexWrap: "wrap", gap: "12px 24px" }}>
-
-        {/* Holding contribution to $1M goal */}
-        {contributionPct !== null && (
-          <div>
-            <div style={{ color: C.textMuted, fontSize: 10, marginBottom: 2 }}>Contributes to goal</div>
-            <div style={{ color: C.textDim }}>
-              {fmt(contributionPct, 2)}%
-              {currentValue && (
-                <span style={{ color: C.textMuted, marginLeft: 6 }}>({fmtDollar(currentValue)})</span>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* Kelly sizing vs current */}
-        {currentPct !== null && optimalPct !== null && (
-          <div>
-            <div style={{ color: C.textMuted, fontSize: 10, marginBottom: 2 }}>Current / Kelly</div>
-            <div>
-              <span style={{ color: C.textDim }}>{fmt(currentPct, 1)}%</span>
-              <span style={{ color: C.textMuted, margin: "0 4px" }}>/</span>
-              <span style={{ color: C.textDim }}>{fmt(optimalPct, 1)}%</span>
-              {deltaPct !== null && (
-                <span style={{ marginLeft: 6, color: deltaPctColor(deltaPct) }}>
-                  {fmtPct(deltaPct, 1)}
-                </span>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* Kelly action + conviction */}
-        {action && (
-          <div>
-            <div style={{ color: C.textMuted, fontSize: 10, marginBottom: 2 }}>Kelly signal</div>
-            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-              <Pill label={action} color={actionColor(action)} />
-              {conviction && (
-                <span style={{ fontSize: 10, color: C.textMuted }}>{conviction}</span>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* Required CAGR reminder */}
-        {requiredCAGR !== null && (
-          <div>
-            <div style={{ color: C.textMuted, fontSize: 10, marginBottom: 2 }}>Req. CAGR</div>
-            <div style={{ color: C.yellow }}>{fmt(requiredCAGR, 0)}% / yr</div>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
 // Single equity technical card
-function EquityCard({ s, kellyMap, portfolioValue, goal }) {
+function EquityCard({ s }) {
   const price = s.price;
   const sma20 = s.movingAverages?.sma20;
   const sma50 = s.movingAverages?.sma50;
@@ -294,20 +197,12 @@ function EquityCard({ s, kellyMap, portfolioValue, goal }) {
           {s.interpretation.summary}
         </div>
       )}
-
-      {/* Goal anchor (replaces dead "Portfolio Action" block) */}
-      <GoalAnchorRow
-        symbol={s.symbol}
-        kellyMap={kellyMap}
-        portfolioValue={portfolioValue}
-        goal={goal}
-      />
     </div>
   );
 }
 
 // Crypto panel — BTC + ETH live prices + cost basis context
-function CryptoPanel({ cryptoPrices, cryptoLoading, cryptoError, kellyMap, goal, cryptoHoldings }) {
+function CryptoPanel({ cryptoPrices, cryptoLoading, cryptoError, cryptoHoldings }) {
   // 🔒 Read from cryptoHoldings (passed from parent via holdings.json)
   // Fall back to empty array if not available
   const holdings = cryptoHoldings && cryptoHoldings.length > 0 
@@ -365,11 +260,6 @@ function CryptoPanel({ cryptoPrices, cryptoLoading, cryptoError, kellyMap, goal,
             const pl = liveValue !== null ? liveValue - costBasis : null;
             const plPct = pl !== null && costBasis > 0 ? (pl / costBasis) * 100 : null;
 
-            // Kelly goal context
-            const kellyItem = kellyMap?.get(h.symbol);
-            const action = kellyItem?.action ?? null;
-            const conviction = kellyItem?.conviction ?? null;
-            const contributionPct = liveValue ? (liveValue / 1_000_000) * 100 : null;
 
             return (
               <div key={h.symbol} style={{
@@ -439,40 +329,6 @@ function CryptoPanel({ cryptoPrices, cryptoLoading, cryptoError, kellyMap, goal,
                   )}
                 </div>
 
-                {/* Goal context */}
-                <div style={{
-                  marginTop: 12,
-                  paddingTop: 10,
-                  borderTop: ` 1px dashed ${C.borderDash}`,
-                  display: "flex",
-                  flexWrap: "wrap",
-                  gap: "8px 24px",
-                  fontSize: 12,
-                }}>
-                  {contributionPct !== null && (
-                    <div>
-                      <div style={{ color: C.textMuted, fontSize: 10, marginBottom: 2 }}>Contributes to goal</div>
-                      <div style={{ color: C.textDim }}>{fmt(contributionPct, 2)}%</div>
-                    </div>
-                  )}
-
-                  {action && (
-                    <div>
-                      <div style={{ color: C.textMuted, fontSize: 10, marginBottom: 2 }}>Kelly signal</div>
-                      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                        <Pill label={action} color={actionColor(action)} />
-                        {conviction && <span style={{ fontSize: 10, color: C.textMuted }}>{conviction}</span>}
-                      </div>
-                    </div>
-                  )}
-
-                  {goal?.requiredCAGR !== null && (
-                    <div>
-                      <div style={{ color: C.textMuted, fontSize: 10, marginBottom: 2 }}>Req. CAGR</div>
-                      <div style={{ color: C.yellow }}>{fmt(goal.requiredCAGR, 0)}% / yr</div>
-                    </div>
-                  )}
-                </div>
 
                 <div style={{ marginTop: 8, fontSize: 11, color: C.textMuted, opacity: 0.55 }}>
                   Technical indicators (SMA, momentum, trend) are not available for crypto holdings.
@@ -575,7 +431,6 @@ function GoalBanner({ goal, portfolioValue, heatCheck }) {
 // ─────────────────────────────────────────────
 export default function Signals() {
   const [techSnapshot, setTechSnapshot] = useState(null);
-  const [kellyData, setKellyData]       = useState(null);
   const [cryptoPrices, setCryptoPrices] = useState({});
   const [holdings, setHoldings]         = useState([]);
 
@@ -584,16 +439,14 @@ export default function Signals() {
   const [cryptoError, setCryptoError]   = useState(null);
   const [refreshing, setRefreshing]     = useState(false);
 
-  // ── Load equity technicals + Kelly in parallel ─────────
+  // ── Load equity technicals ─────────
   const loadAll = useCallback(async () => {
     try {
-      const [tech, kelly, hdgs] = await Promise.all([
+      const [tech, hdgs] = await Promise.all([
         window.jupiter.invoke("portfolio:technicalSignals:getSnapshot"),
-        window.jupiter.invoke("decisions:getKellyRecommendations"),
         window.jupiter.invoke("holdings:getRaw"),
       ]);
       setTechSnapshot(tech);
-      setKellyData(kelly);
       setHoldings(Array.isArray(hdgs) ? hdgs : []);
       setStatus("ready");
     } catch (e) {
@@ -645,17 +498,6 @@ export default function Signals() {
     }
   }
 
-  // ── Build Kelly lookup map (symbol -> action item) ─────
-  const kellyMap = React.useMemo(() => {
-    const map = new Map();
-    if (Array.isArray(kellyData?.actions)) {
-      for (const item of kellyData.actions) {
-        map.set(item.symbol, item);
-      }
-    }
-    return map;
-  }, [kellyData]);
-
   // ── Extract crypto holdings from holdings.json ────────────
   // 🔒 Read BTC/ETH directly from holdings (source of truth)
   const cryptoHoldings = React.useMemo(() => {
@@ -690,9 +532,6 @@ export default function Signals() {
     s => !cryptoSymbols.has(s.symbol) && s.state !== "UNAVAILABLE"
   );
 
-  const goal = kellyData?.goal ?? null;
-  const portfolioValue = kellyData?.portfolioValue ?? null;
-  const heatCheck = kellyData?.heatCheck ?? null;
 
   return (
     <div style={{
@@ -731,13 +570,6 @@ export default function Signals() {
         </button>
       </div>
 
-      {/* Goal banner */}
-      <GoalBanner
-        goal={goal}
-        portfolioValue={portfolioValue}
-        heatCheck={heatCheck}
-      />
-
       {/* ── EQUITY SECTION ────────────────────────────────── */}
       <div style={{
         fontSize: 10,
@@ -761,9 +593,6 @@ export default function Signals() {
           <EquityCard
             key={s.symbol}
             s={s}
-            kellyMap={kellyMap}
-            portfolioValue={portfolioValue}
-            goal={goal}
           />
         ))}
       </div>
@@ -773,19 +602,12 @@ export default function Signals() {
         cryptoPrices={cryptoPrices}
         cryptoLoading={cryptoLoading}
         cryptoError={cryptoError}
-        kellyMap={kellyMap}
-        goal={goal}
         cryptoHoldings={cryptoHoldings}
       />
 
       {/* Snapshot timestamp */}
       <div style={{ marginTop: 24, fontSize: 11, color: C.textMuted, opacity: 0.4 }}>
         Snapshot: {techSnapshot.asOf ? new Date(techSnapshot.asOf).toLocaleString() : "—"}
-        {kellyData?.timestamp && (
-          <span style={{ marginLeft: 16 }}>
-            Kelly: {new Date(kellyData.timestamp).toLocaleString()}
-          </span>
-        )}
       </div>
     </div>
   );
