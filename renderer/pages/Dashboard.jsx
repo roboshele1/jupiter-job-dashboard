@@ -61,21 +61,18 @@ export default function Dashboard() {
 
   const [valuation,   setValuation]   = useState(null);
   const [systemState, setSystemState] = useState(null);
-  const [kellyData,   setKellyData]   = useState(null);
   const [lastRefresh, setLastRefresh] = useState(null);
   const [refreshing,  setRefreshing]  = useState(false);
 
   async function loadAll(force = false) {
     setRefreshing(true);
     try {
-      const [v, sys, kelly] = await Promise.allSettled([
+      const [v, sys] = await Promise.allSettled([
         force ? window.jupiter.invoke('portfolio:refreshValuation') : window.jupiter.getPortfolioValuation(),
         window.jupiter.invoke("system:getState"),
-        window.jupiter.invoke("decisions:getKellyRecommendations"),
       ]);
       if (v.status     === "fulfilled") setValuation(v.value);
       if (sys.status   === "fulfilled") setSystemState(sys.value);
-      if (kelly.status === "fulfilled") setKellyData(kelly.value);
       setLastRefresh(new Date());
     } finally {
       setRefreshing(false);
@@ -120,23 +117,20 @@ export default function Dashboard() {
     return bands.filter(b => b.pct > 0);
   }, [positions, totals.liveValue]);
 
+  const portfolioValue = Number(totals.liveValue || 0);
+  const GOAL_TARGET = 1_000_000;
+  const GOAL_START = 100_000;
+  const GOAL_YEAR = 2037;
+  const now = new Date();
+  const monthsRemaining = Math.max(0, (GOAL_YEAR - now.getFullYear()) * 12 - now.getMonth());
+  const goalProgressPct = Math.min((portfolioValue / GOAL_TARGET) * 100, 100);
+  const goalRemaining = Math.max(GOAL_TARGET - portfolioValue, 0);
+  const yearsRemaining = monthsRemaining / 12;
+  const requiredCAGR = yearsRemaining > 0 ? (Math.pow(GOAL_TARGET / Math.max(portfolioValue, 1), 1 / yearsRemaining) - 1) * 100 : null;
   const freshness      = useMemo(() => pickBestFreshness(positions), [positions]);
   const marketStatus   = freshness.level;
   const freshnessColor = marketStatus === "LIVE" ? "#4ade80" : marketStatus === "DELAYED" ? "#fbbf24" : marketStatus === "STALE" ? "#f87171" : "#9ca3af";
 
-  // 🔒 Read goal from Kelly data, not hardcoded
-  const goal = kellyData?.goal || {};
-  const portfolioValue  = Number(totals.liveValue || 0);
-  const goalProgressPct = goal.progressPct ?? 0;
-  const goalRemaining   = goal.remaining ?? 0;
-  const monthsRemaining = goal.monthsRemaining ?? 0;
-
-  const heatStatus  = kellyData?.heatCheck?.status   || null;
-  const totalHeat   = kellyData?.heatCheck?.totalHeat ?? null;
-  const heatColor   = heatStatus === "OVERHEATED" ? "#f87171" : heatStatus === "ELEVATED" ? "#fbbf24" : heatStatus === "NORMAL" ? "#4ade80" : "#9ca3af";
-
-  const highPriorityActions = kellyData?.summary?.highPriority ?? 0;
-  const totalActions        = kellyData?.summary?.totalActions  ?? 0;
 
   const posture      = systemState?.decision?.systemPosture || "—";
   const capitalState = systemState?.decision?.capitalState   || "—";
@@ -162,7 +156,7 @@ export default function Dashboard() {
       </div>
 
       {/* Row 1: Key Metrics */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 14, marginBottom: 20 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(2,1fr)", gap: 14, marginBottom: 20 }}>
         {[
           { label: "PORTFOLIO VALUE", value: fmtMoney(portfolioValue), sub: null, color: "#fff", border: "#374151" },
           { label: "TODAY'S P/L", value: fmtMoney(totals.delta), sub: fmtPct(totals.deltaPct), color: deltaColor(totals.delta), border: Number(totals.delta) >= 0 ? "rgba(74,222,128,0.3)" : "rgba(248,113,113,0.3)" },
@@ -177,13 +171,12 @@ export default function Dashboard() {
         ))}
       </div>
 
-      {/* Row 2: Goal Progress */}
       <div style={{ background: "rgba(31,41,55,0.6)", border: "1px solid #374151", borderRadius: 12, padding: "22px 24px", marginBottom: 20 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 14 }}>
           <div>
             <div style={{ fontSize: 15, fontWeight: 700, color: "#fff" }}>Goal: $100k → $1M by 2037</div>
             <div style={{ fontSize: 13, color: "#9ca3af", marginTop: 3 }}>
-              {fmtMoney(goalRemaining)} remaining · {monthsRemaining} months · Required CAGR: {goal.requiredCAGR ? fmt(goal.requiredCAGR, 1) + "%" : "dynamic"}
+              {fmtMoney(goalRemaining)} remaining · {monthsRemaining} months · Required CAGR: {requiredCAGR ? requiredCAGR.toFixed(1) + "%" : "—"}
             </div>
           </div>
           <div style={{ textAlign: "right" }}>
@@ -192,7 +185,7 @@ export default function Dashboard() {
           </div>
         </div>
         <div style={{ width: "100%", height: 12, background: "#1f2937", borderRadius: 6, overflow: "hidden", marginBottom: 8 }}>
-          <div style={{ width: `${Math.min(goalProgressPct, 100)}%`, height: "100%", background: "linear-gradient(90deg, #3b82f6, #8b5cf6)", borderRadius: 6, transition: "width 0.8s ease" }} />
+          <div style={{ width: `${goalProgressPct}%`, height: "100%", background: "linear-gradient(90deg, #3b82f6, #8b5cf6)", borderRadius: 6, transition: "width 0.8s ease" }} />
         </div>
         <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11 }}>
           {["$100k","$250k","$500k","$750k","$1M"].map((m, i) => (
@@ -202,17 +195,7 @@ export default function Dashboard() {
       </div>
 
       {/* Row 3: Intelligence Strip */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 14, marginBottom: 20 }}>
-        <div style={{ background: "rgba(31,41,55,0.6)", border: `1px solid ${totalHeat !== null ? `${heatColor}40` : "#374151"}`, borderRadius: 12, padding: "18px 20px" }}>
-          <div style={{ fontSize: 11, color: "#6b7280", letterSpacing: "0.08em", marginBottom: 8 }}>PORTFOLIO HEAT</div>
-          <div style={{ fontSize: 26, fontWeight: 800, color: heatColor }}>{totalHeat !== null ? `${Number(totalHeat).toFixed(1)}%` : "—"}</div>
-          <div style={{ fontSize: 12, color: heatColor, marginTop: 2, fontWeight: 600 }}>{heatStatus || "—"}</div>
-        </div>
-        <div style={{ background: "rgba(31,41,55,0.6)", border: highPriorityActions > 0 ? "1px solid rgba(248,113,113,0.3)" : "1px solid #374151", borderRadius: 12, padding: "18px 20px" }}>
-          <div style={{ fontSize: 11, color: "#6b7280", letterSpacing: "0.08em", marginBottom: 8 }}>PENDING ACTIONS</div>
-          <div style={{ fontSize: 26, fontWeight: 800, color: highPriorityActions > 0 ? "#f87171" : "#fff" }}>{totalActions}</div>
-          <div style={{ fontSize: 12, color: "#9ca3af", marginTop: 2 }}>{highPriorityActions} high priority</div>
-        </div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(2,1fr)", gap: 14, marginBottom: 20 }}>
         <div style={{ background: "rgba(31,41,55,0.6)", border: "1px solid #374151", borderRadius: 12, padding: "18px 20px" }}>
           <div style={{ fontSize: 11, color: "#6b7280", letterSpacing: "0.08em", marginBottom: 8 }}>SYSTEM POSTURE</div>
           <div style={{ fontSize: 20, fontWeight: 800, color: postureColor }}>{posture}</div>
@@ -271,38 +254,6 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Row 5: Kelly Actions Preview */}
-      {kellyData?.actions?.length > 0 && (
-        <div style={{ background: "rgba(31,41,55,0.6)", border: "1px solid #374151", borderRadius: 12, padding: "22px 24px", marginBottom: 20 }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-            <div style={{ fontSize: 13, fontWeight: 700, color: "#fff" }}>PENDING DECISIONS</div>
-            <span style={{ fontSize: 12, color: "#6b7280" }}>See Decisions tab for full analysis</span>
-          </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            {kellyData.actions.slice(0, 4).map(action => {
-              const ac = action.action === "EXIT_OR_AVOID" ? "#f87171" : action.action === "TRIM" || action.action === "TRIM_TO_MINIMAL" ? "#fb923c" : action.action === "ADD" ? "#4ade80" : "#9ca3af";
-              const pc = action.priority === "HIGH" ? "#f87171" : action.priority === "MEDIUM" ? "#fbbf24" : "#9ca3af";
-              return (
-                <div key={action.symbol} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 14px", borderRadius: 8, background: "rgba(0,0,0,0.2)", border: "1px solid rgba(255,255,255,0.05)" }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                    <span style={{ fontWeight: 700, color: "#fff", fontSize: 14, minWidth: 48 }}>{action.symbol}</span>
-                    <span style={{ fontSize: 11, padding: "2px 8px", borderRadius: 4, background: `${ac}20`, color: ac, fontWeight: 600 }}>{action.action.replace(/_/g, " ")}</span>
-                    <span style={{ fontSize: 11, padding: "2px 6px", borderRadius: 4, background: `${pc}20`, color: pc, fontWeight: 600 }}>{action.priority}</span>
-                  </div>
-                  <div style={{ textAlign: "right" }}>
-                    <div style={{ fontSize: 13, fontWeight: 700, color: ac }}>{action.deltaValue > 0 ? "+" : ""}{fmtMoney(action.deltaValue)}</div>
-                    <div style={{ fontSize: 11, color: "#6b7280" }}>{action.currentPct.toFixed(1)}% → {action.optimalPct.toFixed(1)}%</div>
-                  </div>
-                </div>
-              );
-            })}
-            {kellyData.actions.length > 4 && (
-              <div style={{ textAlign: "center", fontSize: 12, color: "#6b7280", paddingTop: 4 }}>+{kellyData.actions.length - 4} more in Decisions tab</div>
-            )}
-          </div>
-        </div>
-      )}
-
       {/* Row 6: System State */}
       <div style={{ background: "rgba(31,41,55,0.6)", border: "1px solid #374151", borderRadius: 12, padding: "22px 24px" }}>
         <div style={{ fontSize: 13, fontWeight: 700, color: "#fff", marginBottom: 16 }}>SYSTEM STATE</div>
@@ -310,7 +261,7 @@ export default function Dashboard() {
           <div style={{ color: "#9ca3af", fontSize: 13 }}>Loading system intelligence…</div>
         ) : (
           <>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 14, marginBottom: 16 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(2,1fr)", gap: 14, marginBottom: 16 }}>
               {[
                 { label: "POSTURE", value: systemState?.decision?.systemPosture, color: postureColor },
                 { label: "CAPITAL", value: systemState?.decision?.capitalState,  color: "#e5e7eb"    },
