@@ -78,12 +78,11 @@ function formatMemoryBlock(memory) {
   return lines.join("\n");
 }
 
-function buildSystemPrompt({ positions, portfolioValue, kelly, risk, regime, memory }) {
+function buildSystemPrompt({ positions, portfolioValue, risk, regime, memory }) {
   const yearsLeft    = Math.max(0.1, GOAL_YEAR - new Date().getFullYear());
   const requiredCAGR = portfolioValue
     ? ((Math.pow(GOAL / portfolioValue, 1 / yearsLeft) - 1) * 100).toFixed(1)
     : "unknown";
-  const kellyMult = KELLY_MULT_TABLE[regime] ?? 0.25;
   const regimeMod = REGIME_MODIFIER[regime] ?? 0;
 
   const holdingLines = (positions || []).map(p => {
@@ -91,19 +90,18 @@ function buildSystemPrompt({ positions, portfolioValue, kelly, risk, regime, mem
     const weight = portfolioValue ? ((p.liveValue / portfolioValue) * 100).toFixed(1) : "?";
     const pnl    = p.liveValue && p.costBasis
       ? (((p.liveValue - p.costBasis) / p.costBasis) * 100).toFixed(1) : "?";
-    const ka     = (kelly?.actions || []).find(a => a.symbol === p.symbol);
-    return `  - ${p.symbol}: value=${fmtUSD(p.liveValue)}, weight=${weight}%, CAGR=${cagr}%, Kelly=${ka?.action || "HOLD"}, P&L=${pnl}%`;
+    return `  - ${p.symbol}: value=${fmtUSD(p.liveValue)}, weight=${weight}%, CAGR=${cagr}%, P&L=${pnl}%`;
   }).join("\n");
 
   const riskSummary = risk
-    ? `  - VIX: ${risk.vix ?? "?"}\n  - Regime: ${regime}\n  - Kelly heat: ${kelly?.heatCheck?.status ?? "?"}\n  - CAGR modifier: ${regimeMod >= 0 ? "+" : ""}${regimeMod}%\n  - Kelly multiplier: ${kellyMult}×`
+    ? `  - VIX: ${risk.vix ?? "?"}\n  - Regime: ${regime}\n  - CAGR modifier: ${regimeMod >= 0 ? "+" : ""}${regimeMod}%`
     : "  - Risk data unavailable";
 
   const memoryBlock = formatMemoryBlock(memory);
 
   return `You are JUPITER AI — the embedded decision intelligence engine inside Jupiter, targeting $1,000,000 by ${GOAL_YEAR}.
 
-You are NOT a generic chatbot. You have live portfolio data, market regime, Kelly sizing, and full decision history. Answer everything grounded in this data first.
+You are NOT a generic chatbot. You have live portfolio data, market regime, and full decision history. Answer everything grounded in this data first.
 
 SCOPE: Full-spectrum financial intelligence — portfolio decisions, macro, Fed policy, sector analysis, crypto, earnings, derivatives, ETFs, global markets, any investment concept. You answer everything.
 
@@ -193,13 +191,12 @@ export default function JupiterAI() {
   useEffect(() => {
     async function loadContext() {
       try {
-        const [snap, kelly, risk, memorySummary] = await Promise.all([
+        const [snap, risk, memorySummary] = await Promise.all([
           window.jupiter.invoke("portfolio:getValuation").catch(() => null),
-          window.jupiter.invoke("decisions:getKellyRecommendations").catch(() => null),
           window.jupiter.invoke("riskCentre:intelligence:v2").catch(() => null),
           window.jupiter.invoke("memory:getSummary").catch(() => null),
         ]);
-        setData({ snap, kelly, risk });
+        setData({ snap, risk });
         setMemory(memorySummary);
       } catch (e) {
         console.warn("[JupiterAI] context load failed:", e);
@@ -299,9 +296,8 @@ export default function JupiterAI() {
       const apiKey = import.meta.env.VITE_ANTHROPIC_API_KEY;
       if (!apiKey) throw new Error("VITE_ANTHROPIC_API_KEY not set in .env — add your Anthropic API key to activate Jupiter AI");
 
-      const [freshSnap, freshKelly, freshRisk, freshMemory] = await Promise.all([
+      const [freshSnap, freshRisk, freshMemory] = await Promise.all([
         window.jupiter.invoke("portfolio:getValuation").catch(() => null),
-        window.jupiter.invoke("decisions:getKellyRecommendations").catch(() => null),
         window.jupiter.invoke("riskCentre:intelligence:v2").catch(() => null),
         window.jupiter.invoke("memory:getSummary").catch(() => memory),
       ]);
@@ -311,7 +307,7 @@ export default function JupiterAI() {
       const freshRegime = freshRisk?.regime || freshSnap?.regime || "NEUTRAL";
 
       const systemPrompt = buildSystemPrompt({
-        positions:freshPositions, portfolioValue:freshPortfolioValue, kelly:freshKelly, risk:freshRisk, regime:freshRegime, memory:freshMemory,
+        positions:freshPositions, portfolioValue:freshPortfolioValue, risk:freshRisk, regime:freshRegime, memory:freshMemory,
       });
 
       const res = await fetch("https://api.anthropic.com/v1/messages", {
@@ -325,6 +321,7 @@ export default function JupiterAI() {
         body: JSON.stringify({
           model:"claude-opus-4-6",
           max_tokens:1024,
+          stream:true,
           system:systemPrompt,
           messages:history,
         }),
@@ -335,16 +332,39 @@ export default function JupiterAI() {
         throw new Error(err?.error?.message || `API error ${res.status}`);
       }
 
-      const json    = await res.json();
-      const content = json.content?.[0]?.text || "No response.";
+      let content = "";
+      const streamId = Date.now();
+      setMessages(prev => [...prev, { role:"assistant", content:"", id:streamId }]);
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream:true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop();
+        for (const line of lines) {
+          if (!line.startsWith("data:")) continue;
+          const data = line.slice(5).trim();
+          if (data === "[DONE]") continue;
+          try {
+            const parsed = JSON.parse(data);
+            if (parsed.type === "content_block_delta" && parsed.delta?.type === "text_delta") {
+              content += parsed.delta.text;
+              setMessages(prev => prev.map(m => m.id === streamId ? { ...m, content } : m));
+            }
+          } catch(e) {}
+        }
+      }
+
       const displayContent = content.replace(/\[Not financial advice\]\s*$/i,"").trim();
       const hasDisclaimer  = content.toLowerCase().includes("not financial advice");
+      const finalContent   = hasDisclaimer ? displayContent+"\n\n[Not financial advice]" : displayContent;
 
-      setMessages(prev => [...prev, {
-        role:"assistant",
-        content: hasDisclaimer ? displayContent+"\n\n[Not financial advice]" : displayContent,
-      }]);
-
+      setMessages(prev => prev.map(m => m.id === streamId ? { ...m, content:finalContent } : m));
       conversationRef.current = [...history, { role:"assistant", content }];
       if (conversationRef.current.length > 40) conversationRef.current = conversationRef.current.slice(-40);
 
@@ -391,7 +411,6 @@ export default function JupiterAI() {
               <ContextBadge label="Portfolio" value={portfolioValue ? fmtUSD(portfolioValue) : "—"} color={BLUE} />
               <ContextBadge label="Req. CAGR" value={requiredCAGR!=="—" ? requiredCAGR+"%" : "—"} color={parseFloat(requiredCAGR)>30 ? RED : GREEN} />
               <ContextBadge label="Regime" value={regime} color={regime==="RISK_ON"||regime==="MILD_RISK_ON" ? GREEN : regime==="RISK_OFF"||regime==="MILD_RISK_OFF" ? RED : AMBER} />
-              <ContextBadge label="Kelly ×" value={`${KELLY_MULT_TABLE[regime]??0.25}×`} color={MUTED} />
               <MemoryBadge memory={memory} />
             </>
           )}
