@@ -211,6 +211,69 @@ export default function JupiterAI() {
     loadContext();
   }, []);
 
+  useEffect(() => {
+    if (!data || dataLoading || messages.length > 0) return;
+
+    async function runProactiveAlert() {
+      const freshPositions = (data?.snap?.positions || []).filter(p => p.symbol);
+      const freshPortfolioValue = data?.snap?.totals?.liveValue || freshPositions.reduce((s,p) => s + Number(p.liveValue||0), 0);
+      const freshRegime = data?.risk?.regime || data?.snap?.regime || "NEUTRAL";
+      const yearsLeft = Math.max(0.1, GOAL_YEAR - new Date().getFullYear());
+      const reqCAGR = freshPortfolioValue ? ((Math.pow(GOAL/freshPortfolioValue, 1/yearsLeft)-1)*100) : null;
+
+      const alerts = [];
+
+      if (reqCAGR && reqCAGR > 35) alerts.push(`CAGR required is ${reqCAGR.toFixed(1)}% — significantly above historical equity returns. Portfolio needs urgent attention.`);
+      else if (reqCAGR && reqCAGR > 28) alerts.push(`Required CAGR of ${reqCAGR.toFixed(1)}% is aggressive. You are behind pace for the $1M goal.`);
+
+      if (freshRegime === "RISK_OFF") alerts.push("Market regime has shifted to RISK_OFF. Consider reducing exposure to high-beta positions.");
+      else if (freshRegime === "MILD_RISK_OFF") alerts.push("Regime is MILD_RISK_OFF. Defensive posture recommended for new capital.");
+
+      const overweight = freshPositions.filter(p => freshPortfolioValue && (p.liveValue/freshPortfolioValue)*100 > 20);
+      if (overweight.length > 0) alerts.push(`${overweight.map(p => p.symbol).join(", ")} ${overweight.length===1?"is":"are"} over 20% of portfolio — concentration risk detected.`);
+
+      const losers = freshPositions.filter(p => p.costBasis && p.liveValue && ((p.liveValue - p.costBasis)/p.costBasis)*100 < -15);
+      if (losers.length > 0) alerts.push(`${losers.map(p => p.symbol).join(", ")} ${losers.length===1?"is":"are"} down over 15% from cost basis.`);
+
+      if (alerts.length === 0) return;
+
+      const proactivePrompt = "You are JUPITER AI. Based on live portfolio data, generate a short proactive briefing (under 150 words). Do not greet. Go straight to the intelligence. Cover only what matters right now. Conditions detected:\n" + alerts.map(a => "- " + a).join("\n") + "\n\nBe direct. End with one concrete action suggestion. No headers. No bold. [Not financial advice]";
+
+      setLoading(true);
+      try {
+        const apiKey = import.meta.env.VITE_ANTHROPIC_API_KEY;
+        if (!apiKey) return;
+        const res = await fetch("https://api.anthropic.com/v1/messages", {
+          method:"POST",
+          headers:{
+            "Content-Type":"application/json",
+            "x-api-key":apiKey,
+            "anthropic-version":"2023-06-01",
+            "anthropic-dangerous-direct-browser-access":"true",
+          },
+          body: JSON.stringify({
+            model:"claude-sonnet-4-6",
+            max_tokens:300,
+            messages:[{ role:"user", content:proactivePrompt }],
+          }),
+        });
+        if (!res.ok) return;
+        const json = await res.json();
+        const content = json.content?.[0]?.text || "";
+        if (content) {
+          setMessages([{ role:"assistant", content: content.trim() + "\n\n[Not financial advice]" }]);
+          conversationRef.current = [{ role:"assistant", content }];
+        }
+      } catch(e) {
+        console.warn("[JupiterAI] proactive alert failed:", e);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    runProactiveAlert();
+  }, [data, dataLoading]);
+
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior:"smooth" }); }, [messages, loading]);
 
   const regime = useMemo(() => data?.risk?.regime || data?.snap?.regime || "NEUTRAL", [data]);
