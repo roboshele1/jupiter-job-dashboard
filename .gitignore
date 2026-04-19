@@ -59,3 +59,4 @@ data/discoverySnapshots.json
 dist-electron/
 node_modules/
 *.dmg
+data/jupiterConversation.json
