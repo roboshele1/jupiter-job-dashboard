@@ -187,6 +187,7 @@ export default function JupiterAI() {
   const bottomRef                     = useRef(null);
   const inputRef                      = useRef(null);
   const conversationRef               = useRef([]);
+  const conversationLoaded            = useRef(false);
 
   useEffect(() => {
     async function loadContext() {
@@ -270,6 +271,17 @@ export default function JupiterAI() {
 
     runProactiveAlert();
   }, [data, dataLoading]);
+
+  useEffect(() => {
+    if (conversationLoaded.current) return;
+    conversationLoaded.current = true;
+    window.jupiter.invoke("conversation:load").then(saved => {
+      if (Array.isArray(saved) && saved.length > 0) {
+        conversationRef.current = saved;
+        setMessages(saved);
+      }
+    }).catch(() => {});
+  }, []);
 
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior:"smooth" }); }, [messages, loading]);
 
@@ -367,6 +379,7 @@ export default function JupiterAI() {
       setMessages(prev => prev.map(m => m.id === streamId ? { ...m, content:finalContent } : m));
       conversationRef.current = [...history, { role:"assistant", content }];
       if (conversationRef.current.length > 40) conversationRef.current = conversationRef.current.slice(-40);
+      window.jupiter.invoke("conversation:save", conversationRef.current).catch(() => {});
 
       try {
         await window.jupiter.invoke("memory:recordAIInteraction", {
@@ -385,7 +398,7 @@ export default function JupiterAI() {
   }, [input, loading, positions, portfolioValue, data, regime, memory]);
 
   const handleKey = (e) => { if (e.key==="Enter" && !e.shiftKey) { e.preventDefault(); send(); } };
-  const clearChat = () => { setMessages([]); conversationRef.current=[]; inputRef.current?.focus(); };
+  const clearChat = () => { setMessages([]); conversationRef.current=[]; window.jupiter.invoke("conversation:clear").catch(()=>{}); inputRef.current?.focus(); };
 
   return (
     <div style={{ height:"100vh", background:BG, display:"flex", flexDirection:"column", ...MONO }}>

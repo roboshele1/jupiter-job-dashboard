@@ -26,6 +26,7 @@ import { registerExecutionEngineIpc } from "./executionEngineIpc.js";
 import { registerLearningLoopIpc } from "./learningLoopIpc.js";
 import { registerDaemonControlIpc } from "./daemonControlIpc.js";
 import { registerMarketRegimeIpc } from "./marketRegimeIpc.js";   // ← Session 7
+import { registerConversationIpc } from "./conversationIpc.js";
 
 import { valuePortfolio } from "../../engine/portfolio/portfolioValuation.js";
 import { computeInsights } from "../../engine/insights/insightsEngine.js";
@@ -152,6 +153,7 @@ export function registerAllIpc(ipcMain) {
 
   // ── Market Regime — macro context for MarketMonitor tab ───────────────────
   registerMarketRegimeIpc(ipcMain);
+  registerConversationIpc();
 
   registerHandler(ipcMain, "portfolio:getSnapshot", async () => {
     return await getCachedSnapshot();
