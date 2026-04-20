@@ -188,7 +188,6 @@ function CandidateCard({ r, expanded, onToggle, goalRemaining, portfolioValue, r
   const decCol     = decisionColor(decision);
   const cagrProxy  = trajectory?.score || 0.25;
   const pos5pct    = portfolioValue ? portfolioValue * 0.05 : 5000;
-
   const [hov, setHov] = useState(false);
 
   return (
@@ -196,87 +195,76 @@ function CandidateCard({ r, expanded, onToggle, goalRemaining, portfolioValue, r
       onMouseEnter={() => setHov(true)}
       onMouseLeave={() => setHov(false)}
       style={{
-        background:   hov ? C.panelHov : C.surface,
-        border:       `1px solid ${expanded ? C.borderAcc : C.border}`,
-        borderLeft:   `3px solid ${decCol}`,
+        background: hov ? C.panelHov : C.surface,
+        border: `1px solid ${expanded ? C.borderAcc : C.border}`,
+        borderLeft: `3px solid ${decCol}`,
         borderRadius: 8,
-        transition:   "all 0.18s ease",
-        overflow:     "hidden",
+        transition: "all 0.18s ease",
+        overflow: "hidden",
       }}
     >
-      {/* Always-visible header */}
-      <div onClick={onToggle} style={{ padding: "14px 18px", cursor: "pointer", display: "flex", alignItems: "flex-start", gap: 12 }}>
-
-        {/* Left: identity + conviction bar + goal chip */}
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-            {rank != null && <span style={{ ...mono, fontSize: 10, color: C.textDim, fontWeight: 700 }}>#{rank}</span>}
-            <span style={{ ...mono, fontSize: 16, fontWeight: 800, color: C.text, letterSpacing: "-0.01em" }}>{sym}</span>
-            <Badge label={decision}       color={decCol}       />
-            <Badge label={convInfo.label} color={convInfo.color} />
-            {trajectory?.label && trajectory.label !== "NO_MATCH" && (
-              <Badge label={trajectory.label.replace(/_/g, " ")} color={C.cyan} />
-            )}
-            <span style={{ ...mono, fontSize: 9, color: C.textDim }}>{regime}</span>
-          </div>
-
-          {/* Conviction bar */}
-          <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 8 }}>
-            <div style={{ flex: 1, maxWidth: 200, height: 3, background: C.border, borderRadius: 2, overflow: "hidden" }}>
-              <div style={{
-                width: fmtPct(conv), height: "100%",
-                background: convInfo.color,
-                boxShadow: `0 0 5px ${convInfo.color}60`,
-                transition: "width 0.5s ease",
-              }} />
-            </div>
-            <span style={{ ...mono, fontSize: 11, fontWeight: 700, color: convInfo.color }}>
-              {(conv * 100).toFixed(1)}%
-            </span>
-            {trajectory?.confidence != null && (
-              <span style={{ ...mono, fontSize: 9, color: C.textMuted }}>
-                traj {(Number(trajectory.confidence) * 100).toFixed(0)}%
-              </span>
-            )}
-          </div>
-
-          {trajectory?.available && goalRemaining > 0 && (
-            <div style={{ marginTop: 7 }}>
-              <GoalChip trajectoryScore={cagrProxy} goalRemaining={goalRemaining} positionValue={pos5pct} />
-            </div>
+      {/* Rich always-visible card */}
+      <div style={{ padding: "16px 18px" }}>
+        {/* Top row: rank + symbol + badges + regime */}
+        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 10 }}>
+          {rank != null && <span style={{ ...mono, fontSize: 10, color: C.textDim, fontWeight: 700 }}>#{rank}</span>}
+          <span style={{ ...mono, fontSize: 17, fontWeight: 800, color: C.text, letterSpacing: "-0.01em" }}>{sym}</span>
+          <Badge label={decision} color={decCol} />
+          <Badge label={convInfo.label} color={convInfo.color} />
+          {trajectory?.label && trajectory.label !== "NO_MATCH" && (
+            <Badge label={trajectory.label.replace(/_/g, " ")} color={C.cyan} />
           )}
+          <span style={{ ...mono, fontSize: 9, color: C.textDim, marginLeft: "auto" }}>{regime}</span>
         </div>
 
-        {/* Right: factor snapshot */}
-        <div style={{ flexShrink: 0, minWidth: 130 }}>
-          {Object.entries(factors).slice(0, 4).map(([k, v]) => (
-            <div key={k} style={{ display: "flex", justifyContent: "space-between", gap: 10, marginBottom: 4 }}>
-              <span style={{ ...mono, fontSize: 9, color: C.textMuted }}>{k}</span>
-              <span style={{ ...mono, fontSize: 9, fontWeight: 700, color: deltaColor(v) }}>
-                {Number(v) > 0 ? "+" : ""}{fmtScore(v)}
-              </span>
-            </div>
-          ))}
+        {/* Middle: factor bars + synthesis side by side */}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+          {/* Left: factor bars */}
+          <div>
+            {Object.entries(factors).slice(0, 4).map(([k, v]) => (
+              <FactorRow key={k} label={k} value={v} max={3} />
+            ))}
+            {tactical?.score != null && (
+              <FactorRow label="tactical" value={tactical.score} max={1} color={tactical.score >= 0.5 ? C.green : C.gold} />
+            )}
+          </div>
+          {/* Right: synthesis */}
+          <div>
+            {summary ? (
+              <div style={{ ...mono, fontSize: 10, color: C.textSec, lineHeight: 1.6 }}>
+                {summary.length > 180 ? summary.slice(0, 180) + "…" : summary}
+              </div>
+            ) : (
+              <div style={{ ...mono, fontSize: 10, color: C.textDim }}>No synthesis available</div>
+            )}
+          </div>
         </div>
 
-        <div style={{ ...mono, fontSize: 11, color: C.textDim, flexShrink: 0 }}>
-          {expanded ? "▲" : "▼"}
+        {/* Bottom: conviction bar + goal chip + expand toggle */}
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 10, flexWrap: "wrap" }}>
+          <div style={{ flex: 1, maxWidth: 180, height: 3, background: C.border, borderRadius: 2, overflow: "hidden" }}>
+            <div style={{ width: fmtPct(conv), height: "100%", background: convInfo.color, boxShadow: `0 0 5px ${convInfo.color}60`, transition: "width 0.5s ease" }} />
+          </div>
+          <span style={{ ...mono, fontSize: 11, fontWeight: 700, color: convInfo.color }}>{(conv * 100).toFixed(1)}%</span>
+          {trajectory?.available && goalRemaining > 0 && (
+            <GoalChip trajectoryScore={cagrProxy} goalRemaining={goalRemaining} positionValue={pos5pct} />
+          )}
+          <button onClick={onToggle} style={{ marginLeft: "auto", ...mono, fontSize: 9, color: C.textMuted, background: "transparent", border: `1px solid ${C.border}`, borderRadius: 4, padding: "3px 10px", cursor: "pointer", letterSpacing: "0.08em" }}>
+            {expanded ? "COLLAPSE ▲" : "FULL DETAIL ▼"}
+          </button>
         </div>
       </div>
 
       {/* Expanded detail */}
       {expanded && (
         <div style={{
-          padding: "0 18px 18px", paddingTop: 14,
+          padding: "14px 18px 18px",
           borderTop: `1px solid ${C.border}`,
           display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20,
           animation: "fadeIn 0.18s ease",
         }}>
-          {/* Left col */}
           <div>
-            <div style={{ ...mono, fontSize: 9, color: C.textDim, letterSpacing: "0.12em", marginBottom: 8 }}>
-              FACTOR ATTRIBUTION
-            </div>
+            <div style={{ ...mono, fontSize: 9, color: C.textDim, letterSpacing: "0.12em", marginBottom: 8 }}>FACTOR ATTRIBUTION</div>
             {Object.entries(factors).length > 0
               ? Object.entries(factors).map(([k, v]) => <FactorRow key={k} label={k} value={v} max={3} />)
               : <span style={{ ...mono, fontSize: 10, color: C.textDim }}>No attribution data</span>
@@ -512,28 +500,34 @@ function ManualResearchPanel({ goalRemaining, portfolioValue }) {
       background: C.surface, border: `1px solid ${C.border}`, borderRadius: 8,
       padding: "16px 20px", marginBottom: 20,
     }}>
-      <SectionLabel sub="User-driven · Immediate">Manual Research</SectionLabel>
+      <div style={{ ...mono, fontSize: 9, fontWeight: 700, letterSpacing: "0.2em", color: C.textMuted, textTransform: "uppercase", marginBottom: 10 }}>
+        MANUAL RESEARCH <span style={{ color: C.textDim, fontWeight: 400 }}>· User-driven · Immediate</span>
+      </div>
 
       <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
         <input
           value={sym}
-          onChange={e => setSym(e.target.value)}
+          onChange={e => setSym(e.target.value.toUpperCase())}
           onKeyDown={e => e.key === "Enter" && run()}
-          placeholder="Ticker (e.g. NVDA)"
+          placeholder="TICKER"
+          autoComplete="new-password"
+          autoCorrect="off"
+          autoCapitalize="characters"
+          spellCheck="false"
           style={{
-            flex: 1, ...mono, fontSize: 12, padding: "8px 12px",
-            background: C.panel, border: `1px solid ${C.border}`,
-            borderRadius: 6, color: C.text, outline: "none",
+            flex: 1, ...mono, fontSize: 14, fontWeight: 700, padding: "10px 14px",
+            background: "#0a0f1a", border: `1px solid ${C.borderAcc}`,
+            borderRadius: 6, color: C.text, outline: "none", letterSpacing: "0.08em",
           }}
         />
         <button
           onClick={run} disabled={loading}
           style={{
             ...mono, fontSize: 10, fontWeight: 700, letterSpacing: "0.12em",
-            padding: "8px 18px", borderRadius: 6, cursor: loading ? "not-allowed" : "pointer",
-            background: loading ? C.panel   : C.blueDim,
-            border:     `1px solid ${loading ? C.border : C.blue + "60"}`,
-            color:      loading ? C.textMuted : C.blue,
+            padding: "10px 22px", borderRadius: 6, cursor: loading ? "not-allowed" : "pointer",
+            background: loading ? C.panel : C.blue,
+            border: `1px solid ${loading ? C.border : C.blue}`,
+            color: loading ? C.textMuted : "#000",
           }}
         >
           {loading ? "ANALYZING…" : "ANALYZE"}
@@ -543,85 +537,77 @@ function ManualResearchPanel({ goalRemaining, portfolioValue }) {
       {error && <div style={{ ...mono, fontSize: 11, color: C.red }}>⚠ {error}</div>}
 
       {manual && (
-        <div style={{ borderTop: `1px solid ${C.border}`, paddingTop: 14 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10, flexWrap: "wrap" }}>
-            <span style={{ ...mono, fontSize: 18, fontWeight: 800, color: C.text }}>{sym.toUpperCase()}</span>
+        <div style={{ borderTop: `1px solid ${C.border}`, paddingTop: 16 }}>
+          {/* Header row */}
+          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12, flexWrap: "wrap" }}>
+            <span style={{ ...mono, fontSize: 20, fontWeight: 800, color: C.text, letterSpacing: "0.04em" }}>{sym.toUpperCase()}</span>
             {result?.result?.symbol?.name && result.result.symbol.name !== sym.toUpperCase() && (
-              <span style={{ ...mono, fontSize: 11, color: C.textSec, fontWeight: 400 }}>{result.result.symbol.name}</span>
+              <span style={{ ...mono, fontSize: 11, color: C.textSec }}>{result.result.symbol.name}</span>
             )}
             {priceData?.price != null && (
-              <span style={{ ...mono, fontSize: 15, fontWeight: 700, color: '#4ade80' }}>
-                ${Number(priceData.price).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              <span style={{ ...mono, fontSize: 16, fontWeight: 700, color: "#4ade80" }}>
+                ${Number(priceData.price).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </span>
             )}
-            {priceData?.price != null && priceData?.source && (
-              <span style={{ ...mono, fontSize: 10, color: '#6b7280', fontWeight: 400, letterSpacing: '0.05em' }}>
-                {priceData.source === 'coinbase-spot' ? 'LIVE'
-                  : priceData.source === 'polygon-intraday-delayed' ? '15-MIN DELAY'
-                  : 'PREV CLOSE'}
+            {priceData?.source && (
+              <span style={{ ...mono, fontSize: 9, color: "#6b7280", letterSpacing: "0.06em" }}>
+                {priceData.source === "coinbase-spot" ? "LIVE" : priceData.source === "polygon-intraday-delayed" ? "15-MIN DELAY" : "PREV CLOSE"}
               </span>
             )}
-            <Badge label={decision}       color={decisionColor(decision)} />
+            <Badge label={decision} color={decisionColor(decision)} />
             <Badge label={`${convInfo.label} · ${(conv * 100).toFixed(1)}%`} color={convInfo.color} />
             {trajectory?.label && trajectory.label !== "NO_MATCH" && (
               <Badge label={trajectory.label.replace(/_/g, " ")} color={C.cyan} />
             )}
           </div>
 
-          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14, flexWrap: "wrap" }}>
-            <div style={{ flex: 1, maxWidth: 280, height: 4, background: C.border, borderRadius: 2, overflow: "hidden" }}>
-              <div style={{
-                width: fmtPct(conv), height: "100%",
-                background: convInfo.color, boxShadow: `0 0 5px ${convInfo.color}60`,
-              }} />
+          {/* Conviction bar */}
+          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
+            <div style={{ flex: 1, maxWidth: 300, height: 4, background: C.border, borderRadius: 2, overflow: "hidden" }}>
+              <div style={{ width: fmtPct(conv), height: "100%", background: convInfo.color, boxShadow: `0 0 6px ${convInfo.color}60` }} />
             </div>
             {trajectory?.available && goalRemaining > 0 && (
-              <GoalChip
-                trajectoryScore={trajectory.score}
-                goalRemaining={goalRemaining}
-                positionValue={portfolioValue * 0.05}
-              />
+              <GoalChip trajectoryScore={trajectory.score} goalRemaining={goalRemaining} positionValue={portfolioValue * 0.05} />
             )}
           </div>
 
+          {/* Split panel: quant left, intelligence right */}
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
-            <div>
-              <div style={{ ...mono, fontSize: 9, color: C.textDim, letterSpacing: "0.12em", marginBottom: 8 }}>
-                FACTOR ATTRIBUTION
-              </div>
+            {/* LEFT: quantitative */}
+            <div style={{ background: "#060d1a", border: `1px solid ${C.border}`, borderRadius: 6, padding: "14px 16px" }}>
+              <div style={{ ...mono, fontSize: 9, color: C.textMuted, letterSpacing: "0.16em", marginBottom: 10 }}>QUANTITATIVE FACTORS</div>
               {Object.entries(factors).length > 0
                 ? Object.entries(factors).map(([k, v]) => <FactorRow key={k} label={k} value={v} max={3} />)
                 : <span style={{ ...mono, fontSize: 10, color: C.textDim }}>None available</span>
               }
               <TacticalSignals tactical={tactical} />
-            </div>
-            <div>
-              {trajectory?.available && (
-                <div style={{ marginBottom: 12 }}>
-                  <div style={{ ...mono, fontSize: 9, color: C.textDim, marginBottom: 4 }}>TRAJECTORY</div>
-                  <div style={{ ...mono, fontSize: 12, fontWeight: 700, color: C.cyan }}>
-                    {trajectory.label?.replace(/_/g, " ")}
-                  </div>
-                  <div style={{ ...mono, fontSize: 10, color: C.textSec, marginTop: 4, lineHeight: 1.55 }}>
-                    {trajectory.explanation}
-                  </div>
-                </div>
-              )}
               {audit && (
-                <div style={{ marginBottom: 12 }}>
-                  <div style={{ ...mono, fontSize: 9, color: C.textDim, marginBottom: 4 }}>
-                    FUNDAMENTALS ·{" "}
-                    <span style={{ color: audit.overallStatus === "PASS" ? C.green : C.red }}>
-                      {audit.overallStatus}
-                    </span>
+                <div style={{ marginTop: 12 }}>
+                  <div style={{ ...mono, fontSize: 9, color: C.textMuted, letterSpacing: "0.12em", marginBottom: 6 }}>
+                    FUNDAMENTALS · <span style={{ color: audit.overallStatus === "PASS" ? C.green : C.red }}>{audit.overallStatus}</span>
                   </div>
                   <AuditPills audit={audit} />
                 </div>
               )}
-              {manual?.explanation?.plainEnglishSummary && (
-                <div>
-                  <div style={{ ...mono, fontSize: 9, color: C.textDim, marginBottom: 4 }}>ENGINE SYNTHESIS</div>
+            </div>
+
+            {/* RIGHT: intelligence */}
+            <div style={{ background: "#060d1a", border: `1px solid ${C.border}`, borderRadius: 6, padding: "14px 16px" }}>
+              <div style={{ ...mono, fontSize: 9, color: C.textMuted, letterSpacing: "0.16em", marginBottom: 10 }}>INTELLIGENCE SYNTHESIS</div>
+              {trajectory?.available && (
+                <div style={{ marginBottom: 12 }}>
+                  <div style={{ ...mono, fontSize: 11, fontWeight: 700, color: C.cyan, marginBottom: 4 }}>
+                    {trajectory.label?.replace(/_/g, " ")}
+                  </div>
                   <div style={{ ...mono, fontSize: 10, color: C.textSec, lineHeight: 1.6 }}>
+                    {trajectory.explanation}
+                  </div>
+                </div>
+              )}
+              {manual?.explanation?.plainEnglishSummary && (
+                <div style={{ borderTop: trajectory?.available ? `1px solid ${C.border}` : "none", paddingTop: trajectory?.available ? 10 : 0 }}>
+                  <div style={{ ...mono, fontSize: 9, color: C.textMuted, letterSpacing: "0.12em", marginBottom: 6 }}>ENGINE SYNTHESIS</div>
+                  <div style={{ ...mono, fontSize: 10, color: C.textSec, lineHeight: 1.7 }}>
                     {manual.explanation.plainEnglishSummary}
                   </div>
                 </div>
