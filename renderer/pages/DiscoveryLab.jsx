@@ -651,11 +651,11 @@ export default function DiscoveryLab() {
     let mounted = true;
     async function load() {
       try {
-        const [discoveryR, watchlistR, rejectedR, kellyR] = await Promise.allSettled([
+        const [discoveryR, watchlistR, rejectedR, valuationR] = await Promise.allSettled([
           window.jupiter.invoke("discovery:run"),
           window.jupiter.invoke("watchlist:candidates").catch(() => null),
           window.jupiter.invoke("discovery:evaluation:rejected").catch(() => null),
-          window.jupiter.invoke("decisions:getKellyRecommendations").catch(() => null),
+          window.jupiter.invoke("portfolio:getValuation").catch(() => null),
         ]);
 
         if (!mounted) return;
@@ -671,10 +671,17 @@ export default function DiscoveryLab() {
         const rej = rejectedR.status === "fulfilled" ? rejectedR.value : null;
         setRejectedRows(Array.isArray(rej?.rejected) ? rej.rejected : []);
 
-        const kelly = kellyR.status === "fulfilled" ? kellyR.value : null;
-        if (kelly) {
-          setGoal(kelly.goal           || null);
-          setPortfolioValue(kelly.portfolioValue || 0);
+        const valuation = valuationR.status === "fulfilled" ? valuationR.value : null;
+        if (valuation) {
+          const pv = valuation?.totals?.liveValue || 0;
+          setPortfolioValue(pv);
+          const GOAL_TARGET = 1_000_000;
+          const now = new Date();
+          const yearsRemaining = Math.max(0.1, 2037 - now.getFullYear() - now.getMonth()/12);
+          const requiredCAGR = pv ? ((Math.pow(GOAL_TARGET / Math.max(pv,1), 1/yearsRemaining) - 1) * 100).toFixed(1) : null;
+          const progressPct = Math.min((pv / GOAL_TARGET) * 100, 100);
+          const remaining = Math.max(GOAL_TARGET - pv, 0);
+          setGoal({ progressPct, remaining, requiredCAGR, yearsRemaining });
         }
       } catch (err) {
         console.error("DiscoveryLab load failed:", err);
