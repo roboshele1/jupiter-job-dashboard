@@ -466,21 +466,132 @@ function GoalBanner({ goal, portfolioValue }) {
 
 // ─── Manual research panel ────────────────────────────────────────────────────
 function ManualResearchPanel({ goalRemaining, portfolioValue }) {
-  const [sym,     setSym]     = useState("");
-  const [loading, setLoading] = useState(false);
-  const [result,  setResult]  = useState(null);
-  const [error,   setError]   = useState("");
+  const [sym,         setSym]         = useState("");
+  const [loading,     setLoading]     = useState(false);
+  const [result,      setResult]      = useState(null);
+  const [error,       setError]       = useState("");
+  const [aiSynthesis, setAiSynthesis] = useState("");
+  const [aiLoading,   setAiLoading]   = useState(false);
+  const [ownedSymbols, setOwnedSymbols] = useState(new Set());
+
+  useEffect(() => {
+    window.jupiter.invoke("holdings:getRaw").then(hdgs => {
+      if (Array.isArray(hdgs)) setOwnedSymbols(new Set(hdgs.map(h => h.symbol?.toUpperCase())));
+    }).catch(() => {});
+  }, []);
 
   async function run() {
     const s = sym.trim().toUpperCase();
     if (!s) return;
     setLoading(true); setResult(null); setError("");
+    setAiSynthesis("");
     try {
-      const r = await window.jupiter.invoke("discovery:analyze:symbol", { symbol: s, ownership: true });
+      const isOwned = ownedSymbols.has(s);
+      const r = await window.jupiter.invoke("discovery:analyze:symbol", { symbol: s, ownership: isOwned });
       setResult(r || null);
+      setLoading(false);
+
+      // Fire Jupiter AI synthesis in parallel
+      const apiKey = import.meta.env.VITE_ANTHROPIC_API_KEY;
+      if (apiKey && r?.result) {
+        setAiLoading(true);
+        const m = r.result;
+        const factors = m?.factorAttribution || {};
+        const trajectory = m?.trajectoryMatch || null;
+        const audit = m?.fundamentalsAudit || null;
+        const decision = m?.decision?.decision || "NONE";
+        const conv = Number(m?.conviction?.normalized ?? 0);
+        const price = r?.price?.price ?? null;
+
+        const factorLines = Object.entries(factors).map(([k,v]) => `  ${k}: ${Number(v)>0?"+":""}${Number(v).toFixed(2)}`).join("\n");
+        const auditLines = audit?.categories ? Object.entries(audit.categories).map(([k,v]) => `  ${k}: ${v.status}`).join("\n") : "unavailable";
+
+        const pos5pct = portfolioValue * 0.05;
+        const years = Math.max(1, 2037 - new Date().getFullYear());
+        const cagrProxy = trajectory?.score || 0.25;
+        const projected2037 = pos5pct * Math.pow(1 + cagrProxy, years);
+        const projectedGain = projected2037 - pos5pct;
+        const gapClosePct = goalRemaining > 0 ? ((projectedGain / goalRemaining) * 100).toFixed(1) : null;
+        const isOwned = ownedSymbols.has(s);
+
+        const prompt = `You are JUPITER AI analyzing ${s} for a long-term investor targeting $1M by 2037.
+
+PORTFOLIO CONTEXT:
+  Current portfolio value: $${Math.round(portfolioValue).toLocaleString()}
+  Goal gap remaining: $${Math.round(goalRemaining).toLocaleString()}
+  Years to goal: ${years}
+  This holding owned: ${isOwned ? "YES — already in portfolio" : "NO — not currently held"}
+
+CANDIDATE DATA:
+  Decision: ${decision}
+  Conviction: ${(conv*100).toFixed(1)}%
+  Trajectory: ${trajectory?.label?.replace(/_/g," ") || "unknown"}
+  Price: ${price ? "$"+Number(price).toFixed(2) : "unknown"}
+  5% position size: $${Math.round(pos5pct).toLocaleString()}
+  Projected 2037 value (5% pos): $${Math.round(projected2037).toLocaleString()}
+  Projected gain: $${Math.round(projectedGain).toLocaleString()}${gapClosePct ? ` — closes ${gapClosePct}% of goal gap` : ""}
+
+FACTOR SCORES:
+${factorLines || "  none available"}
+
+FUNDAMENTALS:
+${auditLines}
+
+ENGINE SYNTHESIS:
+${m?.explanation?.plainEnglishSummary || "none"}
+
+Write a 3-4 sentence investment intelligence brief on ${s}. Be specific to this data. Lead with what the factor scores reveal. ${!isOwned && gapClosePct ? `Since this is not currently held, explicitly state that a 5% position could close ${gapClosePct}% of the remaining goal gap by 2037.` : isOwned ? "Since this is already held, comment on whether the current position sizing is appropriate given the factor scores." : ""} End with one concrete implication. No headers. No bold. Under 140 words.`;
+
+        try {
+          const res = await fetch("https://api.anthropic.com/v1/messages", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "x-api-key": apiKey,
+              "anthropic-version": "2023-06-01",
+              "anthropic-dangerous-direct-browser-access": "true",
+            },
+            body: JSON.stringify({
+              model: "claude-sonnet-4-6",
+              max_tokens: 300,
+              stream: true,
+              messages: [{ role: "user", content: prompt }],
+            }),
+          });
+
+          if (res.ok) {
+            const reader = res.body.getReader();
+            const decoder = new TextDecoder();
+            let buffer = "";
+            let aiText = "";
+            while (true) {
+              const { done, value } = await reader.read();
+              if (done) break;
+              buffer += decoder.decode(value, { stream: true });
+              const lines = buffer.split("\n");
+              buffer = lines.pop();
+              for (const line of lines) {
+                if (!line.startsWith("data:")) continue;
+                const data = line.slice(5).trim();
+                if (data === "[DONE]") continue;
+                try {
+                  const parsed = JSON.parse(data);
+                  if (parsed.type === "content_block_delta" && parsed.delta?.type === "text_delta") {
+                    aiText += parsed.delta.text;
+                    setAiSynthesis(aiText);
+                  }
+                } catch(e) {}
+              }
+            }
+          }
+        } catch(e) {
+          console.warn("[DiscoveryLab] AI synthesis failed:", e);
+        } finally {
+          setAiLoading(false);
+        }
+      }
     } catch {
       setError("Symbol not found or analysis unavailable.");
-    } finally {
       setLoading(false);
     }
   }
@@ -604,7 +715,18 @@ function ManualResearchPanel({ goalRemaining, portfolioValue }) {
                   </div>
                 </div>
               )}
-              {manual?.explanation?.plainEnglishSummary && (
+              {(aiSynthesis || aiLoading) && (
+                <div style={{ borderTop: `1px solid ${C.border}`, paddingTop: 10, marginTop: 10 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}>
+                    <div style={{ ...mono, fontSize: 9, color: C.textMuted, letterSpacing: "0.12em" }}>JUPITER AI</div>
+                    {aiLoading && <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#4da6ff", animation: "pulse 1s ease-in-out infinite" }} />}
+                  </div>
+                  <div style={{ ...mono, fontSize: 10, color: "#e2e8f0", lineHeight: 1.7 }}>
+                    {aiSynthesis || "Generating…"}
+                  </div>
+                </div>
+              )}
+              {!aiSynthesis && !aiLoading && manual?.explanation?.plainEnglishSummary && (
                 <div style={{ borderTop: trajectory?.available ? `1px solid ${C.border}` : "none", paddingTop: trajectory?.available ? 10 : 0 }}>
                   <div style={{ ...mono, fontSize: 9, color: C.textMuted, letterSpacing: "0.12em", marginBottom: 6 }}>ENGINE SYNTHESIS</div>
                   <div style={{ ...mono, fontSize: 10, color: C.textSec, lineHeight: 1.7 }}>
