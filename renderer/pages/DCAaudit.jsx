@@ -450,6 +450,8 @@ function CAGRPerformancePanel({ executions, currentPortfolioValue }) {
 }
 
 function ExecutionLedger({ executions }) {
+  const [expanded, setExpanded] = useState({});
+
   if (!executions || executions.length === 0) {
     return (
       <div style={{
@@ -467,62 +469,91 @@ function ExecutionLedger({ executions }) {
     );
   }
 
+  const grouped = executions.reduce((acc, exec) => {
+    const date = formatDate(exec.timestamp);
+    if (!acc[date]) acc[date] = [];
+    acc[date].push(exec);
+    return acc;
+  }, {});
+
+  const sortedDates = Object.keys(grouped).sort((a, b) => new Date(b) - new Date(a));
+
+  const toggle = (date) => setExpanded(prev => ({ ...prev, [date]: !prev[date] }));
+
   return (
-    <div style={{
-      background: C.surface,
-      border: `1px solid ${C.border}`,
-      borderRadius: 10,
-      padding: "16px 0",
-      overflow: "auto",
-    }}>
-      <table style={{ width: "100%", ...mono, fontSize: 11 }}>
-        <thead>
-          <tr style={{ color: C.textMuted, borderBottom: `1px solid ${C.border}`, textTransform: "uppercase" }}>
-            <th style={{ textAlign: "left", padding: "12px 16px", fontWeight: 600 }}>Date</th>
-            <th style={{ textAlign: "left", padding: "12px 16px", fontWeight: 600 }}>Symbol</th>
-            <th style={{ textAlign: "right", padding: "12px 16px", fontWeight: 600 }}>Amount</th>
-            <th style={{ textAlign: "right", padding: "12px 16px", fontWeight: 600 }}>Entry Price</th>
-            <th style={{ textAlign: "right", padding: "12px 16px", fontWeight: 600 }}>Current</th>
-            <th style={{ textAlign: "right", padding: "12px 16px", fontWeight: 600 }}>Return</th>
-            <th style={{ textAlign: "center", padding: "12px 16px", fontWeight: 600 }}>Drift Status</th>
-          </tr>
-        </thead>
-        <tbody>
-          {executions.map(exec => (
-            <tr key={exec.id} style={{ borderBottom: `1px solid ${C.borderAcc}`, color: C.text }}>
-              <td style={{ padding: "10px 16px" }}>{formatDate(exec.timestamp)}</td>
-              <td style={{ padding: "10px 16px", fontWeight: 700 }}>{exec.symbol}</td>
-              <td style={{ padding: "10px 16px", textAlign: "right", color: C.blue }}>{fmtMoney(exec.amount)}</td>
-              <td style={{ padding: "10px 16px", textAlign: "right" }}>
-                {exec.entryPrice ? "$" + exec.entryPrice.toFixed(2) : "—"}
-              </td>
-              <td style={{ padding: "10px 16px", textAlign: "right" }}>
-                {exec.currentPrice ? "$" + exec.currentPrice.toFixed(2) : "—"}
-              </td>
-              <td style={{ 
-                padding: "10px 16px", 
-                textAlign: "right", 
-                color: exec.actualReturnPct !== null ? (exec.actualReturnPct >= 0 ? C.green : C.red) : C.textMuted 
-              }}>
-                {exec.actualReturnPct !== null ? fmtPct(exec.actualReturnPct, 2) : "—"}
-              </td>
-              <td style={{ padding: "10px 16px", textAlign: "center" }}>
-                <span style={{
-                  padding: "2px 8px",
-                  borderRadius: 4,
-                  background: driftColor(exec.driftStatus) + "20",
-                  color: driftColor(exec.driftStatus),
-                  fontWeight: 600,
-                  fontSize: 10,
-                  textTransform: "uppercase",
-                }}>
-                  {exec.driftStatus || "—"}
-                </span>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+      {sortedDates.map(date => {
+        const rows = grouped[date];
+        const totalDeployed = rows.reduce((s, r) => s + (r.amount || 0), 0);
+        const avgReturn = rows.filter(r => r.actualReturnPct !== null).length > 0
+          ? rows.filter(r => r.actualReturnPct !== null).reduce((s, r) => s + r.actualReturnPct, 0) / rows.filter(r => r.actualReturnPct !== null).length
+          : null;
+        const isOpen = expanded[date];
+
+        return (
+          <div key={date} style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 10, overflow: "hidden" }}>
+            <div
+              onClick={() => toggle(date)}
+              style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "14px 20px", cursor: "pointer", userSelect: "none" }}
+              onMouseEnter={e => e.currentTarget.style.background = C.borderAcc}
+              onMouseLeave={e => e.currentTarget.style.background = "transparent"}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+                <span style={{ ...mono, fontSize: 10, color: isOpen ? C.blue : C.textMuted, letterSpacing: "0.1em" }}>{isOpen ? "▼" : "▶"}</span>
+                <span style={{ ...mono, fontSize: 12, fontWeight: 700, color: C.text }}>{date}</span>
+                <span style={{ ...mono, fontSize: 11, color: C.textMuted }}>{rows.length} execution{rows.length > 1 ? "s" : ""}</span>
+              </div>
+              <div style={{ display: "flex", gap: 24, alignItems: "center" }}>
+                <div style={{ textAlign: "right" }}>
+                  <div style={{ ...mono, fontSize: 10, color: C.textMuted, marginBottom: 2 }}>DEPLOYED</div>
+                  <div style={{ ...mono, fontSize: 12, fontWeight: 700, color: C.blue }}>{fmtMoney(totalDeployed)}</div>
+                </div>
+                {avgReturn !== null && (
+                  <div style={{ textAlign: "right" }}>
+                    <div style={{ ...mono, fontSize: 10, color: C.textMuted, marginBottom: 2 }}>AVG RETURN</div>
+                    <div style={{ ...mono, fontSize: 12, fontWeight: 700, color: avgReturn >= 0 ? C.green : C.red }}>{fmtPct(avgReturn, 2)}</div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {isOpen && (
+              <div style={{ borderTop: `1px solid ${C.border}`, overflow: "auto" }}>
+                <table style={{ width: "100%", ...mono, fontSize: 11 }}>
+                  <thead>
+                    <tr style={{ color: C.textMuted, borderBottom: `1px solid ${C.border}`, textTransform: "uppercase" }}>
+                      <th style={{ textAlign: "left", padding: "10px 20px", fontWeight: 600 }}>Symbol</th>
+                      <th style={{ textAlign: "right", padding: "10px 16px", fontWeight: 600 }}>Amount</th>
+                      <th style={{ textAlign: "right", padding: "10px 16px", fontWeight: 600 }}>Entry Price</th>
+                      <th style={{ textAlign: "right", padding: "10px 16px", fontWeight: 600 }}>Current</th>
+                      <th style={{ textAlign: "right", padding: "10px 16px", fontWeight: 600 }}>Return</th>
+                      <th style={{ textAlign: "center", padding: "10px 20px", fontWeight: 600 }}>Drift Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {rows.map(exec => (
+                      <tr key={exec.id} style={{ borderBottom: `1px solid ${C.borderAcc}`, color: C.text }}>
+                        <td style={{ padding: "10px 20px", fontWeight: 700 }}>{exec.symbol}</td>
+                        <td style={{ padding: "10px 16px", textAlign: "right", color: C.blue }}>{fmtMoney(exec.amount)}</td>
+                        <td style={{ padding: "10px 16px", textAlign: "right" }}>{exec.entryPrice ? "$" + exec.entryPrice.toFixed(2) : "—"}</td>
+                        <td style={{ padding: "10px 16px", textAlign: "right" }}>{exec.currentPrice ? "$" + exec.currentPrice.toFixed(2) : "—"}</td>
+                        <td style={{ padding: "10px 16px", textAlign: "right", color: exec.actualReturnPct !== null ? (exec.actualReturnPct >= 0 ? C.green : C.red) : C.textMuted }}>
+                          {exec.actualReturnPct !== null ? fmtPct(exec.actualReturnPct, 2) : "—"}
+                        </td>
+                        <td style={{ padding: "10px 20px", textAlign: "center" }}>
+                          <span style={{ padding: "2px 8px", borderRadius: 4, background: driftColor(exec.driftStatus) + "20", color: driftColor(exec.driftStatus), fontWeight: 600, fontSize: 10, textTransform: "uppercase" }}>
+                            {exec.driftStatus || "—"}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 }
