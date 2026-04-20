@@ -21,18 +21,8 @@ const MONO     = { fontFamily: "'IBM Plex Mono', monospace" };
 const GOAL      = 1_000_000;
 const GOAL_YEAR = 2037;
 
-const BASE_CAGR = {
-  CNSWF:26, CSU:26, NVDA:35, ASML:22, AVGO:28, NOW:24,
-  MA:18, HOOD:20, APLD:22, BMNR:15, BTC:30, ETH:25,
-  MSTR:28, WBTC:30, default:15,
-};
-
 const REGIME_MODIFIER = {
   RISK_ON:+3, MILD_RISK_ON:+1.5, NEUTRAL:0, MILD_RISK_OFF:-2, RISK_OFF:-5,
-};
-
-const KELLY_MULT_TABLE = {
-  RISK_ON:0.30, MILD_RISK_ON:0.275, NEUTRAL:0.25, MILD_RISK_OFF:0.175, RISK_OFF:0.10,
 };
 
 const SUGGESTIONS = [
@@ -51,12 +41,6 @@ const SUGGESTIONS = [
 function fmtUSD(n) {
   if (!n && n !== 0) return "—";
   return "$" + Number(n).toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 });
-}
-
-function getCAGR(symbol, regime = "NEUTRAL") {
-  const base = BASE_CAGR[symbol?.toUpperCase()] ?? BASE_CAGR.default;
-  const mod  = REGIME_MODIFIER[regime] ?? 0;
-  return Math.max(5, base + mod);
 }
 
 function formatMemoryBlock(memory) {
@@ -86,11 +70,10 @@ function buildSystemPrompt({ positions, portfolioValue, risk, regime, memory }) 
   const regimeMod = REGIME_MODIFIER[regime] ?? 0;
 
   const holdingLines = (positions || []).map(p => {
-    const cagr   = getCAGR(p.symbol, regime);
     const weight = portfolioValue ? ((p.liveValue / portfolioValue) * 100).toFixed(1) : "?";
     const pnl    = p.liveValue && p.costBasis
       ? (((p.liveValue - p.costBasis) / p.costBasis) * 100).toFixed(1) : "?";
-    return `  - ${p.symbol}: value=${fmtUSD(p.liveValue)}, weight=${weight}%, CAGR=${cagr}%, P&L=${pnl}%`;
+    return `  - ${p.symbol}: value=${fmtUSD(p.liveValue)}, weight=${weight}%, P&L=${pnl}%`;
   }).join("\n");
 
   const riskSummary = risk
@@ -102,6 +85,8 @@ function buildSystemPrompt({ positions, portfolioValue, risk, regime, memory }) 
   return `You are JUPITER AI — the embedded decision intelligence engine inside Jupiter, targeting $1,000,000 by ${GOAL_YEAR}.
 
 You are NOT a generic chatbot. You have live portfolio data, market regime, and full decision history. Answer everything grounded in this data first.
+
+IMPORTANT: You do NOT have assumed per-symbol CAGRs. Never fabricate growth rate assumptions for individual positions. Reason from actual position weights, live values, P&L, and the portfolio-level required CAGR only. If asked about a symbol's expected growth, say you work from portfolio-level data and ask the user to provide their own conviction CAGR for that position.
 
 SCOPE: Full-spectrum financial intelligence — portfolio decisions, macro, Fed policy, sector analysis, crypto, earnings, derivatives, ETFs, global markets, any investment concept. You answer everything.
 
