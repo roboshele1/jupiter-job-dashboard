@@ -633,7 +633,6 @@ function GapAnalysis({ portfolioValue, requiredCAGR, goal }) {
 
 // ── Main component ────────────────────────────────────────────────────────────
 export default function GoalEngine() {
-  const [kellyData,    setKellyData]    = useState(null);
   const [valuation,    setValuation]    = useState(null);
   const [loading,      setLoading]      = useState(true);
   const [error,        setError]        = useState(null);
@@ -642,11 +641,7 @@ export default function GoalEngine() {
 
   const load = useCallback(async () => {
     try {
-      const [kelly, val] = await Promise.all([
-        window.jupiter.invoke("decisions:getKellyRecommendations"),
-        window.jupiter.invoke("portfolio:getValuation"),
-      ]);
-      setKellyData(kelly);
+      const val = await window.jupiter.invoke("portfolio:getValuation");
       setValuation(val);
       setLastRefresh(new Date());
       setError(null);
@@ -660,12 +655,14 @@ export default function GoalEngine() {
 
   useEffect(() => { load(); }, [load]);
 
-  const goal           = kellyData?.goal           || null;
-  const portfolioValue = kellyData?.portfolioValue || 0;
-  const requiredCAGR   = goal?.requiredCAGR        || 0;
-  const progressPct    = goal?.progressPct         || 0;
-  const yearsRemaining = goal?.yearsRemaining      || (GOAL_YEAR - new Date().getFullYear());
   const positions      = useMemo(() => valuation?.positions || [], [valuation]);
+  const portfolioValue = useMemo(() => valuation?.totals?.liveValue || positions.reduce((s,p) => s + Number(p.liveValue||0), 0), [valuation, positions]);
+  const GOAL_TARGET    = 1_000_000;
+  const now            = new Date();
+  const yearsRemaining = Math.max(0.1, GOAL_YEAR - now.getFullYear() - now.getMonth()/12);
+  const requiredCAGR   = portfolioValue ? ((Math.pow(GOAL_TARGET / Math.max(portfolioValue,1), 1/yearsRemaining) - 1) * 100) : 0;
+  const progressPct    = Math.min((portfolioValue / GOAL_TARGET) * 100, 100);
+  const goal           = { requiredCAGR, progressPct, yearsRemaining, monthsRemaining: Math.round(yearsRemaining * 12), remaining: Math.max(GOAL_TARGET - portfolioValue, 0) };
 
   if (loading) {
     return (
@@ -703,7 +700,7 @@ export default function GoalEngine() {
         <div>
           <h1 style={{ fontSize: 26, fontWeight: 800, margin: 0, letterSpacing: "-0.02em" }}>Goal Engine</h1>
           <p style={{ ...mono, fontSize: 11, color: C.textMuted, margin: "4px 0 0" }}>
-            $100k \u2192 $1M by {GOAL_YEAR} \u00b7 live trajectory intelligence \u00b7 read-only
+            $100k → $1M by {GOAL_YEAR} · live trajectory intelligence · read-only
           </p>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
@@ -795,13 +792,10 @@ export default function GoalEngine() {
           color={C.text}
         />
         <StatCard
-          label="Kelly Heat"
-          value={`${kellyData?.heatCheck?.totalHeat?.toFixed(1) || "\u2014"}%`}
-          sub={kellyData?.heatCheck?.status || "\u2014"}
-          color={
-            kellyData?.heatCheck?.status === "OVERHEATED" ? C.red :
-            kellyData?.heatCheck?.status === "ELEVATED"   ? C.gold : C.green
-          }
+          label="Concentration Risk"
+          value={positions.length > 0 ? (() => { const top = Math.max(...positions.map(p => portfolioValue > 0 ? (Number(p.liveValue||0)/portfolioValue)*100 : 0)); return top > 25 ? "HIGH" : top > 15 ? "MODERATE" : "LOW"; })() : "—"}
+          sub={positions.length > 0 ? `top position ${Math.max(...positions.map(p => portfolioValue > 0 ? (Number(p.liveValue||0)/portfolioValue)*100 : 0)).toFixed(1)}%` : "no data"}
+          color={positions.length > 0 ? (() => { const top = Math.max(...positions.map(p => portfolioValue > 0 ? (Number(p.liveValue||0)/portfolioValue)*100 : 0)); return top > 25 ? C.red : top > 15 ? C.gold : C.green; })() : C.textMuted}
         />
         <StatCard
           label="Months to 2037"
@@ -846,7 +840,7 @@ export default function GoalEngine() {
       <div style={{
         ...mono, fontSize: 10, color: C.textDim, textAlign: "center", marginTop: 8, lineHeight: 1.6,
       }}>
-        Goal Engine is read-only \u00b7 all projections are mathematical illustrations, not predictions \u00b7 rebalance in Decisions tab
+        Goal Engine is read-only · all projections are mathematical illustrations, not predictions · rebalance in Decisions tab
       </div>
     </div>
   );
