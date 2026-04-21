@@ -60,3 +60,4 @@ dist-electron/
 node_modules/
 *.dmg
 data/jupiterConversation.json
+data/jupiterAlert.json

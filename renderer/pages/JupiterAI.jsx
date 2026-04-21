@@ -164,6 +164,7 @@ function MemoryBadge({ memory }) {
 
 export default function JupiterAI() {
   const [messages, setMessages]       = useState([]);
+  const [activeAlert, setActiveAlert]   = useState(null);
   const [input, setInput]             = useState("");
   const [loading, setLoading]         = useState(false);
   const [data, setData]               = useState(null);
@@ -244,8 +245,9 @@ export default function JupiterAI() {
         const json = await res.json();
         const content = json.content?.[0]?.text || "";
         if (content) {
-          setMessages([{ role:"assistant", content: content.trim() + "\n\n[Not financial advice]" }]);
-          conversationRef.current = [{ role:"assistant", content }];
+          const alertObj = { content: content.trim(), timestamp: new Date().toISOString() };
+          setActiveAlert(alertObj);
+          window.jupiter.invoke("conversation:saveAlert", alertObj).catch(() => {});
         }
       } catch(e) {
         console.warn("[JupiterAI] proactive alert failed:", e);
@@ -265,6 +267,9 @@ export default function JupiterAI() {
         conversationRef.current = saved;
         setMessages(saved);
       }
+    }).catch(() => {});
+    window.jupiter.invoke("conversation:loadAlert").then(alert => {
+      if (alert) setActiveAlert(alert);
     }).catch(() => {});
   }, []);
 
@@ -417,6 +422,25 @@ export default function JupiterAI() {
           )}
         </div>
       </div>
+
+      {/* ALERT PANEL */}
+      {activeAlert && (
+        <div style={{ margin: "0 24px", marginTop: 16, flexShrink: 0 }}>
+          <div style={{ background: "#0d1a0d", border: "1px solid #00ff8840", borderLeft: "3px solid #00ff88", borderRadius: 8, padding: "14px 18px" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <div style={{ width: 7, height: 7, borderRadius: "50%", background: "#00ff88", boxShadow: "0 0 6px #00ff88" }} />
+                <span style={{ ...MONO, fontSize: 9, fontWeight: 700, color: "#00ff88", letterSpacing: "0.14em" }}>JUPITER ALERT</span>
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                <span style={{ ...MONO, fontSize: 9, color: MUTED }}>{new Date(activeAlert.timestamp).toLocaleString()}</span>
+                <button onClick={() => { setActiveAlert(null); window.jupiter.invoke("conversation:saveAlert", null).catch(() => {}); }} style={{ background: "transparent", border: "none", color: MUTED, cursor: "pointer", fontSize: 11, padding: "0 4px" }}>✕</button>
+              </div>
+            </div>
+            <div style={{ ...MONO, fontSize: 11, color: "#c8ffd4", lineHeight: 1.7, whiteSpace: "pre-wrap" }}>{activeAlert.content}</div>
+          </div>
+        </div>
+      )}
 
       {/* CHAT AREA */}
       <div style={{ flex:1, overflowY:"auto", padding:"24px 32px" }}>
