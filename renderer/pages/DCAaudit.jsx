@@ -35,18 +35,19 @@ const C = {
 
 const mono = { fontFamily: "'IBM Plex Mono', monospace" };
 
-// Priority Funding Schedule (mirrored from your scheduler)
-const PRIORITY_BUCKETS = {
-  BUCKET_A: [
-    { symbol: "PLTR", pct: 0.40 },
-    { symbol: "RKLB", pct: 0.35 },
-    { symbol: "APP", pct: 0.25 },
+// DCA config loaded dynamically from dca:config:get
+const DEFAULT_BUCKETS = {
+  bucketA: [
+    { symbol: "PLTR", pct: 0.40, active: true },
+    { symbol: "RKLB", pct: 0.35, active: true },
+    { symbol: "APP",  pct: 0.25, active: true },
   ],
-  BUCKET_B: [
-    { symbol: "AXON", pct: 0.40 },
-    { symbol: "NU", pct: 0.30 },
-    { symbol: "MELI", pct: 0.30 },
+  bucketB: [
+    { symbol: "AXON", pct: 0.40, active: true },
+    { symbol: "NU",   pct: 0.30, active: true },
+    { symbol: "MELI", pct: 0.30, active: true },
   ],
+  bucketASplit: 0.40,
 };
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -116,17 +117,16 @@ function LogExecutionDialog({ onClose, onSubmit, buckets }) {
   const calculateAllocations = (amount) => {
     const allocs = [];
     
-    // Bucket A: 40% of DCA (PLTR 40%, RKLB 35%, APP 25%)
-    const bucketATotal = amount * 0.40;
-    allocs.push({ symbol: "PLTR", amount: bucketATotal * 0.40, bucket: "A" });
-    allocs.push({ symbol: "RKLB", amount: bucketATotal * 0.35, bucket: "A" });
-    allocs.push({ symbol: "APP", amount: bucketATotal * 0.25, bucket: "A" });
-    
-    // Bucket B: 40% of DCA (AXON 40%, NU 30%, MELI 30%)
-    const bucketBTotal = amount * 0.60;
-    allocs.push({ symbol: "AXON", amount: bucketBTotal * 0.40, bucket: "B" });
-    allocs.push({ symbol: "NU", amount: bucketBTotal * 0.30, bucket: "B" });
-    allocs.push({ symbol: "MELI", amount: bucketBTotal * 0.30, bucket: "B" });
+    const cfg = buckets || DEFAULT_BUCKETS;
+    const split = cfg.bucketASplit ?? 0.40;
+    const bucketATotal = amount * split;
+    const bucketBTotal = amount * (1 - split);
+    const activeA = (cfg.bucketA || []).filter(s => s.active !== false);
+    const activeB = (cfg.bucketB || []).filter(s => s.active !== false);
+    const sumA = activeA.reduce((s, x) => s + x.pct, 0) || 1;
+    const sumB = activeB.reduce((s, x) => s + x.pct, 0) || 1;
+    activeA.forEach(s => allocs.push({ symbol: s.symbol, amount: bucketATotal * (s.pct / sumA), bucket: "A" }));
+    activeB.forEach(s => allocs.push({ symbol: s.symbol, amount: bucketBTotal * (s.pct / sumB), bucket: "B" }));
     
     
     return allocs;
@@ -688,13 +688,18 @@ export default function DCAaudit() {
   const [executions, setExecutions] = useState([]);
   const [stats, setStats] = useState(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [dcaConfig, setDcaConfig] = useState(DEFAULT_BUCKETS);
+  const [showConfigPanel, setShowConfigPanel] = useState(false);
 
-  // Load executions on mount
+  // Load executions and DCA config on mount
   useEffect(() => {
     const loaded = getExecutions();
     setExecutions(loaded);
     const computed = calculateAuditStats();
     setStats(computed);
+    window.jupiter.invoke("dca:config:get").then(cfg => {
+      if (cfg) setDcaConfig(cfg);
+    }).catch(() => {});
   }, []);
 
   const handleLogExecution = async () => {
@@ -862,7 +867,55 @@ export default function DCAaudit() {
         >
           + Log DCA Execution
         </button>
+        <button
+          onClick={() => setShowConfigPanel(p => !p)}
+          style={{
+            padding: "10px 20px",
+            background: showConfigPanel ? C.blue : "transparent",
+            color: showConfigPanel ? "#000" : C.blue,
+            border: `1px solid ${C.blue}`,
+            borderRadius: 8,
+            fontWeight: 700,
+            cursor: "pointer",
+            ...mono,
+            fontSize: 12,
+          }}
+        >
+          ⚙ DCA SETTINGS
+        </button>
       </div>
+
+      {/* DCA Config Panel */}
+      {showConfigPanel && (
+        <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 10, padding: "20px 24px", marginBottom: 24 }}>
+          <div style={{ ...mono, fontSize: 10, fontWeight: 700, letterSpacing: "0.16em", color: C.textMuted, marginBottom: 16 }}>DCA ALLOCATION SETTINGS</div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24 }}>
+            {["bucketA", "bucketB"].map(bucket => (
+              <div key={bucket}>
+                <div style={{ ...mono, fontSize: 9, color: C.textMuted, letterSpacing: "0.12em", marginBottom: 10 }}>{bucket === "bucketA" ? "BUCKET A (40% of DCA)" : "BUCKET B (60% of DCA)"}</div>
+                {dcaConfig[bucket].map((item, idx) => (
+                  <div key={item.symbol} style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10, padding: "10px 14px", background: item.active ? "#0a1a0a" : C.bgCard, border: `1px solid ${item.active ? C.green+"40" : C.border}`, borderRadius: 6 }}>
+                    <input type="checkbox" checked={item.active} onChange={e => {
+                      const updated = { ...dcaConfig };
+                      updated[bucket] = updated[bucket].map((s, i) => i === idx ? { ...s, active: e.target.checked } : s);
+                      setDcaConfig(updated);
+                      window.jupiter.invoke("dca:config:save", updated).catch(() => {});
+                    }} style={{ cursor: "pointer", accentColor: C.green }} />
+                    <span style={{ ...mono, fontSize: 12, fontWeight: 700, color: item.active ? C.text : C.textMuted, flex: 1 }}>{item.symbol}</span>
+                    <input type="number" min="0" max="1" step="0.05" value={item.pct} onChange={e => {
+                      const updated = { ...dcaConfig };
+                      updated[bucket] = updated[bucket].map((s, i) => i === idx ? { ...s, pct: Number(e.target.value) } : s);
+                      setDcaConfig(updated);
+                      window.jupiter.invoke("dca:config:save", updated).catch(() => {});
+                    }} style={{ ...mono, fontSize: 11, width: 60, padding: "4px 8px", background: C.bgCard, border: `1px solid ${C.border}`, borderRadius: 4, color: C.text, textAlign: "right" }} />
+                    <span style={{ ...mono, fontSize: 10, color: C.textMuted }}>weight</span>
+                  </div>
+                ))}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Execution Ledger */}
       <div style={{ marginBottom: 32 }}>
@@ -875,7 +928,7 @@ export default function DCAaudit() {
         <LogExecutionDialog
           onClose={() => setShowLogDialog(false)}
           onSubmit={handleLogExecution}
-          buckets={PRIORITY_BUCKETS}
+          buckets={dcaConfig}
         />
       )}
 
