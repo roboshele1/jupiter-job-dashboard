@@ -9,6 +9,20 @@ import { resolvePrices } from "../market/priceResolver.js";
 import { applyPriceFreshness } from "../market/priceFreshnessEngine.js";
 import { fetchHistoricalMarketData } from "../market/marketDataSnapshotEngine.js";
 
+let _cadUsdRate = null;
+let _cadUsdFetchedAt = 0;
+async function getCadUsdRate() {
+  const now = Date.now();
+  if (_cadUsdRate && now - _cadUsdFetchedAt < 3600_000) return _cadUsdRate;
+  try {
+    const res = await fetch("https://api.frankfurter.app/latest?from=CAD&to=USD");
+    const json = await res.json();
+    const rate = json?.rates?.USD;
+    if (rate) { _cadUsdRate = rate; _cadUsdFetchedAt = now; return rate; }
+  } catch(e) {}
+  return _cadUsdRate || 0.74;
+}
+
 /**
  * 🔒 AUTHORITATIVE PORTFOLIO SNAPSHOT
  * - Existing valuation logic preserved
@@ -18,6 +32,9 @@ import { fetchHistoricalMarketData } from "../market/marketDataSnapshotEngine.js
  */
 export async function valuePortfolio(holdings = []) {
   if (!Array.isArray(holdings)) holdings = [];
+
+  const hasTSX = holdings.some(h => String(h.symbol).endsWith(".TO") || String(h.symbol).endsWith(".TSX"));
+  const cadUsdRate = hasTSX ? await getCadUsdRate() : null;
 
   const resolverInput = holdings.map(h => ({
     symbol: h.symbol,
@@ -40,7 +57,9 @@ export async function valuePortfolio(holdings = []) {
       freshness: null
     };
 
-    const livePrice = Number(r.price) || 0;
+    const rawPrice = Number(r.price) || 0;
+    const priceCurrency = r.currency ?? "USD";
+    const livePrice = (priceCurrency === "CAD" && cadUsdRate) ? rawPrice * cadUsdRate : rawPrice;
 
     // 🔒 COST BASIS AUTHORITY (single source of truth)
     const totalCostBasis = Number(h.totalCostBasis) || 0;

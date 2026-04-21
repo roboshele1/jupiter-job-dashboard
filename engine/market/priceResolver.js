@@ -74,14 +74,15 @@ export async function resolvePrices(positions = []) {
       continue;
     }
 
+    const isTSX = symbol.endsWith(".TO") || symbol.endsWith(".TSX");
     const intraday = intradayMap[symbol];
     if (intraday) {
-      prices[symbol] = { price: intraday.price, source: intraday.source, currency: "USD", fetchedAt };
+      prices[symbol] = { price: intraday.price, source: intraday.source, currency: isTSX ? "CAD" : "USD", fetchedAt };
       continue;
     }
 
     const row = fallback?.[symbol];
-    prices[symbol] = { price: Number(row?.price) || 0, source: row?.source || "fallback", currency: "USD", fetchedAt };
+    prices[symbol] = { price: Number(row?.price) || 0, source: row?.source || "fallback", currency: isTSX ? "CAD" : "USD", fetchedAt };
   }
 
   return Object.freeze({
