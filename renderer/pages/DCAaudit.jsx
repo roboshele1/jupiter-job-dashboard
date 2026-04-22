@@ -690,6 +690,7 @@ export default function DCAaudit() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [dcaConfig, setDcaConfig] = useState(DEFAULT_BUCKETS);
   const [showConfigPanel, setShowConfigPanel] = useState(false);
+  const [allHoldings, setAllHoldings] = useState([]);
 
   // Load executions and DCA config on mount
   useEffect(() => {
@@ -699,6 +700,9 @@ export default function DCAaudit() {
     setStats(computed);
     window.jupiter.invoke("dca:config:get").then(cfg => {
       if (cfg) setDcaConfig(cfg);
+    }).catch(() => {});
+    window.jupiter.invoke("holdings:getRaw").then(hdgs => {
+      if (Array.isArray(hdgs)) setAllHoldings(hdgs.map(h => h.symbol).filter(Boolean));
     }).catch(() => {});
   }, []);
 
@@ -890,29 +894,47 @@ export default function DCAaudit() {
         <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 10, padding: "20px 24px", marginBottom: 24 }}>
           <div style={{ ...mono, fontSize: 10, fontWeight: 700, letterSpacing: "0.16em", color: C.textMuted, marginBottom: 16 }}>DCA ALLOCATION SETTINGS</div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24 }}>
-            {["bucketA", "bucketB"].map(bucket => (
-              <div key={bucket}>
-                <div style={{ ...mono, fontSize: 9, color: C.textMuted, letterSpacing: "0.12em", marginBottom: 10 }}>{bucket === "bucketA" ? "BUCKET A (40% of DCA)" : "BUCKET B (60% of DCA)"}</div>
-                {dcaConfig[bucket].map((item, idx) => (
-                  <div key={item.symbol} style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10, padding: "10px 14px", background: item.active ? "#0a1a0a" : C.bgCard, border: `1px solid ${item.active ? C.green+"40" : C.border}`, borderRadius: 6 }}>
-                    <input type="checkbox" checked={item.active} onChange={e => {
-                      const updated = { ...dcaConfig };
-                      updated[bucket] = updated[bucket].map((s, i) => i === idx ? { ...s, active: e.target.checked } : s);
-                      setDcaConfig(updated);
-                      window.jupiter.invoke("dca:config:save", updated).catch(() => {});
-                    }} style={{ cursor: "pointer", accentColor: C.green }} />
-                    <span style={{ ...mono, fontSize: 12, fontWeight: 700, color: item.active ? C.text : C.textMuted, flex: 1 }}>{item.symbol}</span>
-                    <input type="number" min="0" max="1" step="0.05" value={item.pct} onChange={e => {
-                      const updated = { ...dcaConfig };
-                      updated[bucket] = updated[bucket].map((s, i) => i === idx ? { ...s, pct: Number(e.target.value) } : s);
-                      setDcaConfig(updated);
-                      window.jupiter.invoke("dca:config:save", updated).catch(() => {});
-                    }} style={{ ...mono, fontSize: 11, width: 60, padding: "4px 8px", background: C.bgCard, border: `1px solid ${C.border}`, borderRadius: 4, color: C.text, textAlign: "right" }} />
-                    <span style={{ ...mono, fontSize: 10, color: C.textMuted }}>weight</span>
-                  </div>
-                ))}
-              </div>
-            ))}
+            {["bucketA", "bucketB"].map(bucket => {
+              const bucketItems = dcaConfig[bucket] || [];
+              const otherBucket = bucket === "bucketA" ? "bucketB" : "bucketA";
+              const otherSymbols = (dcaConfig[otherBucket] || []).filter(s => s.active).map(s => s.symbol);
+              const existingSymbols = bucketItems.map(s => s.symbol);
+              const safeHoldings = Array.isArray(allHoldings) ? allHoldings : [];
+              const EXCLUDE = new Set(["BTC", "ETH", "ZMMK.TO"]);
+              const mergedItems = [
+                ...bucketItems,
+                ...safeHoldings.filter(sym => !existingSymbols.includes(sym) && !EXCLUDE.has(sym) && !otherSymbols.includes(sym)).map(sym => ({ symbol: sym, pct: 0.10, active: false }))
+              ];
+              return (
+                <div key={bucket}>
+                  <div style={{ ...mono, fontSize: 9, color: C.textMuted, letterSpacing: "0.12em", marginBottom: 10 }}>{bucket === "bucketA" ? "BUCKET A (40% of DCA)" : "BUCKET B (60% of DCA)"}</div>
+                  {mergedItems.map((item, idx) => (
+                    <div key={item.symbol} style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8, padding: "10px 14px", background: item.active ? "#0a1a0a" : C.bgCard, border: `1px solid ${item.active ? C.green+"40" : C.border}`, borderRadius: 6 }}>
+                      <input type="checkbox" checked={item.active} onChange={e => {
+                        const updated = { ...dcaConfig };
+                        const exists = updated[bucket].find(s => s.symbol === item.symbol);
+                        if (exists) {
+                          updated[bucket] = updated[bucket].map(s => s.symbol === item.symbol ? { ...s, active: e.target.checked } : s);
+                        } else {
+                          updated[bucket] = [...updated[bucket], { ...item, active: e.target.checked }];
+                        }
+                        setDcaConfig(updated);
+                        window.jupiter.invoke("dca:config:save", updated).catch(() => {});
+                      }} style={{ cursor: "pointer", accentColor: C.green }} />
+                      <span style={{ ...mono, fontSize: 12, fontWeight: 700, color: item.active ? C.text : C.textMuted, flex: 1 }}>{item.symbol}</span>
+                      {!item.active && <span style={{ ...mono, fontSize: 9, color: C.textMuted }}>inactive</span>}
+                      {item.active && <input type="number" min="0" max="1" step="0.05" value={item.pct} onChange={e => {
+                        const updated = { ...dcaConfig };
+                        updated[bucket] = updated[bucket].map(s => s.symbol === item.symbol ? { ...s, pct: Number(e.target.value) } : s);
+                        setDcaConfig(updated);
+                        window.jupiter.invoke("dca:config:save", updated).catch(() => {});
+                      }} style={{ ...mono, fontSize: 11, width: 60, padding: "4px 8px", background: C.bgCard, border: `1px solid ${C.border}`, borderRadius: 4, color: C.text, textAlign: "right" }} />}
+                      {item.active && <span style={{ ...mono, fontSize: 10, color: C.textMuted }}>weight</span>}
+                    </div>
+                  ))}
+                </div>
+              );
+            })}
           </div>
         </div>
       )}
