@@ -1,4 +1,5 @@
 import { C } from "../styles/colorScheme.js";
+import EntryZonePanel from "../components/EntryZonePanel";
 import React, { useEffect, useState, useCallback } from "react";
 
 // ─────────────────────────────────────────────
@@ -197,6 +198,23 @@ function EquityCard({ s }) {
           {s.interpretation.summary}
         </div>
       )}
+
+      {/* Entry Zone Analysis */}
+      <EntryZonePanel
+        symbol={s.symbol}
+        data={{
+          price: price,
+          sma20: sma20,
+          sma50: sma50,
+          w40: sma200w,
+          vsSma20: price && sma20 ? +((price - sma20) / sma20 * 100).toFixed(1) : 0,
+          vsSma50: price && sma50 ? +((price - sma50) / sma50 * 100).toFixed(1) : 0,
+          vsW40: price && sma200w ? +((price - sma200w) / sma200w * 100).toFixed(1) : 0,
+          location: s.location || '',
+          trend: s.trend || '',
+          momentum: s.momentum || '',
+        }}
+      />
     </div>
   );
 }
