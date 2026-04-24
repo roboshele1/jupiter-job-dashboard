@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 
 const SIGNAL_COLORS = {
   ADD: '#00c48c',
@@ -85,6 +85,115 @@ function ZoneBar({ zone, currentPrice, color }) {
       <div style={{ fontSize: 11, color: '#666', marginTop: 4 }}>{zone.rationale}</div>
     </div>
   )
+}
+
+
+const GOAL_TARGET = 1_000_000;
+const GOAL_YEAR   = 2037;
+const MAX_POSITION_PCT = 0.15; // 15% max per stock
+
+function calcOnTrackValue(portfolioValue, requiredCAGR) {
+  const now = new Date();
+  const yearsElapsed = now.getFullYear() - 2025 + now.getMonth() / 12;
+  const startValue = 76993; // approximate start — will self-correct via live data
+  return startValue * Math.pow(1 + requiredCAGR / 100, yearsElapsed);
+}
+
+function GapBridgeAdvisor({ symbol, currentPrice, signal, primaryZone, secondaryZone }) {
+  const [data, setData] = useState(null);
+
+  useEffect(() => {
+    window.jupiter.invoke('portfolio:getValuation').then(val => {
+      if (!val) return;
+      const portfolioValue = val.totals?.liveValue || 0;
+      const now = new Date();
+      const yearsRemaining = GOAL_YEAR - now.getFullYear() - now.getMonth() / 12;
+      const requiredCAGR = (Math.pow(GOAL_TARGET / portfolioValue, 1 / yearsRemaining) - 1) * 100;
+      const onTrackValue = calcOnTrackValue(portfolioValue, requiredCAGR);
+      const portfolioGap = Math.max(0, onTrackValue - portfolioValue);
+      const position = val.positions?.find(p => p.symbol === symbol);
+      const currentHolding = Number(position?.liveValue || 0);
+      const maxAllowable = portfolioValue * MAX_POSITION_PCT;
+      const headroom = Math.max(0, maxAllowable - currentHolding);
+      const inPrimaryZone = currentPrice >= primaryZone?.low && currentPrice <= primaryZone?.high;
+      const inSecondaryZone = currentPrice >= secondaryZone?.low && currentPrice <= secondaryZone?.high;
+      const inAnyZone = inPrimaryZone || inSecondaryZone;
+      const zonePct = inPrimaryZone ? 0.50 : inSecondaryZone ? 0.30 : 0;
+      const suggestedDeploy = Math.min(portfolioGap * zonePct, headroom);
+      const shareCount = currentPrice > 0 ? Math.floor(suggestedDeploy / currentPrice) : 0;
+      setData({
+        portfolioValue,
+        portfolioGap,
+        requiredCAGR,
+        currentHolding,
+        headroom,
+        inAnyZone,
+        inPrimaryZone,
+        inSecondaryZone,
+        suggestedDeploy,
+        shareCount,
+        onTrackValue,
+      });
+    }).catch(() => {});
+  }, [symbol, currentPrice]);
+
+  if (!data) return null;
+
+  const shouldAct = signal === 'ADD' && data.inAnyZone && data.shareCount > 0;
+  const zoneLabel = data.inPrimaryZone ? 'Primary Buy Zone' : data.inSecondaryZone ? 'Secondary Buy Zone' : null;
+
+  return (
+    <div style={{
+      marginTop: 14,
+      padding: '12px 16px',
+      borderRadius: 8,
+      border: `1px solid ${shouldAct ? '#00c48c44' : '#1e2330'}`,
+      background: shouldAct ? '#00c48c08' : '#0a0d14',
+    }}>
+      <div style={{ fontSize: 10, color: '#556', letterSpacing: '0.1em', fontFamily: 'IBM Plex Mono, monospace', marginBottom: 10 }}>
+        2037 GAP BRIDGE ADVISOR
+      </div>
+
+      {shouldAct ? (
+        <>
+          <div style={{ fontSize: 13, color: '#e2e8f0', lineHeight: 1.7, fontFamily: 'IBM Plex Mono, monospace', marginBottom: 10 }}>
+            To stay on track for 2037, your portfolio is{' '}
+            <span style={{ color: '#f0b429', fontWeight: 700 }}>${data.portfolioGap.toLocaleString(undefined, {maximumFractionDigits: 0})}</span>
+            {' '}behind target. Based on the current <span style={{ color: '#00c48c', fontWeight: 700 }}>BUY signal</span> for{' '}
+            <span style={{ color: '#fff', fontWeight: 700 }}>{symbol}</span> ({zoneLabel}), add{' '}
+            <span style={{ color: '#00c48c', fontWeight: 700, fontSize: 16 }}>{data.shareCount} shares</span>{' '}
+            to bridge the gap.
+          </div>
+          <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap' }}>
+            <div style={{ fontSize: 11, fontFamily: 'IBM Plex Mono, monospace' }}>
+              <span style={{ color: '#556' }}>DEPLOY  </span>
+              <span style={{ color: '#e2e8f0' }}>${data.suggestedDeploy.toLocaleString(undefined, {maximumFractionDigits: 0})}</span>
+            </div>
+            <div style={{ fontSize: 11, fontFamily: 'IBM Plex Mono, monospace' }}>
+              <span style={{ color: '#556' }}>CURRENT HOLDING  </span>
+              <span style={{ color: '#e2e8f0' }}>${data.currentHolding.toLocaleString(undefined, {maximumFractionDigits: 0})}</span>
+            </div>
+            <div style={{ fontSize: 11, fontFamily: 'IBM Plex Mono, monospace' }}>
+              <span style={{ color: '#556' }}>POSITION HEADROOM  </span>
+              <span style={{ color: '#e2e8f0' }}>${data.headroom.toLocaleString(undefined, {maximumFractionDigits: 0})}</span>
+            </div>
+            <div style={{ fontSize: 11, fontFamily: 'IBM Plex Mono, monospace' }}>
+              <span style={{ color: '#556' }}>REQUIRED CAGR  </span>
+              <span style={{ color: '#e2e8f0' }}>{data.requiredCAGR.toFixed(1)}%</span>
+            </div>
+          </div>
+        </>
+      ) : (
+        <div style={{ fontSize: 12, color: '#556', fontFamily: 'IBM Plex Mono, monospace', lineHeight: 1.6 }}>
+          {signal !== 'ADD'
+            ? `Signal is ${signal} — no deployment recommended. Wait for price to enter a Buy Zone.`
+            : !data.inAnyZone
+            ? `Price is outside defined Buy Zones. Hold / wait for pullback before deploying capital.`
+            : `Share count rounds to 0 — gap too small or position at max allocation.`}
+        </div>
+      )}
+    </div>
+  );
 }
 
 export default function EntryZonePanel({ symbol, data }) {
@@ -306,6 +415,15 @@ export default function EntryZonePanel({ symbol, data }) {
                 </span>
                 <span style={{ color: '#666', marginLeft: 10 }}>{r.invalidationLevel.note}</span>
               </div>
+
+              {/* Gap Bridge Advisor */}
+              <GapBridgeAdvisor
+                symbol={symbol}
+                currentPrice={data.price}
+                signal={r.signal}
+                primaryZone={r.primaryZone}
+                secondaryZone={r.secondaryZone}
+              />
             </div>
           )}
         </div>
