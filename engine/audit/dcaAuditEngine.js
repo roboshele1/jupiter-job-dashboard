@@ -281,7 +281,7 @@ export function calculateAuditStats(timestamp = null) {
   
   const statuses = executions.reduce((acc, e) => {
     if (e.driftStatus === "BEATING") acc.beating++;
-    else if (e.driftStatus === "ON_TRACK") acc.onTrack++;
+    else if (e.driftStatus === "ON_TRACK" || e.driftStatus === "TOO_EARLY") acc.onTrack++;
     else if (e.driftStatus === "LAGGING") acc.lagging++;
     return acc;
   }, { beating: 0, onTrack: 0, lagging: 0 });

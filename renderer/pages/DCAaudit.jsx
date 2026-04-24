@@ -352,8 +352,8 @@ function CAGRPerformancePanel({ executions, currentPortfolioValue }) {
 
   // Project 2037 value using live market value (not cost basis)
   const projectedValue2037 = overallBlendedCAGR
-    ? (totalMarketValue || 74232) * Math.pow(1 + overallBlendedCAGR / 100, YEARS_TO_GOAL)
-    : (totalMarketValue || 74232);
+    ? (totalMarketValue || currentPortfolioValue) * Math.pow(1 + overallBlendedCAGR / 100, YEARS_TO_GOAL)
+    : (totalMarketValue || currentPortfolioValue);
 
   const shortfall = GOAL_TARGET - projectedValue2037;
   const statusColor = overallBlendedCAGR >= REQUIRED_CAGR ? C.green : (overallBlendedCAGR >= REQUIRED_CAGR - 0.5 ? C.gold : C.red);
@@ -688,6 +688,8 @@ export default function DCAaudit() {
   const [executions, setExecutions] = useState([]);
   const [stats, setStats] = useState(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [livePortfolioValue, setLivePortfolioValue] = useState(0);
+  useEffect(() => { window.jupiter.invoke('portfolio:getValuation').then(v => { if (v?.totals?.liveValue) setLivePortfolioValue(v.totals.liveValue); }).catch(() => {}); }, []);
   const [dcaConfig, setDcaConfig] = useState(DEFAULT_BUCKETS);
   const [showConfigPanel, setShowConfigPanel] = useState(false);
   const [allHoldings, setAllHoldings] = useState([]);
@@ -809,7 +811,7 @@ export default function DCAaudit() {
       </div>
 
       {/* CAGR Performance Panel */}
-      <CAGRPerformancePanel executions={executions} currentPortfolioValue={stats?.currentValue || 74232} />
+      <CAGRPerformancePanel executions={executions} currentPortfolioValue={livePortfolioValue || stats?.currentValue || 0} />
 
       {/* Drift Summary */}
       {stats && (
