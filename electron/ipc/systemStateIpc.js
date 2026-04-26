@@ -26,7 +26,7 @@ export function registerSystemStateIpc(ipcMain) {
     const ctx = await assembleIntelligenceContext();
     const risk = normalizeRiskSnapshot({
       positions: ctx.positions,
-      totals: ctx.totals
+      totals: { totalValue: ctx.totals?.liveValue || ctx.totals?.totalValue || 0 }
     });
 
     /* ENGINE COMPUTE — ASSET SYSTEM STATE */
