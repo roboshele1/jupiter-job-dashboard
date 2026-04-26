@@ -6,7 +6,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const LEDGER_PATH = path.resolve(__dirname, '../../engine/snapshots/decision_ledger.json');
+const LEDGER_PATH = '/Users/theadoos/JUPITER/snapshots/decision_ledger.json';
 
 function loadLedger() {
   try {
@@ -40,4 +40,24 @@ export function registerInsightsIpc(ipcMain) {
   });
 
   console.log('[IPC] Insights handler registered (insights:record) ✓');
+
+  ipcMain.handle('ledger:getHistory', async () => {
+    try {
+      const ledger = loadLedger();
+      const entries = ledger
+        .filter(e => e.portfolioValue && e.timestamp)
+        .map(e => ({
+          timestamp: typeof e.timestamp === 'number'
+            ? new Date(e.timestamp).toISOString()
+            : e.timestamp,
+          portfolioValue: Number(e.portfolioValue),
+        }));
+      return { ok: true, data: entries };
+    } catch (err) {
+      return { ok: false, error: err.message };
+    }
+  });
+
+  console.log('[IPC] Insights handler registered (ledger:getHistory) ✓');
+
 }
