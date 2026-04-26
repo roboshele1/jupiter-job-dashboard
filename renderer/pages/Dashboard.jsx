@@ -1,4 +1,5 @@
 import { C } from "../styles/colorScheme.js";
+import EquityCurve from "../components/EquityCurve.jsx";
 import { useEffect, useMemo, useState } from "react";
 import { useAlerts } from "../context/AlertContext";
 import AssetSystemStatePanel from "../components/AssetSystemStatePanel.jsx";
@@ -171,6 +172,7 @@ export default function Dashboard() {
         ))}
       </div>
 
+      <EquityCurve />
       <div style={{ background: "rgba(31,41,55,0.6)", border: "1px solid #374151", borderRadius: 12, padding: "22px 24px", marginBottom: 20 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 14 }}>
           <div>
