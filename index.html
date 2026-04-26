@@ -1075,13 +1075,10 @@ Provide a 3–4 sentence briefing. Identify the primary watch item (BTC approach
     orb.classList.add('thinking');
 
     try {
-      const response = await fetch('https://api.anthropic.com/v1/messages', {
+      const response = await fetch('https://jupiter-ai.bigroboshele.workers.dev', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'x-api-key': ANTHROPIC_KEY,
-          'anthropic-version': '2023-06-01',
-          'anthropic-dangerous-direct-browser-access': 'true'
         },
         body: JSON.stringify({
           model: MODEL,
@@ -1149,13 +1146,10 @@ Provide a 3–4 sentence briefing. Identify the primary watch item (BTC approach
     const messages = chatHistory[currentTab].map(m => ({ role: m.role, content: m.content }));
 
     try {
-      const response = await fetch('https://api.anthropic.com/v1/messages', {
+      const response = await fetch('https://jupiter-ai.bigroboshele.workers.dev', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'x-api-key': ANTHROPIC_KEY,
-          'anthropic-version': '2023-06-01',
-          'anthropic-dangerous-direct-browser-access': 'true'
         },
         body: JSON.stringify({
           model: MODEL,
