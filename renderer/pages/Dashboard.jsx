@@ -75,6 +75,13 @@ export default function Dashboard() {
       if (v.status     === "fulfilled") setValuation(v.value);
       if (sys.status   === "fulfilled") setSystemState(sys.value);
       setLastRefresh(new Date());
+      // Auto-snapshot portfolio value into ledger on every refresh
+      if (v.status === "fulfilled" && v.value?.totals?.liveValue) {
+        window.jupiter.invoke("ledger:snapshotValue", {
+          portfolioValue: v.value.totals.liveValue,
+          timestamp: new Date().toISOString(),
+        }).catch(() => {});
+      }
     } finally {
       setRefreshing(false);
     }
