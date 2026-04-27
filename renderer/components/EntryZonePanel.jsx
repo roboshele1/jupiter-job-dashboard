@@ -99,6 +99,22 @@ function calcOnTrackValue(portfolioValue, requiredCAGR) {
   return startValue * Math.pow(1 + requiredCAGR / 100, yearsElapsed);
 }
 
+// Per-symbol hard caps — maximum % of total portfolio
+const POSITION_HARD_CAPS = {
+  BTC:  0.20, NVDA: 0.18, AVGO: 0.20, NOW:  0.15,
+  MELI: 0.15, PLTR: 0.15, APP:  0.15, RKLB: 0.12,
+  ZETA: 0.12, NU:   0.12, AXON: 0.12, ASML: 0.12,
+  DEFAULT: 0.15,
+};
+
+function getConcentrationStatus(currentPct, hardCap) {
+  const utilization = currentPct / hardCap;
+  if (utilization >= 1.0)  return { status: 'AT_CAP',      color: '#ef4444', label: 'AT CAP' };
+  if (utilization >= 0.85) return { status: 'NEAR_CAP',    color: '#f59e0b', label: 'NEAR CAP' };
+  if (utilization >= 0.65) return { status: 'ELEVATED',    color: '#fbbf24', label: 'ELEVATED' };
+  return                          { status: 'HEALTHY',      color: '#22c55e', label: 'HEALTHY' };
+}
+
 function GapBridgeAdvisor({ symbol, currentPrice, signal, primaryZone, secondaryZone }) {
   const [data, setData] = useState(null);
 
@@ -113,25 +129,36 @@ function GapBridgeAdvisor({ symbol, currentPrice, signal, primaryZone, secondary
       const portfolioGap = Math.max(0, onTrackValue - portfolioValue);
       const position = val.positions?.find(p => p.symbol === symbol);
       const currentHolding = Number(position?.liveValue || 0);
-      const maxAllowable = portfolioValue * MAX_POSITION_PCT;
+      const currentPct = portfolioValue > 0 ? currentHolding / portfolioValue : 0;
+
+      // Use per-symbol hard cap, fallback to default
+      const hardCap = POSITION_HARD_CAPS[symbol] ?? POSITION_HARD_CAPS.DEFAULT;
+      const maxAllowable = portfolioValue * hardCap;
       const headroom = Math.max(0, maxAllowable - currentHolding);
-      const inPrimaryZone = currentPrice >= primaryZone?.low && currentPrice <= primaryZone?.high;
+      const headroomShares = currentPrice > 0 ? Math.floor(headroom / currentPrice) : 0;
+
+      const concentration = getConcentrationStatus(currentPct, hardCap);
+
+      const inPrimaryZone   = currentPrice >= primaryZone?.low   && currentPrice <= primaryZone?.high;
       const inSecondaryZone = currentPrice >= secondaryZone?.low && currentPrice <= secondaryZone?.high;
       const inAnyZone = inPrimaryZone || inSecondaryZone;
       const zonePct = inPrimaryZone ? 0.50 : inSecondaryZone ? 0.30 : 0;
-      const suggestedDeploy = Math.min(portfolioGap * zonePct, headroom);
-      const shareCount = currentPrice > 0 ? Math.floor(suggestedDeploy / currentPrice) : 0;
+
+      // Gap-driven share count — then constrained by concentration headroom
+      const rawDeploy       = portfolioGap * zonePct;
+      const cappedDeploy    = Math.min(rawDeploy, headroom);
+      const rawShareCount   = currentPrice > 0 ? Math.floor(rawDeploy   / currentPrice) : 0;
+      const shareCount      = currentPrice > 0 ? Math.floor(cappedDeploy / currentPrice) : 0;
+      const wasConstrained  = shareCount < rawShareCount;
+
       setData({
-        portfolioValue,
-        portfolioGap,
-        requiredCAGR,
-        currentHolding,
-        headroom,
-        inAnyZone,
-        inPrimaryZone,
-        inSecondaryZone,
-        suggestedDeploy,
-        shareCount,
+        portfolioValue, portfolioGap, requiredCAGR,
+        currentHolding, currentPct, hardCap,
+        headroom, headroomShares,
+        concentration,
+        inAnyZone, inPrimaryZone, inSecondaryZone,
+        suggestedDeploy: cappedDeploy,
+        rawShareCount, shareCount, wasConstrained,
         onTrackValue,
       });
     }).catch(() => {});
@@ -139,23 +166,52 @@ function GapBridgeAdvisor({ symbol, currentPrice, signal, primaryZone, secondary
 
   if (!data) return null;
 
-  const shouldAct = signal === 'ADD' && data.inAnyZone && data.shareCount > 0;
+  const atCap    = data.concentration.status === 'AT_CAP';
+  const nearCap  = data.concentration.status === 'NEAR_CAP';
+  const shouldAct = signal === 'ADD' && data.inAnyZone && data.shareCount > 0 && !atCap;
   const zoneLabel = data.inPrimaryZone ? 'Primary Buy Zone' : data.inSecondaryZone ? 'Secondary Buy Zone' : null;
 
   return (
     <div style={{
-      marginTop: 14,
-      padding: '12px 16px',
-      borderRadius: 8,
-      border: `1px solid ${shouldAct ? '#00c48c44' : '#1e2330'}`,
-      background: shouldAct ? '#00c48c08' : '#0a0d14',
+      marginTop: 14, padding: '12px 16px', borderRadius: 8,
+      border: `1px solid ${atCap ? '#ef444444' : shouldAct ? '#00c48c44' : '#1e2330'}`,
+      background: atCap ? '#ef444408' : shouldAct ? '#00c48c08' : '#0a0d14',
     }}>
-      <div style={{ fontSize: 10, color: '#556', letterSpacing: '0.1em', fontFamily: 'IBM Plex Mono, monospace', marginBottom: 10 }}>
-        2037 GAP BRIDGE ADVISOR
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+        <div style={{ fontSize: 10, color: '#556', letterSpacing: '0.1em', fontFamily: 'IBM Plex Mono, monospace' }}>
+          2037 GAP BRIDGE ADVISOR
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ fontSize: 9, color: '#556', fontFamily: 'IBM Plex Mono, monospace' }}>CONCENTRATION</span>
+          <span style={{ fontSize: 9, fontWeight: 700, color: data.concentration.color, fontFamily: 'IBM Plex Mono, monospace',
+            background: data.concentration.color + '18', padding: '2px 7px', borderRadius: 4,
+            border: `1px solid ${data.concentration.color}44` }}>
+            {data.concentration.label} {(data.currentPct * 100).toFixed(1)}% / {(data.hardCap * 100).toFixed(0)}% CAP
+          </span>
+        </div>
       </div>
 
-      {shouldAct ? (
+      {atCap ? (
+        <div style={{ fontSize: 12, color: '#ef4444', fontFamily: 'IBM Plex Mono, monospace', lineHeight: 1.7 }}>
+          ACCUMULATION PAUSED — {symbol} is at its {(data.hardCap * 100).toFixed(0)}% position cap ({(data.currentPct * 100).toFixed(1)}% current weight).
+          Even with a valid BUY signal, adding here creates unacceptable concentration risk.
+          Wait for portfolio growth to create headroom, or trim before adding.
+        </div>
+      ) : shouldAct ? (
         <>
+          {nearCap && (
+            <div style={{ fontSize: 11, color: '#f59e0b', fontFamily: 'IBM Plex Mono, monospace', lineHeight: 1.6,
+              background: '#f59e0b10', border: '1px solid #f59e0b33', borderRadius: 5, padding: '6px 10px', marginBottom: 10 }}>
+              POSITION ADVISORY — {symbol} at {(data.currentPct * 100).toFixed(1)}% is approaching the {(data.hardCap * 100).toFixed(0)}% cap.
+              {data.wasConstrained && ` Share count reduced from ${data.rawShareCount} to ${data.shareCount} to respect concentration limits.`}
+            </div>
+          )}
+          {data.wasConstrained && !nearCap && (
+            <div style={{ fontSize: 11, color: '#60a5fa', fontFamily: 'IBM Plex Mono, monospace', lineHeight: 1.6,
+              background: '#3b82f610', border: '1px solid #3b82f633', borderRadius: 5, padding: '6px 10px', marginBottom: 10 }}>
+              POSITION-ADJUSTED — Gap Bridge target was {data.rawShareCount} shares. Reduced to {data.shareCount} shares to stay within {(data.hardCap * 100).toFixed(0)}% cap.
+            </div>
+          )}
           <div style={{ fontSize: 13, color: '#e2e8f0', lineHeight: 1.7, fontFamily: 'IBM Plex Mono, monospace', marginBottom: 10 }}>
             To stay on track for 2037, your portfolio is{' '}
             <span style={{ color: '#f0b429', fontWeight: 700 }}>${data.portfolioGap.toLocaleString(undefined, {maximumFractionDigits: 0})}</span>
@@ -165,22 +221,17 @@ function GapBridgeAdvisor({ symbol, currentPrice, signal, primaryZone, secondary
             to bridge the gap.
           </div>
           <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap' }}>
-            <div style={{ fontSize: 11, fontFamily: 'IBM Plex Mono, monospace' }}>
-              <span style={{ color: '#556' }}>DEPLOY  </span>
-              <span style={{ color: '#e2e8f0' }}>${data.suggestedDeploy.toLocaleString(undefined, {maximumFractionDigits: 0})}</span>
-            </div>
-            <div style={{ fontSize: 11, fontFamily: 'IBM Plex Mono, monospace' }}>
-              <span style={{ color: '#556' }}>CURRENT HOLDING  </span>
-              <span style={{ color: '#e2e8f0' }}>${data.currentHolding.toLocaleString(undefined, {maximumFractionDigits: 0})}</span>
-            </div>
-            <div style={{ fontSize: 11, fontFamily: 'IBM Plex Mono, monospace' }}>
-              <span style={{ color: '#556' }}>POSITION HEADROOM  </span>
-              <span style={{ color: '#e2e8f0' }}>${data.headroom.toLocaleString(undefined, {maximumFractionDigits: 0})}</span>
-            </div>
-            <div style={{ fontSize: 11, fontFamily: 'IBM Plex Mono, monospace' }}>
-              <span style={{ color: '#556' }}>REQUIRED CAGR  </span>
-              <span style={{ color: '#e2e8f0' }}>{data.requiredCAGR.toFixed(1)}%</span>
-            </div>
+            {[
+              ['DEPLOY',            `$${data.suggestedDeploy.toLocaleString(undefined, {maximumFractionDigits: 0})}`],
+              ['CURRENT HOLDING',   `$${data.currentHolding.toLocaleString(undefined, {maximumFractionDigits: 0})}`],
+              ['CAP HEADROOM',      `$${data.headroom.toLocaleString(undefined, {maximumFractionDigits: 0})} (${data.headroomShares} shares)`],
+              ['REQUIRED CAGR',     `${data.requiredCAGR.toFixed(1)}%`],
+            ].map(([label, value]) => (
+              <div key={label} style={{ fontSize: 11, fontFamily: 'IBM Plex Mono, monospace' }}>
+                <span style={{ color: '#556' }}>{label}  </span>
+                <span style={{ color: '#e2e8f0' }}>{value}</span>
+              </div>
+            ))}
           </div>
         </>
       ) : (
@@ -189,7 +240,7 @@ function GapBridgeAdvisor({ symbol, currentPrice, signal, primaryZone, secondary
             ? `Signal is ${signal} — no deployment recommended. Wait for price to enter a Buy Zone.`
             : !data.inAnyZone
             ? `Price is outside defined Buy Zones. Hold / wait for pullback before deploying capital.`
-            : `Share count rounds to 0 — gap too small or position at max allocation.`}
+            : `Share count rounds to 0 — gap too small or position headroom exhausted.`}
         </div>
       )}
     </div>
