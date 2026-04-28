@@ -1,4 +1,5 @@
-import { app, BrowserWindow, ipcMain } from "electron";
+import { app, BrowserWindow, ipcMain, Notification } from "electron";
+import { startBackgroundMonitorDaemon } from "./daemon/backgroundMonitorDaemon.js";
 import path from "path";
 import "dotenv/config";
 
@@ -88,5 +89,26 @@ registerPortfolioHandlers(ipcMain);
   await computeAndCache();           // Portfolio cache
   createWindow();                    // UI
   startAsymmetryOnce();              // 🔥 AUTONOMOUS SCANS + TELEMETRY
+
+  // Start background monitor daemon — broadcasts position alerts to renderer
+  startBackgroundMonitorDaemon((payload) => {
+    try {
+      if (!mainWindow || mainWindow.isDestroyed()) return;
+      const alerts = payload?.alerts || [];
+      alerts.forEach(alert => {
+        mainWindow.webContents.send('jupiter:alert', alert);
+        // Native macOS notification — fires even if app is minimized
+        if (Notification.isSupported()) {
+          new Notification({
+            title: `JUPITER — ${alert.type === 'ENTRY_OPPORTUNITY' ? '🟢 Entry Signal' : '🔴 Position Alert'}`,
+            body: alert.message,
+            silent: false,
+          }).show();
+        }
+      });
+    } catch (err) {
+      console.error('[Main] Alert broadcast failed:', err.message);
+    }
+  });
 });
 

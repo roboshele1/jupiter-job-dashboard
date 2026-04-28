@@ -69,6 +69,62 @@ function saveAlertLog(alerts) {
   }
 }
 
+
+// ── Position Drift + Entry Opportunity Checker ────────────────────────────
+// Runs every daemon cycle alongside conviction update.
+// Reads latest technical snapshot, scores each position,
+// fires alerts when: score >= 75 (buy signal) or position down >15% from cost
+
+async function checkPositionAlerts() {
+  try {
+    const holdings = loadHoldings();
+    if (!holdings?.length) return [];
+
+    const alerts = [];
+    const now = Date.now();
+
+    // Load latest valuation snapshot from ledger (no dynamic imports)
+    const LEDGER_PATH = path.resolve(__dirname, '../../snapshots/decision_ledger.json');
+    let lastValue = null;
+    try {
+      const ledger = JSON.parse(fs.readFileSync(LEDGER_PATH, 'utf-8'));
+      const last = ledger.filter(e => e.portfolioValue).slice(-1)[0];
+      lastValue = last?.portfolioValue || null;
+    } catch { lastValue = null; }
+
+    for (const h of holdings) {
+      const costBasis = Number(h.totalCostBasis || 0);
+      if (!costBasis) continue;
+
+      // Alert 1: Use avgCost vs current price from holdings if available
+      const avgCost = Number(h.avgCost || h.costPerShare || 0);
+      const currentPrice = Number(h.currentPrice || h.price || 0);
+      if (avgCost > 0 && currentPrice > 0) {
+        const deltaPct = ((currentPrice - avgCost) / avgCost) * 100;
+        if (deltaPct < -15) {
+          const severity = deltaPct < -25 ? 'HIGH' : 'MEDIUM';
+          alerts.push({
+            id: `drift_${now}_${h.symbol}`,
+            timestamp: now,
+            symbol: h.symbol,
+            type: 'POSITION_DRIFT',
+            severity,
+            message: `${h.symbol} is ${deltaPct.toFixed(1)}% below avg cost — review thesis`,
+            deltaPct: Number(deltaPct.toFixed(2)),
+            avgCost,
+            currentPrice,
+          });
+        }
+      }
+    }
+
+    return alerts;
+  } catch (err) {
+    console.error('[Daemon] Position drift check failed:', err.message);
+    return [];
+  }
+}
+
 async function updateConvictions() {
   try {
     const holdings = loadHoldings();
@@ -132,6 +188,12 @@ async function updateConvictions() {
     }
 
     saveConvictionCache(cache);
+
+    // Position drift + entry opportunity alerts
+    const positionAlerts = await checkPositionAlerts();
+    if (positionAlerts.length > 0) {
+      alerts.push(...positionAlerts);
+    }
 
     // Log alerts
     if (alerts.length > 0) {

@@ -102,22 +102,24 @@ function RegimeClassifierCard() {
 export default function Dashboard() {
   const { addAlert } = useAlerts();
 
+  // Live alert subscription — daemon pushes to renderer in real time
   useEffect(() => {
-    (async () => {
-      try {
-        const holdingsRes = await window.jupiter.invoke('holdings:getRaw');
-        if (holdingsRes?.ok) {
-          const result = await window.jupiter.invoke('daemon:runMonitoring', {
-            holdings: holdingsRes.data || []
-          });
-          if (result?.ok && result.data?.length > 0) {
-            result.data.forEach(alert => addAlert(alert));
-          }
-        }
-      } catch (err) {
-        console.error('Monitoring error:', err);
+    // 1. Subscribe to live daemon broadcasts
+    const unsub = window.jupiter.on('jupiter:alert', (alert) => {
+      if (alert) addAlert(alert);
+    });
+
+    // 2. Pull any alerts already in the log on mount
+    window.jupiter.invoke('daemon:getAlerts', 10).then(res => {
+      if (res?.ok && res.alerts?.length) {
+        const cutoff = Date.now() - 60 * 60 * 1000; // last 1hr only
+        res.alerts
+          .filter(a => a.timestamp > cutoff)
+          .forEach(a => addAlert(a));
       }
-    })();
+    }).catch(() => {});
+
+    return () => { if (typeof unsub === 'function') unsub(); };
   }, [addAlert]);
 
   const [valuation,   setValuation]   = useState(null);
