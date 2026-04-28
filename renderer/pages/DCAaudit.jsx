@@ -6,7 +6,7 @@
  * Entry prices fetched live from Polygon API
  */
 
-import { useEffect, useState, useMemo } from "react";
+import React, { useEffect, useState, useMemo } from "react";
 import {
   logBatchDCAExecutionWithPrices,
   updateExecutionPricesLive,
@@ -261,6 +261,133 @@ function LogExecutionDialog({ onClose, onSubmit, buckets }) {
             Cancel
           </button>
         </div>
+      </div>
+    </div>
+  );
+}
+
+
+// ── ML: CAGR Forecast Panel ────────────────────────────────────────────────
+// Reads ledger snapshots via ml:cagrForecast, fits log-linear regression,
+// projects 1/3/5yr with ±1.5σ confidence bands. Pure Node math, no deps.
+function MLForecastPanel() {
+  const [forecast, setForecast] = React.useState(null);
+  const [loading, setLoading]   = React.useState(true);
+
+  React.useEffect(() => {
+    window.jupiter.invoke('ml:cagrForecast')
+      .then(res => { if (res?.ok) setForecast(res.data); })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+
+  const GOAL = 1_000_000;
+  const REQUIRED_CAGR = 26.7;
+
+  if (loading) return (
+    <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 10, padding: "20px 24px", marginBottom: 24, ...mono, fontSize: 11, color: C.textMuted }}>
+      Running CAGR regression…
+    </div>
+  );
+
+  if (!forecast || !forecast.projections?.length) return (
+    <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 10, padding: "20px 24px", marginBottom: 24, ...mono, fontSize: 11, color: C.textMuted }}>
+      Insufficient ledger data for forecast — portfolio value snapshots accumulate daily. Check back tomorrow.
+    </div>
+  );
+
+  const cagrColor = forecast.cagr >= REQUIRED_CAGR ? C.green : forecast.cagr >= REQUIRED_CAGR - 5 ? C.gold : C.red;
+  const fiveYr = forecast.projections.find(p => p.years === 5);
+  const threeYr = forecast.projections.find(p => p.years === 3);
+  const oneYr = forecast.projections.find(p => p.years === 1);
+
+  // Mini SVG timeline bar
+  const maxVal = fiveYr ? fiveYr.high : GOAL;
+  const barW = 420;
+  const barH = 56;
+  const toX = v => Math.min((v / maxVal) * barW, barW);
+
+  return (
+    <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 10, padding: "20px 24px", marginBottom: 24 }}>
+      {/* Header */}
+      <div style={{ ...mono, fontSize: 10, fontWeight: 700, letterSpacing: "0.18em", color: C.textMuted, textTransform: "uppercase", marginBottom: 16 }}>
+        ML CAGR Trajectory Forecast
+        <span style={{ marginLeft: 12, fontWeight: 400, color: "#374151" }}>
+          log-linear regression · {forecast.dataPoints} snapshots · R² {forecast.rSquared}
+        </span>
+      </div>
+
+      {/* Top metrics */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 14, marginBottom: 20 }}>
+        <div style={{ background: C.panel, border: `1px solid ${C.borderAcc}`, borderRadius: 8, padding: "12px 14px" }}>
+          <div style={{ ...mono, fontSize: 9, color: C.textMuted, marginBottom: 6, textTransform: "uppercase" }}>Fitted CAGR</div>
+          <div style={{ ...mono, fontSize: 22, fontWeight: 800, color: cagrColor }}>{forecast.cagr}%</div>
+          <div style={{ ...mono, fontSize: 9, color: C.textMuted, marginTop: 4 }}>target {REQUIRED_CAGR}%</div>
+        </div>
+        {[oneYr, threeYr, fiveYr].map(p => p && (
+          <div key={p.years} style={{ background: C.panel, border: `1px solid ${C.borderAcc}`, borderRadius: 8, padding: "12px 14px" }}>
+            <div style={{ ...mono, fontSize: 9, color: C.textMuted, marginBottom: 6, textTransform: "uppercase" }}>{p.years}yr Projection</div>
+            <div style={{ ...mono, fontSize: 16, fontWeight: 800, color: p.mid >= GOAL ? C.green : C.text }}>
+              {fmtMoney(p.mid)}
+            </div>
+            <div style={{ ...mono, fontSize: 9, color: C.textMuted, marginTop: 4 }}>
+              {fmtMoney(p.low)} – {fmtMoney(p.high)}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* SVG confidence band timeline */}
+      <div style={{ marginBottom: 16 }}>
+        <svg width="100%" viewBox={`0 0 ${barW + 60} ${barH + 24}`} style={{ overflow: "visible" }}>
+          {/* Goal line */}
+          <line x1={toX(GOAL)} y1={0} x2={toX(GOAL)} y2={barH} stroke={C.green} strokeWidth={1} strokeDasharray="4 3" opacity={0.5} />
+          <text x={toX(GOAL) + 4} y={10} fill={C.green} fontSize={8} opacity={0.7} fontFamily="IBM Plex Mono">$1M</text>
+
+          {/* Current value dot */}
+          <circle cx={0} cy={barH / 2} r={5} fill={C.blue} />
+          <text x={6} y={barH / 2 + 4} fill={C.textMuted} fontSize={8} fontFamily="IBM Plex Mono">Now</text>
+
+          {/* Projection bands per year */}
+          {forecast.projections.map((p, i) => {
+            const cx = toX(p.mid);
+            const lx = toX(p.low);
+            const hx = toX(p.high);
+            const cy = barH / 2;
+            const bandColor = p.mid >= GOAL ? C.green : C.blue;
+            return (
+              <g key={p.years}>
+                {/* Band */}
+                <rect x={lx} y={cy - 8} width={Math.max(hx - lx, 2)} height={16}
+                  fill={bandColor} opacity={0.12} rx={3} />
+                {/* Low tick */}
+                <line x1={lx} y1={cy - 10} x2={lx} y2={cy + 10} stroke={bandColor} strokeWidth={1} opacity={0.4} />
+                {/* High tick */}
+                <line x1={hx} y1={cy - 10} x2={hx} y2={cy + 10} stroke={bandColor} strokeWidth={1} opacity={0.4} />
+                {/* Mid dot */}
+                <circle cx={cx} cy={cy} r={4} fill={bandColor} />
+                {/* Label */}
+                <text x={cx} y={barH + 16} fill={C.textMuted} fontSize={8} textAnchor="middle" fontFamily="IBM Plex Mono">{p.years}yr</text>
+              </g>
+            );
+          })}
+
+          {/* Trend line from 0 to 5yr mid */}
+          {fiveYr && (
+            <line x1={0} y1={barH / 2} x2={toX(fiveYr.mid)} y2={barH / 2}
+              stroke={cagrColor} strokeWidth={1.5} strokeDasharray="6 3" opacity={0.35} />
+          )}
+        </svg>
+      </div>
+
+      {/* Status message */}
+      <div style={{ background: C.panel, border: `1px solid ${C.borderAcc}`, borderRadius: 8, padding: "10px 14px", ...mono, fontSize: 10, color: C.textMuted, lineHeight: 1.6 }}>
+        {forecast.cagr >= REQUIRED_CAGR ? (
+          <span><span style={{ color: C.green, fontWeight: 700 }}>On trajectory</span> — fitted CAGR of {forecast.cagr}% clears the {REQUIRED_CAGR}% target. 5yr mid projection: {fmtMoney(fiveYr?.mid)}.</span>
+        ) : (
+          <span><span style={{ color: C.red, fontWeight: 700 }}>Below target</span> — fitted CAGR {forecast.cagr}% vs required {REQUIRED_CAGR}%. Gap: {(REQUIRED_CAGR - forecast.cagr).toFixed(1)}pp. Increase allocation to highest-CAGR positions to close.</span>
+        )}
+        <span style={{ marginLeft: 8, color: "#374151" }}>Confidence bands ±1.5σ.</span>
       </div>
     </div>
   );
@@ -809,6 +936,9 @@ export default function DCAaudit() {
           color={stats?.aggregateReturnPct >= 0 ? C.green : C.red}
         />
       </div>
+
+      {/* ML CAGR Forecast Panel */}
+      <MLForecastPanel />
 
       {/* CAGR Performance Panel */}
       <CAGRPerformancePanel executions={executions} currentPortfolioValue={livePortfolioValue || stats?.currentValue || 0} />

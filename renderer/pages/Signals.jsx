@@ -114,6 +114,76 @@ function DistanceBadge({ label, price, sma, note }) {
 }
 
 // Goal anchor row — shown inside each equity card
+
+// ── ML: Entry Timing Score Badge ───────────────────────────────────────────
+function EntryTimingBadge({ symbol, price, sma20, sma50, w40, trend, momentum, location }) {
+  const [timing, setTiming] = React.useState(null);
+  const [open, setOpen] = React.useState(false);
+
+  React.useEffect(() => {
+    if (!price || !sma20) return;
+    window.jupiter.invoke('ml:entryTimingScore', {
+      symbol, price, sma20, sma50, w40, trend, momentum, location
+    }).then(res => {
+      if (res?.ok) setTiming(res.data);
+    }).catch(() => {});
+  }, [symbol, price, sma20, sma50]);
+
+  if (!timing) return null;
+
+  const gradeColor = {
+    A: '#4ade80', B: '#60a5fa', C: '#fbbf24', D: '#fb923c', F: '#f87171'
+  }[timing.grade] || '#9ca3af';
+
+  return (
+    <div style={{ marginTop: 14, borderTop: `1px solid ${C.border}`, paddingTop: 12 }}>
+      {/* Score row */}
+      <div
+        onClick={() => setOpen(o => !o)}
+        style={{ display: "flex", alignItems: "center", justifyContent: "space-between", cursor: "pointer", userSelect: "none" }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <span style={{ fontSize: 10, color: C.textMuted, letterSpacing: "0.1em", fontFamily: C.font }}>ML ENTRY SCORE</span>
+          {/* Score bar */}
+          <div style={{ width: 80, height: 6, background: "#1f2937", borderRadius: 3, overflow: "hidden" }}>
+            <div style={{ width: `${timing.score}%`, height: "100%", background: gradeColor, borderRadius: 3, transition: "width 0.5s ease" }} />
+          </div>
+          <span style={{ fontSize: 13, fontWeight: 800, color: gradeColor }}>{timing.score}</span>
+          <span style={{
+            fontSize: 10, fontWeight: 700, color: gradeColor,
+            background: `${gradeColor}18`, border: `1px solid ${gradeColor}40`,
+            borderRadius: 4, padding: "1px 6px", letterSpacing: "0.05em"
+          }}>{timing.grade}</span>
+        </div>
+        <span style={{ fontSize: 10, color: C.textMuted }}>{open ? "▲ hide" : "▼ factors"}</span>
+      </div>
+
+      {/* Verdict */}
+      <div style={{ fontSize: 11, color: C.textDim, marginTop: 4, fontFamily: C.font }}>
+        {timing.verdict}
+      </div>
+
+      {/* Factor breakdown — expandable */}
+      {open && timing.factors?.length > 0 && (
+        <div style={{ marginTop: 10, display: "flex", flexDirection: "column", gap: 5 }}>
+          {timing.factors.map((f, i) => (
+            <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 11, fontFamily: C.font }}>
+              <span style={{
+                color: f.impact > 0 ? '#4ade80' : '#f87171',
+                fontWeight: 700, width: 34, textAlign: "right", flexShrink: 0
+              }}>
+                {f.impact > 0 ? `+${f.impact}` : f.impact}
+              </span>
+              <span style={{ color: C.textMuted }}>{f.name}</span>
+              <span style={{ color: "#4b5563", fontSize: 10 }}>— {f.note}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // Single equity technical card
 function EquityCard({ s }) {
   const price = s.price;
@@ -214,6 +284,16 @@ function EquityCard({ s }) {
           trend: s.trend || '',
           momentum: s.momentum || '',
         }}
+      />
+      <EntryTimingBadge
+        symbol={s.symbol}
+        price={price}
+        sma20={sma20}
+        sma50={sma50}
+        w40={sma200w}
+        trend={s.trend}
+        momentum={s.momentum}
+        location={s.location}
       />
     </div>
   );

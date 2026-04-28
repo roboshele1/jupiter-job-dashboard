@@ -1,6 +1,6 @@
 import { C } from "../styles/colorScheme.js";
 import EquityCurve from "../components/EquityCurve.jsx";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useCallback } from "react";
 import { useAlerts } from "../context/AlertContext";
 import AssetSystemStatePanel from "../components/AssetSystemStatePanel.jsx";
 
@@ -37,6 +37,66 @@ function pickBestFreshness(positions) {
     if (rank > bestRank) { bestRank = rank; best = { level }; }
   }
   return best;
+}
+
+
+// ── ML: Regime Classifier Card ─────────────────────────────────────────────
+function RegimeClassifierCard() {
+  const [regime, setRegime] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  const load = useCallback(async () => {
+    try {
+      const res = await window.jupiter.invoke('ml:regimeClassifier');
+      if (res?.ok) setRegime(res.data);
+    } catch (e) {
+      console.error('[RegimeClassifier]', e);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  const regimeColor = {
+    ACCUMULATE: '#4ade80',
+    HOLD:       '#60a5fa',
+    REDUCE:     '#fbbf24',
+    DANGER:     '#f87171',
+  }[regime?.regime] || '#9ca3af';
+
+  const regimeIcon = {
+    ACCUMULATE: '▲',
+    HOLD:       '■',
+    REDUCE:     '▼',
+    DANGER:     '⚠',
+  }[regime?.regime] || '·';
+
+  return (
+    <div style={{ background: "rgba(31,41,55,0.6)", border: `1px solid ${regimeColor}30`, borderRadius: 12, padding: "18px 20px" }}>
+      <div style={{ fontSize: 11, color: "#6b7280", letterSpacing: "0.08em", marginBottom: 8 }}>ML REGIME</div>
+      {loading ? (
+        <div style={{ fontSize: 13, color: "#6b7280" }}>Classifying…</div>
+      ) : !regime ? (
+        <div style={{ fontSize: 13, color: "#6b7280" }}>Unavailable</div>
+      ) : (
+        <>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+            <span style={{ fontSize: 16, color: regimeColor }}>{regimeIcon}</span>
+            <span style={{ fontSize: 20, fontWeight: 800, color: regimeColor }}>{regime.regime}</span>
+          </div>
+          {/* Confidence bar */}
+          <div style={{ width: "100%", height: 4, background: "#1f2937", borderRadius: 2, marginBottom: 6, overflow: "hidden" }}>
+            <div style={{ width: `${regime.confidence}%`, height: "100%", background: regimeColor, borderRadius: 2, transition: "width 0.6s ease" }} />
+          </div>
+          <div style={{ fontSize: 11, color: "#9ca3af", marginBottom: 4 }}>
+            {regime.confidence}% confidence · {regime.snapshotCount} snapshots
+          </div>
+          <div style={{ fontSize: 11, color: "#6b7280", lineHeight: 1.5 }}>{regime.signal}</div>
+        </>
+      )}
+    </div>
+  );
 }
 
 export default function Dashboard() {
@@ -204,12 +264,13 @@ export default function Dashboard() {
       </div>
 
       {/* Row 3: Intelligence Strip */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(2,1fr)", gap: 14, marginBottom: 20 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 14, marginBottom: 20 }}>
         <div style={{ background: "rgba(31,41,55,0.6)", border: "1px solid #374151", borderRadius: 12, padding: "18px 20px" }}>
           <div style={{ fontSize: 11, color: "#6b7280", letterSpacing: "0.08em", marginBottom: 8 }}>SYSTEM POSTURE</div>
           <div style={{ fontSize: 20, fontWeight: 800, color: postureColor }}>{posture}</div>
           <div style={{ fontSize: 12, color: "#9ca3af", marginTop: 2 }}>Capital: {capitalState}</div>
         </div>
+        <RegimeClassifierCard />
         <div style={{ background: "rgba(31,41,55,0.6)", border: "1px solid #374151", borderRadius: 12, padding: "18px 20px" }}>
           <div style={{ fontSize: 11, color: "#6b7280", letterSpacing: "0.08em", marginBottom: 8 }}>MARKET DATA</div>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
