@@ -54,7 +54,40 @@ function LoadingScreen() {
 function AppShell() {
   const { user, setSyncing } = useAuth();
 
-  // On first login — push local data to Firestore
+  useEffect(() => {
+    const pollSignals = async () => {
+      try {
+        const result = await window.jupiter.invoke("signals:getActiveSignal");
+        if (result.active) {
+          window.jupiter.signalBadge = result.badge;
+          window.dispatchEvent(new CustomEvent("jupiter:signal-badge-update", { detail: result }));
+          
+          if ("Notification" in window && Notification.permission === "granted") {
+            new Notification(`${result.symbol} Entry Zone Active`, {
+              body: `${result.entryZone} | Confidence: ${result.confidence}`,
+              tag: "signal-" + result.symbol,
+            });
+          }
+        } else {
+          window.jupiter.signalBadge = null;
+        }
+      } catch (err) {
+        console.error("[App] Signal poll failed:", err.message);
+      }
+    };
+
+    pollSignals();
+    const interval = setInterval(pollSignals, 5 * 60 * 1000);
+
+    return () => clearInterval(interval);
+  }, []);
+
+  useEffect(() => {
+    if ("Notification" in window && Notification.permission === "default") {
+      Notification.requestPermission();
+    }
+  }, []);
+
   useEffect(() => {
     if (!user) return;
     (async () => {
@@ -121,7 +154,8 @@ function AppShell() {
   );
 }
 
-// ─── Auth gate ────────────────────────────────────────────────────────────────
+window.signalBadgeData = null;
+
 function AuthGate() {
   const { user } = useAuth();
 
@@ -132,6 +166,54 @@ function AuthGate() {
 
 // ─── Root ─────────────────────────────────────────────────────────────────────
 export default function App() {
+  React.useEffect(() => {
+    if ("Notification" in window) {
+      if (Notification.permission === "default") {
+        Notification.requestPermission().then(permission => {
+          console.log("[App] Notification permission:", permission);
+        });
+      } else {
+        console.log("[App] Notification permission:", Notification.permission);
+      }
+    }
+  }, []);
+
+  React.useEffect(() => {
+    if (!window.electron?.ipcRenderer) return;
+
+    const handleAlert = (event, alert) => {
+      if (Notification.permission !== "granted") return;
+
+      let title = "";
+      let options = {
+        tag: alert.id,
+        silent: false,
+      };
+
+      if (alert.type === "SIGNAL_ACTIVE") {
+        title = `${alert.symbol} Entry Zone Active`;
+        options.body = `${alert.entryZone} | Confidence: ${alert.confidence}`;
+      } else if (alert.type === "CONVICTION_SHIFT") {
+        title = `${alert.symbol} Conviction Shifted`;
+        options.body = `${alert.oldConviction.toFixed(2)} → ${alert.newConviction.toFixed(2)}`;
+      } else if (alert.type === "POSITION_DRIFT") {
+        title = `${alert.symbol} Position Drift`;
+        options.body = `${alert.deltaPct.toFixed(1)}% below cost basis`;
+      }
+
+      if (title) {
+        new Notification(title, options);
+        console.log("[App] Notification fired:", title);
+      }
+    };
+
+    window.electron.ipcRenderer.on("jupiter:alert", handleAlert);
+
+    return () => {
+      window.electron.ipcRenderer.removeListener("jupiter:alert", handleAlert);
+    };
+  }, []);
+
   return (
     <AuthProvider>
       <AuthGate />
